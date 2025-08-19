@@ -17,6 +17,7 @@ from app.model.vae import WebVAE
 from app.model.utils import AudioProcessor
 from app.inference import generate_from_audio, generate_from_chord
 from app.chord_utils import get_all_chord_labels
+from app.inference import router as inference_router
 
 from pathlib import Path
 
