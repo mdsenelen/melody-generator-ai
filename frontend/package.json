@@ -1,0 +1,41 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "tailwind.config.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "express": "^4.21.2",
+    "express-jwt": "^8.5.1",
+    "lodash": "4.17.21",
+    "moment": "2.29.4",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-error-boundary": "^6.0.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.7.1",
+    "winston": "^3.17.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11"
+  },
+  "resolutions": {
+    "lodash": "4.17.21",
+    "moment": "2.29.4",
+    "ws": "8.0.0",
+    "qs": "6.11.0"
+  }
+}

@@ -1,0 +1,135 @@
+/* Font imports - keep these at the top */
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono:wght@400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap");
+
+/* Core Tailwind directives - required */
+@import "tailwindcss";
+
+/* Futuristic Vintage 80s Custom Properties */
+:root {
+  --background: #1a0442;
+  --foreground: #39ffe6;
+  --primary: #ff00cc;
+  --primary-light: #ffb3f6;
+  --secondary: #00e0ff;
+  --accent: #fffb00;
+  --neon-blue: #00e0ff;
+  --neon-pink: #ff00cc;
+  --neon-purple: #a259ff;
+  --neon-yellow: #fff700;
+  --neon-green: #39ffe6;
+
+  /* Audio visualization */
+  --audio-peak: #ff00cc;
+  --audio-high: #fff700;
+  --audio-mid: #00e0ff;
+  --audio-low: #39ffe6;
+  --audio-bass: #a259ff;
+}
+
+/* Base styles */
+body {
+  background: linear-gradient(135deg, #1a0442 0%, #2d006e 100%);
+  color: var(--foreground);
+  font-family: 'Space Grotesk', 'Share Tech Mono', monospace, sans-serif;
+  overscroll-behavior: none;
+  min-height: 100vh;
+  margin: 0;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px var(--neon-blue), 0 0 2px var(--neon-pink);
+}
+
+/* Font classes */
+.font-mono {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 8px var(--neon-pink), 0 0 2px var(--neon-blue);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+  box-shadow: 0 0 6px var(--neon-pink);
+}
+
+/* Music-specific components */
+.audio-visualizer {
+  display: flex;
+  height: 4rem;
+  width: 100%;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.audio-bar {
+  flex: 1;
+  background: linear-gradient(
+    to top,
+    var(--audio-bass),
+    var(--audio-mid),
+    var(--audio-high),
+    var(--audio-peak)
+  );
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 12px var(--neon-pink), 0 0 6px var(--neon-blue);
+}
+
+/* Utility classes */
+.glow-effect {
+  box-shadow: 0 0 16px var(--neon-blue), 0 0 8px var(--neon-pink);
+  transition: box-shadow 0.2s ease;
+}
+
+.glow-effect:hover {
+  box-shadow: 0 0 32px var(--neon-pink), 0 0 16px var(--neon-blue);
+}
+
+/* Futuristic 80s button style */
+.btn {
+  background: linear-gradient(90deg, var(--neon-pink), var(--neon-blue));
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px var(--neon-yellow);
+  box-shadow: 0 0 16px var(--neon-blue), 0 0 8px var(--neon-pink);
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.btn:hover {
+  background: linear-gradient(90deg, var(--neon-blue), var(--neon-pink));
+  box-shadow: 0 0 32px var(--neon-pink), 0 0 16px var(--neon-blue);
+}
+
+/* Genel cursor ayarı (varsayılan): */
+body, a, input, select,
+textarea {
+  cursor: url('/cursors/80s-cassette-tape-diagonal1.cur'), auto;
+}
+
+/* Hover ve focus durumlarında farklı cursor: */
+button:hover,
+button:focus {
+  cursor: url('/cursors/icons8-pixel-star-32.png'), auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .audio-visualizer {
+    height: 3rem;
+  }
+}
