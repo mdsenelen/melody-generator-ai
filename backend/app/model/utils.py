@@ -1,16 +1,24 @@
+import json
+import os
 import librosa
 import numpy as np
-import torch
 import soundfile as sf
-from app.model.vae import WebVAE
+import torch
 from pathlib import Path
 
+from app.model.vae import WebVAE
 
-APP_DIR = Path(__file__).resolve().parent              # backend/app
-MODEL_PATH = APP_DIR / "model" / "weights" / "web_model.pt"
 
-_model_data = torch.load(str(MODEL_PATH), map_location="cpu")
-chord_vocab = _model_data.get("chord_vocab", [])
+APP_DIR = Path(__file__).resolve().parent              # backend/app/model
+MODEL_PATH = APP_DIR / "weights" / "web_model.pt"
+
+# Weights are optional during development; handle missing files gracefully
+if MODEL_PATH.exists():
+    _model_data = torch.load(str(MODEL_PATH), map_location="cpu")
+    chord_vocab = _model_data.get("chord_vocab", [])
+else:  # pragma: no cover - exercised in environments without weights
+    _model_data = {}
+    chord_vocab = []
 
 
 class AudioProcessor:
@@ -50,13 +58,17 @@ class AudioProcessor:
         mel_power = librosa.db_to_power(mel)
 
         audio = librosa.feature.inverse.mel_to_audio(
-            mel_power, sr=self.sr, n_fft=2048, hop_length=512, n_iter=32
+            mel_power,
+            sr=self.sample_rate,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            n_iter=32,
         )
         return audio
 
     def save(self, waveform: np.ndarray, out_path: str):
         """Saves waveform to WAV"""
-        sf.write(out_path, waveform, self.sr)
+        sf.write(out_path, waveform, self.sample_rate)
 
 
 def save_model(model, path, metadata=None):
@@ -82,20 +94,3 @@ def load_model(path: str, device=None) -> WebVAE:
         latent_dim=state['config']['latent_dim']
     )
     model.load_state_dict(state['state_dict'])
-    model.to(device)
-    model.eval()
-    return model
-
-
-class Config:
-    def __init__(self):
-        self.params = self._load_config()
-
-    def _load_config(self):
-        config_path = os.path.join(MODEL_DIR, 'audio_params.json')
-        with open(config_path) as f:
-            return json.load(f)
-
-    @property
-    def audio(self):
-        return self.params['audio']
