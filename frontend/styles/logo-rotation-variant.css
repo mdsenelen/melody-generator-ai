@@ -1,0 +1,17 @@
+.logo-rotation-variant {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.rotating-logo {
+  width: 120px;
+  height: 120px;
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  100% {
+    transform: rotate(360deg);
+  }
+}
