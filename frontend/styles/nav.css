@@ -1,0 +1,80 @@
+nav {
+  display: flex;
+  gap: 1.5rem;
+  background: #0e031c;
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  text-align: justify;
+  text-size-adjust: auto;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+nav a {
+  color: aquamarine;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+nav a:hover,
+nav a:focus {
+  color: #38bdf8; /* Tailwind sky-400 */
+}
+
+nav {
+  display: flex;
+  gap: 1.5rem;
+  background: #222;
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  text-size-adjust: auto;
+  text-align: justify;
+  text-transform: capitalize;
+}
+
+nav a {
+  color: #5665b9;
+  text-decoration: rgb(40, 57, 165);
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+nav a:hover,
+nav a:focus {
+  color: #38bdf8; /* Tailwind sky-400 */
+  text-decoration: underline;
+  text-decoration-color: aqua;
+  -moz-text-decoration-color: aqua; /* Firefox */
+  text-align: justify;
+  text-size-adjust: auto;
+  text-transform: capitalize;
+}
+
+.nav-inline {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav-inline a {
+  color: #fff600;
+  background: #333399;
+  padding: 8px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: background 0.2s, color 0.2s;
+  width: 240px;              /* Sabit genişlik */
+  min-width: 180px;         
+  text-align: center;        
+  display: flex;
+  justify-content: center;   
+  align-items: center;       
+}
+
+.nav-inline a:hover {
+  background: #ff00cc;
+  color: #fff;
+}

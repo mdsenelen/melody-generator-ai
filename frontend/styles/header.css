@@ -1,0 +1,18 @@
+.header-80s {
+  background: linear-gradient(90deg, #ff00cc 0%, #333399 100%);
+  border: 3px solid #fff600;
+  border-radius: 12px;
+  box-shadow: 0 0 16px #fff600, 0 0 32px #ff00cc;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  min-width: 350px;
+  margin-right: 24px;
+}
+.header-80s h1 {
+  color: #fff600;
+  text-shadow: 2px 2px 0 #ff00cc, 4px 4px 0 #333399;
+  font-family: 'Share Tech Mono', 'Space Grotesk', monospace;
+  font-size: 2rem;
+  letter-spacing: 0.1em;
+}
