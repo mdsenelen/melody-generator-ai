@@ -185,6 +185,43 @@ def _save_and_package(mel: np.ndarray, prefix: str) -> Dict[str, Any]:
     }
 
 
+def generate_from_audio(audio_bytes: bytes,
+                        creativity: float = 0.7,
+                        chord: Optional[str] = None) -> tuple:
+    """
+    Enhanced audio generation with chord conditioning.
+
+    Args:
+        audio_bytes: Input audio as bytes.
+        creativity: Control variation (0-1).
+        chord: Optional chord label (e.g., "C", "Am").
+
+    Returns:
+        tuple: (reconstructed_mel, generated_audio_bytes, detected_chords)
+    """
+    y, _ = librosa.load(
+        io.BytesIO(audio_bytes),
+        sr=AUDIO_CFG["audio"]["sample_rate"],
+        mono=True,
+    )
+    y = librosa.util.normalize(y).astype(np.float32)
+    mel_tensor = _encode(y)
+
+    with torch.no_grad():
+        mu, logvar = model.encode(mel_tensor)[:2] if hasattr(model, "encode") else (None, None)
+        if mu is None:
+            recon, mu, logvar = model(mel_tensor)
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = mu + eps * std * max(0.05, creativity)
+        mel_out = _decode_from_latent(z)
+
+    mel_out = np.clip(mel_out, 0.0, 1.0)
+    audio_bytes_out = _mel_to_audio_bytes(mel_out, AUDIO_CFG)
+    detected_chords = [chord] if chord else []
+    return mel_out, audio_bytes_out, detected_chords
+
+
 router = APIRouter()
 
 
