@@ -10,7 +10,7 @@ from app.model.vae import WebVAE
 
 
 APP_DIR = Path(__file__).resolve().parent              # backend/app/model
-MODEL_PATH = APP_DIR / "weights" / "web_model.pt"
+MODEL_PATH = APP_DIR / "weights" / "final_vocal2accomp.pth"
 
 # Weights are optional during development; handle missing files gracefully
 if MODEL_PATH.exists():
