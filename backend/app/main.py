@@ -28,7 +28,7 @@ MODEL_DIR = APP_DIR / "model" / "weights"              # backend/app/model/weigh
 MODEL_CONFIG = {
     "input_shape": (1, 128, 256),
     "latent_dim": 256,
-    "model_path": str(MODEL_DIR / "web_model.pt"),
+    "model_path": str(MODEL_DIR / "final_vocal2accomp.pth"),
     # adjust if different
     "config_path": str(APP_DIR / "model" / "weights" / "audio_params.json"),
 }
@@ -60,11 +60,14 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="data"), name="static")
 
+# Mount inference router
+app.include_router(inference_router, prefix="/api")
+
 # Configuration
 MODEL_CONFIG = {
     "input_shape": (1, 128, 256),  # Updated from (1, 64, 256)
     "latent_dim": 256,              # Updated from 128
-    "model_path": os.path.join(MODEL_DIR, "web_model.pt"),
+    "model_path": os.path.join(MODEL_DIR, "final_vocal2accomp.pth"),
     "config_path": os.path.join(MODEL_DIR, "audio_params.json")
 }
 
