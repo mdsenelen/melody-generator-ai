@@ -1,251 +1,115 @@
-# 📁 backend/main.py
+# backend/main.py
 import os
-import uuid
+import sys
 import json
-import torch
-import numpy as np
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Request
-from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from datetime import datetime
-from typing import Optional
-import base64
-
-from app.model.vae import WebVAE
-from app.model.utils import AudioProcessor
-from app.inference import generate_from_audio, generate_from_chord
-from app.chord_utils import get_all_chord_labels
-from app.inference import router as inference_router
-
+import shutil
 from pathlib import Path
+import argparse
 
-BASE_DIR = Path(__file__).resolve().parent             # backend/
-APP_DIR = BASE_DIR / "app"                             # backend/app
-MODEL_DIR = APP_DIR / "model" / "weights"              # backend/app/model/weights
+# Notebook/kitaplıktaki modüllere erişim (proje kökünü path'e ekle)
+ROOT = Path(__file__).resolve().parents[1]  # repo root varsayımı
+sys.path.append(str(ROOT))
 
-MODEL_CONFIG = {
-    "input_shape": (1, 128, 256),
-    "latent_dim": 256,
-    "model_path": str(MODEL_DIR / "final_vocal2accomp.pth"),
-    # adjust if different
-    "config_path": str(APP_DIR / "model" / "weights" / "audio_params.json"),
-}
-
-app = FastAPI(
-    title="Musical VAE Playground",
-    description="AI-powered audio processing for musicians",
-    version="1.0.0"
-)
-
-# CORS Configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Directory Setup
-UPLOAD_DIR = "data/recordings"
-OUTPUT_DIR = "data/generated"
-LOG_DIR = "data/logs"
-MODEL_DIR = os.path.join("backend", "app", "model", "weights")  # Updated path
-
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-app.mount("/static", StaticFiles(directory="data"), name="static")
-
-# Mount inference router
-app.include_router(inference_router, prefix="/api")
-
-# Configuration
-MODEL_CONFIG = {
-    "input_shape": (1, 128, 256),  # Updated from (1, 64, 256)
-    "latent_dim": 256,              # Updated from 128
-    "model_path": os.path.join(MODEL_DIR, "final_vocal2accomp.pth"),
-    "config_path": os.path.join(MODEL_DIR, "audio_params.json")
-}
-
-
-def log_event(event_id: str, data: dict):
-    """Enhanced logging with error handling"""
-    try:
-        path = os.path.join(LOG_DIR, f"{event_id}.json")
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print(f"⚠️ Failed to log event: {str(e)}")
-
-
-def load_model():
-    """Updated model loading with new architecture"""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    try:
-        # Load model config
-        with open(MODEL_CONFIG["config_path"], "r") as f:
-            audio_config = json.load(f)
-
-        # Initialize model
-        model = WebVAE().to(device)  # Now uses default constructor
-
-        # Load weights
-        checkpoint = torch.load(
-            MODEL_CONFIG["model_path"], map_location=device)
-        model.load_state_dict(checkpoint["state_dict"])
-        model.eval()
-
-        # Initialize processor with loaded config
-        processor = AudioProcessor(**audio_config["audio"])
-
-        return model, processor, device, audio_config
-
-    except Exception as e:
-        raise RuntimeError(f"Model loading failed: {str(e)}")
-
-
-# Initialize model
+# ---- Kullanıcı tarafı eğitim modülü (notebook kodu paketlenmiş sayalım)
+# Aşağıdaki import, senin geliştirdiğin notebook kodunun Python modülü olarak erişilebilir
+# olduğunu varsayıyor. Eğer dosya adı farklıysa burayı değiştir:
 try:
-    model, audio_processor, device, audio_config = load_model()
-    print("✅ Model loaded successfully")
-    print(f"Model configuration: {audio_config}")
-except Exception as e:
-    print(f"❌ Model loading error: {e}")
-    raise
+    import singsong_improved as ss
+except Exception:
+    # Canvas’ta oluşturduğum dosya adını kullandıysan:
+    import importlib.util
+    nb_path = ROOT / "singsong_improved.py"
+    if not nb_path.exists():
+        raise RuntimeError("singsong_improved.py bulunamadı. Notebook kodunu bir .py dosyası olarak kaydet.")
+    spec = importlib.util.spec_from_file_location("ss", str(nb_path))
+    ss = importlib.util.module_from_spec(spec)  # type: ignore
+    spec.loader.exec_module(ss)  # type: ignore
 
+DEFAULT_WEIGHTS_DIR = ROOT / "backend" / "app" / "model" / "weights"
+DEFAULT_WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
 
-@app.post("/upload/")
-async def upload_audio(
-    file: UploadFile = File(...),
-    sample_rate: Optional[int] = None
-):
-    """Handle audio uploads with validation"""
-    if not file.filename.lower().endswith((".wav", ".mp3")):
-        raise HTTPException(400, "Only .wav or .mp3 files are accepted")
+def _pick_best_checkpoint(ckpt_dir: Path) -> Path | None:
+    """Öncelik: ft_best.pth > pre_best.pth > en son ft_ep*.pth > en son pre_ep*.pth"""
+    ft_best = ckpt_dir / "ft_best.pth"
+    pre_best = ckpt_dir / "pre_best.pth"
+    if ft_best.exists():
+        return ft_best
+    if pre_best.exists():
+        return pre_best
+    ft_eps = sorted(ckpt_dir.glob("ft_ep*.pth"))
+    if ft_eps:
+        return ft_eps[-1]
+    pre_eps = sorted(ckpt_dir.glob("pre_ep*.pth"))
+    if pre_eps:
+        return pre_eps[-1]
+    return None
 
-    unique_id = uuid.uuid4().hex
-    filename = f"upload_{unique_id}{os.path.splitext(file.filename)[1]}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
+def _write_audio_params(out_dir: Path, audio_cfg: dict):
+    out = out_dir / "audio_params.json"
+    with out.open("w", encoding="utf-8") as f:
+        json.dump({"audio": audio_cfg}, f, indent=2)
+    return out
 
-    try:
-        with open(file_path, "wb") as buffer:
-            buffer.write(await file.read())
+def main():
+    p = argparse.ArgumentParser(description="Train SingSong VAE and export final_vocal2accomp.pth for backend inference.")
+    p.add_argument("--big-data", required=True, help="Ön-eğitim için büyük veri klasörü (wav).")
+    p.add_argument("--my-data", required=True, help="Kişisel/ince ayar veri klasörü (wav).")
+    p.add_argument("--epochs-pretrain", type=int, default=None)
+    p.add_argument("--epochs-finetune", type=int, default=None)
+    p.add_argument("--batch-size", type=int, default=None)
+    p.add_argument("--impl", choices=["transformer", "cnn"], default=os.getenv("WEBVAE_IMPL", "transformer"),
+                   help="Model implementasyonu (backend/app/inference.py ile uyumlu).")
+    p.add_argument("--weights-dir", type=str, default=str(DEFAULT_WEIGHTS_DIR),
+                   help="final_vocal2accomp.pth ve audio_params.json çıkış klasörü.")
+    p.add_argument("--final-name", type=str, default="final_vocal2accomp.pth")
+    args = p.parse_args()
 
-        log_data = {
-            "id": unique_id,
-            "event": "upload",
-            "filename": filename,
-            "sample_rate": sample_rate or audio_config["audio"]["sample_rate"],
-            "timestamp": datetime.now().isoformat()
-        }
-        log_event(unique_id, log_data)
+    # Implementasyon seçimi (CNN/Transformer)
+    os.environ["WEBVAE_IMPL"] = args.impl
 
-        return JSONResponse(
-            status_code=201,
-            content={"id": unique_id, "filename": filename}
-        )
-    except Exception as e:
-        raise HTTPException(500, f"File upload failed: {str(e)}")
+    # Notebook config ile arg’ları eşitle
+    if args.epochs_pretrain is not None:
+        ss.CONFIG["train"]["epochs_pretrain"] = args.epochs_pretrain
+    if args.epochs_finetune is not None:
+        ss.CONFIG["train"]["epochs_finetune"] = args.epochs_finetune
+    if args.batch_size is not None:
+        ss.CONFIG["model"]["batch_size"] = args.batch_size
 
+    # Eğitim
+    vae, chord_vocab, session_dir = ss.run_singsong_pipeline(
+        big_data_dir=args.big_data,
+        my_data_dir=args.my_data,
+        epochs_pretrain=ss.CONFIG["train"]["epochs_pretrain"],
+        epochs_finetune=ss.CONFIG["train"]["epochs_finetune"],
+        batch_size=ss.CONFIG["model"]["batch_size"],
+    )
 
-@app.post("/api/upload")
-async def api_upload_audio(
-    file: UploadFile = File(...),
-    sample_rate: Optional[int] = None
-):
-    # Reuse the existing upload_audio logic
-    return await upload_audio(file=file, sample_rate=sample_rate)
+    ckpt_dir = session_dir / "checkpoints"
+    best = _pick_best_checkpoint(ckpt_dir)
+    if best is None:
+        raise SystemExit("Hiç checkpoint bulunamadı. Eğitim başarısız ya da veri yok.")
 
+    # final_vocal2accomp.pth olarak kopyala
+    weights_dir = Path(args.weights_dir)
+    weights_dir.mkdir(parents=True, exist_ok=True)
+    final_path = weights_dir / args.final_name
+    shutil.copy(best, final_path)
 
-@app.get("/model-info")
-def get_model_info():
-    """Updated model information endpoint"""
-    return {
-        "model": "WebVAE",
-        "latent_dim": MODEL_CONFIG["latent_dim"],
-        "input_shape": MODEL_CONFIG["input_shape"],
-        "audio_config": audio_config["audio"],
-        "device": str(device),
-        "status": "active"
+    # chord_vocab zaten checkpoint içine gömülü; audio_params.json da yazalım
+    audio_cfg = {
+        "sample_rate": ss.CONFIG["audio"]["sample_rate"],
+        "n_fft": ss.CONFIG["audio"]["n_fft"],
+        "hop_length": ss.CONFIG["audio"]["hop_length"],
+        "n_mels": ss.CONFIG["audio"]["n_mels"],
+        "fmin": ss.CONFIG["audio"]["fmin"],
+        "fmax": ss.CONFIG["audio"]["fmax"],
     }
+    audio_json = _write_audio_params(weights_dir, audio_cfg)
 
+    print("✅ Export tamam:")
+    print("  Final weights :", final_path)
+    print("  Audio params  :", audio_json)
+    print("  Session       :", session_dir)
 
-@app.get("/chords", response_class=JSONResponse)
-def get_chords():
-    """API endpoint to get all chord labels."""
-    return {"chords": get_all_chord_labels()}
-
-
-@app.post("/generate")
-async def generate_audio(
-    id: Optional[str] = Body(None, embed=True),
-    chord: Optional[str] = Body(None),
-    creativity: float = Body(0.7),
-    duration: Optional[float] = Body(None)
-):
-    """Enhanced generation endpoint with chord support and chord detection"""
-    try:
-        if chord and not id:
-            mel, audio_bytes, detected_chords = generate_from_chord(
-                chord=chord,
-                duration=duration or 5.0
-            )
-            output_filename = f"chord_{chord}_{uuid.uuid4().hex[:6]}.wav"
-        else:
-            if not id:
-                raise HTTPException(
-                    400, "ID is required unless generating from chord only")
-
-            input_filename = f"upload_{id}.wav"
-            input_path = os.path.join(UPLOAD_DIR, input_filename)
-
-            if not os.path.exists(input_path):
-                raise HTTPException(404, "Uploaded file not found")
-
-            with open(input_path, "rb") as f:
-                audio_bytes_input = f.read()
-
-            mel, audio_bytes, detected_chords = generate_from_audio(
-                audio_bytes_input,
-                creativity=creativity,
-                chord=chord
-            )
-            output_filename = f"generated_{id}.wav"
-
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
-        with open(output_path, "wb") as f:
-            f.write(audio_bytes)
-
-        log_event(f"gen_{id or chord}", {
-            "type": "chord" if chord and not id else "audio",
-            "id": id or chord,
-            "output_file": output_filename,
-            "timestamp": datetime.now().isoformat(),
-            "creativity": creativity,
-            "duration": duration,
-            "chords": detected_chords
-        })
-
-        return {
-            "mel": mel,
-            "audio": base64.b64encode(audio_bytes).decode('utf-8'),
-            "download_url": f"/download/{output_filename}",
-            "chords": detected_chords
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Generation failed: {str(e)}")
-
-
-@app.post("/process/")
-async def process_audio(
-    id: str = Body(...),
-    intensity: float = 0.5,
-    creativity: float = 0.7
-):
-    """Legacy endpoint - consider deprecating"""
-    return await generate_audio(id=id, creativity=creativity)
+if __name__ == "__main__":
+    main()
