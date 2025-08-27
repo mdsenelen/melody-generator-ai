@@ -10,6 +10,9 @@ venv/
 # Node
 node_modules/
 
+# Next.js
+.next/
+
 # Project-specific
 backend/venv/
 frontend/node_modules/
