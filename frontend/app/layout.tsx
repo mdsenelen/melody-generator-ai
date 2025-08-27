@@ -24,7 +24,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${shareTechMono.variable}`}>
-      <body className="min-h-screen bg-gray-50">
+      <body className="relative min-h-screen overflow-hidden">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="fixed inset-0 w-full h-full object-cover -z-10"
+        >
+          <source src="/background.mp4" type="video/mp4" />
+        </video>
         <div className="flex flex-col min-h-screen">
           <div>
             <div className="flex flex-row items-center gap-4 p-4">
