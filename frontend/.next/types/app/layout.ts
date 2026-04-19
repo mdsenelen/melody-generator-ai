@@ -1,4 +1,4 @@
-// File: C:\Users\HP\Documents\GitHub\musicians-assistant-api\frontend\app\layout.tsx
+// File: C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

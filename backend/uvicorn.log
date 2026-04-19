@@ -1,0 +1,22 @@
+INFO:     127.0.0.1:59392 - "POST /api/upload HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59392 - "POST /api/transcribe HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:58336 - "POST /api/generate-progression HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58400 - "POST /api/generate-progression HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62514 - "GET /api/download/progression_46949097.wav HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62514 - "GET /api/download/progression_46949097.wav HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65368 - "GET /api/chords HTTP/1.1" 200 OK

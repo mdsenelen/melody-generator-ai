@@ -1,3 +1,7 @@
 {
-  "/page": "app/page.js"
+  "/api/chords/route": "app/api/chords/route.js",
+  "/page": "app/page.js",
+  "/generate-variants/page": "app/generate-variants/page.js",
+  "/choose-progression/page": "app/choose-progression/page.js",
+  "/listen-progressions/page": "app/listen-progressions/page.js"
 }

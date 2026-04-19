@@ -1,39 +1,61 @@
 'use client';
 
-import { useState } from 'react';
-import { FiMusic, FiDownload } from 'react-icons/fi';
+import { useEffect, useRef, useState } from 'react';
+
+import { requestJson } from '../app/lib/request';
 
 type Sample = {
   id: string;
   name: string;
-  url: string; // dinleme ve indirme için
+  url: string;
+  downloadPath: string;
 };
+
+function createAudioObjectUrl(base64Audio: string) {
+  const bytes = Uint8Array.from(atob(base64Audio), (character) => character.charCodeAt(0));
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+}
 
 export function GeneratedSamples() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const sampleUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      sampleUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   const generateSample = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/generate', {
+      const data = await requestJson<{
+        audio_b64?: string;
+        download_path?: string;
+        filename?: string;
+      }>('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ num_samples: 1 }),
+        body: JSON.stringify({ chord: 'Cmaj7', duration: 4 }),
+        expectedContentType: 'application/json',
       });
+      if (!data.audio_b64 || !data.download_path || !data.filename) {
+        return;
+      }
 
-      const data = await response.json();
-
-      // backend'den dönen dosya ismini al
-      const generatedFile = data.generated_file; // örn: "sample_123.wav"
-      const fileUrl = `http://localhost:8000/download/${generatedFile}`; // veya API'nin verdiği tam url
+      const filename = data.filename;
+      const downloadPath = data.download_path;
+      const sampleUrl = createAudioObjectUrl(data.audio_b64);
+      sampleUrlsRef.current.push(sampleUrl);
 
       setSamples((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
-          name: `Melodi ${prev.length + 1}`,
-          url: fileUrl,
+          name: filename,
+          url: sampleUrl,
+          downloadPath,
         },
       ]);
     } finally {
@@ -46,22 +68,22 @@ export function GeneratedSamples() {
       <button
         onClick={generateSample}
         disabled={isGenerating}
-        className={`w-full py-2 px-4 rounded-md flex items-center justify-center gap-2 ${
+        className={`flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-white transition-colors ${
           isGenerating ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'
-        } text-white transition-colors`}
+        }`}
       >
-        <FiMusic />
-        {isGenerating ? 'Üretiliyor...' : 'Yeni Melodi Üret'}
+        <span aria-hidden="true">♪</span>
+        {isGenerating ? 'Generating...' : 'Generate sample'}
       </button>
 
-      {samples.length > 0 && (
+      {samples.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="font-medium">Generated Samples</h3>
+          <h3 className="font-medium">Generated samples</h3>
           <ul className="divide-y divide-gray-200">
             {samples.map((sample) => (
               <li
                 key={sample.id}
-                className="py-3 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0"
+                className="flex flex-col space-y-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0"
               >
                 <span>{sample.name}</span>
                 <div className="flex items-center gap-3">
@@ -70,19 +92,19 @@ export function GeneratedSamples() {
                     Your browser does not support audio play.
                   </audio>
                   <a
-                    href={sample.url}
+                    href={sample.downloadPath}
                     download
                     className="text-indigo-600 hover:text-indigo-800"
-                    title="İndir"
+                    title="Download"
                   >
-                    <FiDownload />
+                    <span aria-hidden="true">Download</span>
                   </a>
                 </div>
               </li>
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

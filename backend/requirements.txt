@@ -1,7 +1,19 @@
-torch>=1.10.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+torchaudio
+fastapi
+uvicorn
+python-multipart
+eval_type_backport
 librosa>=0.9.0
 numpy>=1.21.0
+soundfile
 tqdm>=4.62.0
+basic-pitch==0.4.0
+pretty_midi
+music21
+mir_eval
 google-api-python-client>=2.0.0
 google-auth-httplib2>=0.1.0
 google-auth-oauthlib>=0.4.0

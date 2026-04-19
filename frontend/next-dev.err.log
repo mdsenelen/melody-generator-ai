@@ -1,0 +1,13 @@
+Error: spawn EPERM
+    at ChildProcess.spawn (node:internal/child_process:420:11)
+    at spawn (node:child_process:762:9)
+    at fork (node:child_process:172:10)
+    at C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\node_modules\next\dist\cli\next-dev.js:235:45
+    at new Promise (<anonymous>)
+    at startServer (C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\node_modules\next\dist\cli\next-dev.js:211:16)
+    at runDevServer (C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\node_modules\next\dist\cli\next-dev.js:320:23)
+    at Module.nextDev (C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\node_modules\next\dist\cli\next-dev.js:328:11) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'spawn'
+}
