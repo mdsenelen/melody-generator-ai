@@ -7,7 +7,7 @@ nav {
   margin-bottom: 2rem;
   text-align: justify;
   text-size-adjust: auto;
-    font-family: 'Share Tech Mono', monospace;
+  font-family: "Share Tech Mono", monospace;
 }
 
 nav a {
@@ -65,13 +65,15 @@ nav a:focus {
   border-radius: 8px;
   text-decoration: none;
   font-weight: bold;
-  transition: background 0.2s, color 0.2s;
-  width: 240px;              /* Sabit genişlik */
-  min-width: 180px;         
-  text-align: center;        
+  transition:
+    background 0.2s,
+    color 0.2s;
+  width: 240px; /* Sabit genişlik */
+  min-width: 180px;
+  text-align: center;
   display: flex;
-  justify-content: center;   
-  align-items: center;       
+  justify-content: center;
+  align-items: center;
 }
 
 .nav-inline a:hover {

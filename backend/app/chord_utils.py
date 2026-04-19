@@ -1,23 +1,53 @@
-# backend/app/chord_utils.py
+from __future__ import annotations
+
+from pathlib import Path
+
 import torch
-import os
-
-# Path to web_model.pt
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'web_model.pt')
-MODEL_PATH = os.path.abspath(MODEL_PATH)
-
-# Load chord_vocab from web_model.pt
-_model_data = torch.load(MODEL_PATH, map_location='cpu')
-chord_vocab = _model_data.get('chord_vocab', [])
 
 
-def get_chord_label(index: int) -> str:
-    """Map chord index to chord label."""
+DEFAULT_CHORDS = [
+    "C",
+    "Cm",
+    "D",
+    "Dm",
+    "E",
+    "Em",
+    "F",
+    "G",
+    "Am",
+    "Bm",
+    "G7",
+    "Cmaj7",
+    "Am7",
+    "Dm7",
+]
+
+MODEL_PATH = Path(__file__).resolve().parent / "model" / "weights" / "web_model.pt"
+
+
+def _load_chord_vocab() -> list[str]:
+    if not MODEL_PATH.exists():
+        return DEFAULT_CHORDS
+
+    try:  # pragma: no cover
+        model_data = torch.load(str(MODEL_PATH), map_location="cpu")
+        chord_vocab = model_data.get("chord_vocab", [])
+        if isinstance(chord_vocab, list) and chord_vocab:
+            return chord_vocab
+    except Exception:
+        pass
+
+    return DEFAULT_CHORDS
+
+
+chord_vocab = _load_chord_vocab()
+
+
+def get_chord_label(index: int) -> str | None:
     if 0 <= index < len(chord_vocab):
         return chord_vocab[index]
     return None
 
 
-def get_all_chord_labels() -> list:
-    """Return all chord labels."""
+def get_all_chord_labels() -> list[str]:
     return chord_vocab

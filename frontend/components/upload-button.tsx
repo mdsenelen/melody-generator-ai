@@ -1,62 +1,78 @@
 "use client";
-import { useState } from 'react';
 
-type UploadButtonProps = {
-  onUploadSuccess: (filename: string) => void;
+import { useState } from "react";
+
+import { requestJson } from "../app/lib/request";
+
+export type UploadSuccessPayload = {
+  id: string;
+  filename: string;
+  file: File;
 };
 
-export function UploadButton({ onUploadSuccess }: UploadButtonProps) {
-  const [status, setStatus] = useState<string>('');
+type UploadButtonProps = {
+  onUploadSuccess: (payload: UploadSuccessPayload) => void;
+  onUploadError?: (message: string) => void;
+  label?: string;
+};
+
+export function UploadButton({
+  onUploadSuccess,
+  onUploadError,
+  label = "Upload audio file",
+}: UploadButtonProps) {
+  const [status, setStatus] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
     setIsLoading(true);
-    setStatus('Uploading...');
+    setStatus("Uploading...");
 
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) throw new Error("Upload failed");
-      const data = await res.json();
-      onUploadSuccess(data.filename);
-      setStatus('Upload successful!');
-    } catch (e) {
-      console.error("Upload error:", e);
-      setStatus('Upload failed');
+      const data = await requestJson<{ id?: string; filename?: string }>(
+        "/api/upload",
+        {
+          method: "POST",
+          body: formData,
+          expectedContentType: "application/json",
+        }
+      );
+      if (!data.filename || !data.id) {
+        throw new Error("Upload failed");
+      }
+      onUploadSuccess({ id: data.id, filename: data.filename, file });
+      setStatus("Upload complete");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+      setStatus(message);
+      onUploadError?.(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <button
-        disabled={isLoading}
-        className="relative px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 "
-      >
-        {isLoading ? (
-          'Uploading...'
-        ) : (
-          <>
-            Upload & Generate
-            <input 
-              type="file" 
-              accept="audio/*" 
-              onChange={handleFile} 
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              disabled={isLoading}
-            />
-          </>
-        )}
-      </button>
-      {status && <p className="text-sm text-gray-300">{status}</p>}
+    <div className="flex flex-col items-start gap-3">
+      <label className="relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-purple-400/40 bg-purple-600/20 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:border-purple-300 hover:bg-purple-500/25">
+        <span>{isLoading ? "Uploading..." : label}</span>
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={handleFile}
+          className="absolute inset-0 cursor-pointer opacity-0"
+          disabled={isLoading}
+        />
+      </label>
+      {status ? <p className="text-sm text-gray-300">{status}</p> : null}
     </div>
   );
 }

@@ -2,14 +2,24 @@
 'use client'
 import { useEffect, useState } from 'react'
 
+import { requestJson } from '../app/lib/request'
+
 export function TrainingProgress() {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
     const fetchProgress = async () => {
-      const res = await fetch('/api/training-progress')
-      const data = await res.json()
-      setProgress(data.progress)
+      try {
+        const data = await requestJson<{ progress?: number }>(
+          '/api/training-progress',
+          { expectedContentType: 'application/json' }
+        )
+        if (typeof data.progress === 'number') {
+          setProgress(data.progress)
+        }
+      } catch {
+        return
+      }
     }
     
     const interval = setInterval(fetchProgress, 3000)

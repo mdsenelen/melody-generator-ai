@@ -1,30 +1,29 @@
 // components/audio-player.tsx
-'use client'
-import { useState, useRef } from 'react'
-import { FiPlay, FiPause } from 'react-icons/fi'
+"use client";
+import { useState, useRef } from "react";
 
 export function AudioPlayer({ audioUrl }: { audioUrl: string }) {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const togglePlay = () => {
     if (isPlaying) {
-      audioRef.current?.pause()
+      audioRef.current?.pause();
     } else {
-      audioRef.current?.play()
+      audioRef.current?.play();
     }
-    setIsPlaying(!isPlaying)
-  }
+    setIsPlaying(!isPlaying);
+  };
 
   return (
     <div className="flex items-center gap-2">
-      <button 
+      <button
         onClick={togglePlay}
         className="p-2 rounded-full bg-indigo-100 text-indigo-600"
       >
-        {isPlaying ? <FiPause /> : <FiPlay />}
+        <span aria-hidden="true">{isPlaying ? "Pause" : "Play"}</span>
       </button>
       <audio ref={audioRef} src={audioUrl} />
     </div>
-  )
+  );
 }
