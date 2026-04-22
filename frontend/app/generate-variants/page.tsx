@@ -169,7 +169,7 @@ export default function GenerateVariantsPage() {
 
         <div className="mt-6">
           {activeTab === "upload" ? (
-            <UploadButton onUploadSuccess={handleUploadSuccess} onUploadError={setError} label="Choose source audio" />
+            <UploadButton onUploadSuccess={handleUploadSuccess} onUploadError={setError} label="Upload audio" />
           ) : (
             <AudioRecorder onRecordingComplete={handleRecordingComplete} />
           )}

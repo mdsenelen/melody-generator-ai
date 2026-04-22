@@ -12,6 +12,7 @@ import {
   type UploadSuccessPayload,
 } from "../components/upload-button";
 import { requestJson } from "./lib/request";
+import { uploadFile } from "./lib/upload";
 
 type TabKey = "upload" | "record";
 
@@ -95,26 +96,6 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
-async function uploadRecording(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const data = await requestJson<{ filename?: string; id?: string }>(
-    "/api/upload",
-    {
-      method: "POST",
-      body: formData,
-      expectedContentType: "application/json",
-    }
-  );
-
-  if (!data.filename) {
-    throw new Error("Upload failed");
-  }
-
-  return { filename: data.filename, id: data.id ?? "" };
-}
-
 async function transcribeFile(file: File) {
   const formData = new FormData();
   formData.append("file", file);
@@ -193,7 +174,7 @@ export default function Home() {
       let storedFilename = uploadedFilename;
 
       if (!storedFilename) {
-        const uploadResult = await uploadRecording(file);
+        const uploadResult = await uploadFile(file);
         storedFilename = uploadResult.filename;
         setSelectedUploadFilename(uploadResult.filename);
       }
@@ -441,7 +422,7 @@ export default function Home() {
                             className="text-sm font-semibold text-white"
                             style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
                           >
-                            Pitch histogram
+                            Pitch histogram: Tonal summary of your audio input
                           </p>
                           <p className="mt-1 text-sm text-white/65">
                             Pitch-class balance across the transcription.
@@ -542,14 +523,7 @@ export default function Home() {
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-                              Mood index
-                            </p>
-                            <p className="mt-2 text-lg font-semibold text-white">
-                              {analysisResult.mood_idx}
-                            </p>
-                          </div>
+                         
                         </div>
                       </div>
                     </div>

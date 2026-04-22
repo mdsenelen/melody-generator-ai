@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { requestJson } from "../app/lib/request";
+import { uploadFile } from "../app/lib/upload";
 
 export type UploadSuccessPayload = {
   id: string;
@@ -31,25 +31,12 @@ export function UploadButton({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     setIsLoading(true);
     setStatus("Uploading...");
 
     try {
-      const data = await requestJson<{ id?: string; filename?: string }>(
-        "/api/upload",
-        {
-          method: "POST",
-          body: formData,
-          expectedContentType: "application/json",
-        }
-      );
-      if (!data.filename || !data.id) {
-        throw new Error("Upload failed");
-      }
-      onUploadSuccess({ id: data.id, filename: data.filename, file });
+      const { id, filename } = await uploadFile(file);
+      onUploadSuccess({ id, filename, file });
       setStatus("Upload complete");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";

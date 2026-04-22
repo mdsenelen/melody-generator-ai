@@ -29,7 +29,6 @@ from .model.colab_parity import (
     heuristic_mood_from_metrics,
     tokens_to_midi,
 )
-from .model.vae import WebVAE
 
 try:  # pragma: no cover - optional dependency
     import pretty_midi
@@ -63,7 +62,6 @@ WEIGHTS_DIR = APP_DIR / "model" / "weights"
 for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
-MODEL_WEIGHTS = WEIGHTS_DIR / "final_vocal2accomp.pth"
 AUDIO_CONFIG_PATH = WEIGHTS_DIR / "audio_params.json"
 CVAE_WEIGHTS_PATH = WEIGHTS_DIR / "cvae_weights.pth"
 IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
@@ -135,7 +133,8 @@ PRESET_PROGRESSIONS = [
     },
 ]
 
-PITCH_CLASS_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+PITCH_CLASS_NAMES = ["C", "C#", "D", "D#",
+                     "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 PITCH_CLASS_TO_SEMITONE = {
     "C": 0,
     "B#": 0,
@@ -160,11 +159,12 @@ PITCH_CLASS_TO_SEMITONE = {
     "Cb": 11,
 }
 
-MAJOR_PROFILE = np.asarray([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-MINOR_PROFILE = np.asarray([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+MAJOR_PROFILE = np.asarray(
+    [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
+MINOR_PROFILE = np.asarray(
+    [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
 _AUDIO_CFG: Optional[dict[str, Any]] = None
-_MODEL_BUNDLE: Optional[dict[str, Any]] = None
 _CVAE_IDDM_BUNDLE: Optional[dict[str, Any]] = None
 
 
@@ -177,34 +177,6 @@ def _load_audio_cfg() -> dict[str, Any]:
         else:
             _AUDIO_CFG = DEFAULT_AUDIO_CFG
     return _AUDIO_CFG
-
-
-def _load_vae_bundle() -> dict[str, Any]:
-    global _MODEL_BUNDLE
-    if _MODEL_BUNDLE is not None:
-        return _MODEL_BUNDLE
-
-    audio_cfg = _load_audio_cfg()
-    bundle: dict[str, Any] = {
-        "audio_cfg": audio_cfg,
-        "model": None,
-        "status": "weights-missing",
-    }
-
-    if MODEL_WEIGHTS.exists():
-        try:
-            model = WebVAE().to(DEVICE)
-            checkpoint = torch.load(MODEL_WEIGHTS, map_location=DEVICE)
-            state_dict = checkpoint.get("state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
-            model.load_state_dict(state_dict, strict=False)
-            model.eval()
-            bundle["model"] = model
-            bundle["status"] = "ready"
-        except Exception as exc:  # pragma: no cover
-            bundle["status"] = f"load-failed: {exc}"
-
-    _MODEL_BUNDLE = bundle
-    return bundle
 
 
 def _checkpoint_size_mb(path: Path) -> float:
@@ -249,7 +221,8 @@ def _load_cvae_iddm() -> dict[str, Any]:
     global _CVAE_IDDM_BUNDLE
     if _CVAE_IDDM_BUNDLE is not None:
         if _CVAE_IDDM_BUNDLE.get("load_error"):
-            _raise_variant_service_unavailable(str(_CVAE_IDDM_BUNDLE["load_error"]))
+            _raise_variant_service_unavailable(
+                str(_CVAE_IDDM_BUNDLE["load_error"]))
         return _CVAE_IDDM_BUNDLE
 
     expected_files = {
@@ -259,7 +232,7 @@ def _load_cvae_iddm() -> dict[str, Any]:
     try:
         for label, path in expected_files.items():
             if not os.path.exists(path):
-                detail = f"Missing required weights file: {path}"
+                detail = "Required model weights file is missing"
                 _CVAE_IDDM_BUNDLE = {
                     "cfg": {},
                     "cvae_loaded": False,
@@ -270,7 +243,7 @@ def _load_cvae_iddm() -> dict[str, Any]:
                 _raise_variant_service_unavailable(detail)
             file_size = os.path.getsize(path)
             if file_size <= 10_000:
-                detail = f"Corrupted or incomplete weights file: {path}"
+                detail = "Model weights file is corrupted or incomplete"
                 _CVAE_IDDM_BUNDLE = {
                     "cfg": {},
                     "cvae_loaded": False,
@@ -279,17 +252,20 @@ def _load_cvae_iddm() -> dict[str, Any]:
                     "ready": False,
                 }
                 _raise_variant_service_unavailable(detail)
-            logger.info("Found %s checkpoint at %s (%.2f MB)", label, path, file_size / (1024 * 1024))
+            logger.info("Found %s checkpoint at %s (%.2f MB)",
+                        label, path, file_size / (1024 * 1024))
 
         cvae_checkpoint = torch.load(CVAE_WEIGHTS_PATH, map_location=DEVICE)
         iddm_checkpoint = torch.load(IDDM_WEIGHTS_PATH, map_location=DEVICE)
         logger.info(
             "CVAE checkpoint keys: %s",
-            sorted(cvae_checkpoint.keys()) if isinstance(cvae_checkpoint, dict) else type(cvae_checkpoint).__name__,
+            sorted(cvae_checkpoint.keys()) if isinstance(
+                cvae_checkpoint, dict) else type(cvae_checkpoint).__name__,
         )
         logger.info(
             "IDDM-PPO checkpoint keys: %s",
-            sorted(iddm_checkpoint.keys()) if isinstance(iddm_checkpoint, dict) else type(iddm_checkpoint).__name__,
+            sorted(iddm_checkpoint.keys()) if isinstance(
+                iddm_checkpoint, dict) else type(iddm_checkpoint).__name__,
         )
 
         if not isinstance(cvae_checkpoint, dict) or "model" not in cvae_checkpoint:
@@ -313,26 +289,31 @@ def _load_cvae_iddm() -> dict[str, Any]:
             }
             _raise_variant_service_unavailable(detail)
 
-        raw_cfg = cvae_checkpoint.get("cfg") if isinstance(cvae_checkpoint, dict) else None
+        raw_cfg = cvae_checkpoint.get("cfg") if isinstance(
+            cvae_checkpoint, dict) else None
         if isinstance(raw_cfg, dict):
             cfg = dict(raw_cfg)
         else:
-            logger.warning("WARNING: cfg not in checkpoint, using notebook defaults")
+            logger.warning(
+                "WARNING: cfg not in checkpoint, using notebook defaults")
             cfg = {}
         vocab = int(cfg.get("vocab", 177))
         emb_dim = int(cfg.get("emb_dim", 32))
         hidden = int(cfg.get("hidden", 64))
         latent_dim = int(cfg.get("latent_dim", 16))
         n_moods = int(cfg.get("n_moods", 3))
-        mel_bins = int(cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
+        mel_bins = int(
+            cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
         t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
         enc_dim = int(cfg.get("enc_dim", 64))
 
-        cvae_model = MelodyCVAE(vocab=vocab, emb_dim=emb_dim, hidden=hidden, latent=latent_dim, n_moods=n_moods).to(DEVICE)
+        cvae_model = MelodyCVAE(vocab=vocab, emb_dim=emb_dim, hidden=hidden,
+                                latent=latent_dim, n_moods=n_moods).to(DEVICE)
         cvae_model.load_state_dict(cvae_checkpoint["model"], strict=True)
         cvae_model.eval()
 
-        state_encoder = MelStateEncoder(mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(DEVICE)
+        state_encoder = MelStateEncoder(
+            mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(DEVICE)
         state_encoder.load_state_dict(iddm_checkpoint["enc"], strict=True)
         state_encoder.eval()
 
@@ -340,11 +321,13 @@ def _load_cvae_iddm() -> dict[str, Any]:
         discriminator.load_state_dict(iddm_checkpoint["disc"], strict=True)
         discriminator.eval()
 
-        actor_critic = MelodyPPOActorCritic(enc_dim=enc_dim, latent_dim=latent_dim).to(DEVICE)
+        actor_critic = MelodyPPOActorCritic(
+            enc_dim=enc_dim, latent_dim=latent_dim).to(DEVICE)
         actor_critic.load_state_dict(iddm_checkpoint["ac"], strict=True)
         actor_critic.eval()
 
-        mine = MINENetwork(sa_dim=enc_dim + latent_dim, sp_dim=enc_dim).to(DEVICE)
+        mine = MINENetwork(sa_dim=enc_dim + latent_dim,
+                           sp_dim=enc_dim).to(DEVICE)
         mine.load_state_dict(iddm_checkpoint["mine"], strict=True)
         mine.eval()
 
@@ -364,7 +347,7 @@ def _load_cvae_iddm() -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        detail = f"Failed to load Colab parity weights: {exc}"
+        detail = "Failed to load model weights"
         logger.exception("Failed to load Colab parity models")
         _CVAE_IDDM_BUNDLE = {
             "cfg": {},
@@ -373,14 +356,13 @@ def _load_cvae_iddm() -> dict[str, Any]:
             "load_error": detail,
             "ready": False,
         }
-        _raise_variant_service_unavailable(detail)
+        raise HTTPException(status_code=503, detail=detail) from exc
 
 
 def get_runtime_status() -> dict[str, Any]:
-    bundle = _load_vae_bundle()
     return {
         "device": str(DEVICE),
-        "vae_status": bundle["status"],
+        "vae_status": "cvae_iddm",
         "weights_dir": str(WEIGHTS_DIR),
         "basic_pitch_available": basic_pitch_predict is not None,
         "pretty_midi_available": pretty_midi is not None,
@@ -390,14 +372,13 @@ def get_runtime_status() -> dict[str, Any]:
 
 
 def get_model_info() -> dict[str, Any]:
-    bundle = _load_vae_bundle()
+    cfg = _load_audio_cfg()
     return {
-        "model": "WebVAE",
-        "latent_dim": 258,
-        "input_shape": (1, 128, 256),
-        "audio_config": bundle["audio_cfg"]["audio"],
+        "model": "MelodyCVAE+IDDM-PPO",
+        "latent_dim": 16,
+        "audio_config": cfg["audio"],
         "device": str(DEVICE),
-        "status": bundle["status"],
+        "status": "cvae_iddm",
         "weights_dir": str(WEIGHTS_DIR),
     }
 
@@ -407,7 +388,7 @@ def get_available_chords() -> list[str]:
 
 
 def _audio_cfg() -> dict[str, Any]:
-    return _load_vae_bundle()["audio_cfg"]
+    return _load_audio_cfg()
 
 
 def _waveform_to_mel(audio: np.ndarray, cfg: dict[str, Any]) -> np.ndarray:
@@ -427,7 +408,8 @@ def _waveform_to_mel(audio: np.ndarray, cfg: dict[str, Any]) -> np.ndarray:
     mel_norm = (mel_db + 40) / 40
     max_frames = int(audio_cfg.get("max_frames", 256))
     if mel_norm.shape[1] < max_frames:
-        mel_norm = np.pad(mel_norm, ((0, 0), (0, max_frames - mel_norm.shape[1])))
+        mel_norm = np.pad(
+            mel_norm, ((0, 0), (0, max_frames - mel_norm.shape[1])))
     else:
         mel_norm = mel_norm[:, :max_frames]
     return mel_norm.astype(np.float32)
@@ -450,7 +432,8 @@ def _mel_to_audio_bytes(mel_norm: np.ndarray, cfg: dict[str, Any]) -> bytes:
 
 def _waveform_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
     out = io.BytesIO()
-    sf.write(out, np.asarray(audio, dtype=np.float32), sample_rate, format="WAV")
+    sf.write(out, np.asarray(audio, dtype=np.float32),
+             sample_rate, format="WAV")
     out.seek(0)
     return out.read()
 
@@ -467,7 +450,8 @@ def _read_audio_bytes(raw: bytes, target_sr: int) -> np.ndarray:
 
 def _ensure_supported_audio_filename(filename: Optional[str]) -> str:
     if not filename or not filename.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS):
-        raise HTTPException(status_code=400, detail="Supported formats: wav, mp3, flac, ogg, m4a, webm")
+        raise HTTPException(
+            status_code=400, detail="Supported formats: wav, mp3, flac, ogg, m4a, webm")
     return filename
 
 
@@ -520,7 +504,7 @@ def _encode(audio: np.ndarray, cfg: dict[str, Any]) -> torch.Tensor:
     return torch.tensor(mel, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(DEVICE)
 
 
-def _decode_from_latent(model: WebVAE, z: torch.Tensor) -> np.ndarray:
+def _decode_from_latent(model: MelodyCVAE, z: torch.Tensor) -> np.ndarray:
     with torch.no_grad():
         recon = model.decode(z)
     return recon.squeeze().detach().cpu().numpy()
@@ -544,7 +528,8 @@ def _infer_chord_from_chroma(chroma_vector: np.ndarray) -> str:
     for root_idx, root in enumerate(PITCH_CLASS_NAMES):
         for quality, template in quality_templates.items():
             rolled = np.roll(template, root_idx)
-            score = float(np.dot(chroma, rolled) - 0.12 * np.dot(chroma, 1.0 - rolled))
+            score = float(np.dot(chroma, rolled) - 0.12 *
+                          np.dot(chroma, 1.0 - rolled))
             label = f"{root}{quality}"
             if score > best_score:
                 best_score = score
@@ -562,7 +547,8 @@ def _detect_chords_from_audio(audio: np.ndarray, sample_rate: int) -> list[str]:
         return []
 
     segment_count = min(8, max(1, chroma.shape[1] // 8))
-    boundaries = np.linspace(0, chroma.shape[1], num=segment_count + 1, dtype=int)
+    boundaries = np.linspace(
+        0, chroma.shape[1], num=segment_count + 1, dtype=int)
     chords: list[str] = []
     for start, end in zip(boundaries[:-1], boundaries[1:]):
         if end <= start:
@@ -610,7 +596,8 @@ def _note_events_for_progression(
     variant_seed: int = 0,
     chord_beats: float = 4.0,
 ) -> list[dict[str, float | int]]:
-    randomizer = random.Random(f"{variant_seed}:{temperature}:{','.join(progression)}")
+    randomizer = random.Random(
+        f"{variant_seed}:{temperature}:{','.join(progression)}")
     seconds_per_beat = 60.0 / max(bpm, 1.0)
     chord_duration = seconds_per_beat * chord_beats
     note_events: list[dict[str, float | int]] = []
@@ -640,9 +627,11 @@ def _note_events_for_progression(
             for step in range(subdivision):
                 note = playable_notes[step % len(playable_notes)]
                 if variation_mode == "strum" and randomizer.random() > 0.65:
-                    note = playable_notes[randomizer.randrange(0, len(playable_notes))]
+                    note = playable_notes[randomizer.randrange(
+                        0, len(playable_notes))]
                 start = chord_start + step * step_duration
-                end = min(chord_end, start + step_duration * (0.75 + randomizer.random() * 0.2))
+                end = min(chord_end, start + step_duration *
+                          (0.75 + randomizer.random() * 0.2))
                 note_events.append({
                     "start": start,
                     "end": end,
@@ -683,7 +672,8 @@ def _tokens_to_midi_bytes(tokens: list[dict[str, float | int]], bpm: float, inst
         timeline.append((start_tick, "on", pitch, velocity))
         timeline.append((max(end_tick, start_tick + 1), "off", pitch, 0))
 
-    timeline.sort(key=lambda item: (item[0], 0 if item[1] == "off" else 1, item[2]))
+    timeline.sort(key=lambda item: (
+        item[0], 0 if item[1] == "off" else 1, item[2]))
     track = bytearray()
     track.extend(_encode_var_len(0))
     track.extend(b"\xFF\x51\x03")
@@ -722,7 +712,8 @@ def _synthesize_note_events_to_waveform(
     if not note_events:
         return np.zeros(sample_rate, dtype=np.float32)
 
-    total_duration = max(float(event["end"]) for event in note_events) + tail_seconds
+    total_duration = max(float(event["end"])
+                         for event in note_events) + tail_seconds
     waveform = np.zeros(int(total_duration * sample_rate), dtype=np.float32)
 
     for event in note_events:
@@ -731,7 +722,8 @@ def _synthesize_note_events_to_waveform(
         pitch = int(event["pitch"])
         velocity = int(event.get("velocity", 90))
         frequency = librosa.midi_to_hz(pitch)
-        t = np.linspace(0.0, (end - start) / sample_rate, end - start, endpoint=False)
+        t = np.linspace(0.0, (end - start) / sample_rate,
+                        end - start, endpoint=False)
         envelope = np.minimum(1.0, t / 0.015) * np.exp(-2.8 * t)
         tone = (
             np.sin(2 * np.pi * frequency * t)
@@ -806,7 +798,8 @@ def _coerce_note_events(raw_note_events: Any) -> list[dict[str, float | int]]:
             start = float(item.get("start_time", item.get("start", 0.0)))
             end = float(item.get("end_time", item.get("end", start + 0.25)))
             pitch = int(item.get("pitch", 60))
-            amplitude = float(item.get("amplitude", item.get("velocity", 0.85)))
+            amplitude = float(
+                item.get("amplitude", item.get("velocity", 0.85)))
             velocity = amplitude if amplitude > 1 else amplitude * 127
         elif isinstance(item, (list, tuple)) and len(item) >= 3:
             start = float(item[0])
@@ -832,7 +825,8 @@ def _run_basic_pitch_predict(audio_path: str) -> tuple[Optional[bytes], list[dic
 
     invocation_attempts = [
         {"args": (audio_path,), "kwargs": {}},
-        {"args": (audio_path,), "kwargs": {"model_or_model_path": ICASSP_2022_MODEL_PATH}},
+        {"args": (audio_path,), "kwargs": {
+            "model_or_model_path": ICASSP_2022_MODEL_PATH}},
         {"args": (audio_path, ICASSP_2022_MODEL_PATH), "kwargs": {}},
     ]
 
@@ -871,7 +865,8 @@ def _fallback_note_events_from_audio(audio: np.ndarray, sample_rate: int) -> lis
     start_index: Optional[int] = None
     current_pitches: list[float] = []
     for index, (pitch_hz, is_voiced) in enumerate(zip(f0, voiced_flag)):
-        valid_pitch = bool(is_voiced) and pitch_hz is not None and not np.isnan(pitch_hz)
+        valid_pitch = bool(
+            is_voiced) and pitch_hz is not None and not np.isnan(pitch_hz)
         if valid_pitch:
             if start_index is None:
                 start_index = index
@@ -881,7 +876,8 @@ def _fallback_note_events_from_audio(audio: np.ndarray, sample_rate: int) -> lis
 
         if start_index is not None and current_pitches:
             start = float(times[start_index])
-            end = float(times[index]) if index < len(times) else len(audio) / sample_rate
+            end = float(times[index]) if index < len(
+                times) else len(audio) / sample_rate
             if end - start >= 0.12:
                 note_events.append({
                     "start": start,
@@ -961,17 +957,33 @@ def _key_from_histogram(histogram: list[float]) -> str:
     hist = np.asarray(histogram, dtype=np.float32)
     if hist.sum() <= 0:
         return "Unknown"
+
+    # Yeni kontrol: tüm değerler aynıysa korelasyon hesaplanamaz
+    if np.std(hist) == 0:
+        return "Unknown"
+
     best_label = "Unknown"
     best_score = float("-inf")
+
     for root_idx, root_name in enumerate(PITCH_CLASS_NAMES):
-        major_score = float(np.corrcoef(hist, np.roll(MAJOR_PROFILE, root_idx))[0, 1])
-        minor_score = float(np.corrcoef(hist, np.roll(MINOR_PROFILE, root_idx))[0, 1])
+        major_score = float(np.corrcoef(
+            hist, np.roll(MAJOR_PROFILE, root_idx))[0, 1])
+        minor_score = float(np.corrcoef(
+            hist, np.roll(MINOR_PROFILE, root_idx))[0, 1])
+
+        # Güvenli karşılaştırma — NaN gelirse -inf'e çekilmeli
+        if np.isnan(major_score):
+            major_score = float("-inf")
+        if np.isnan(minor_score):
+            minor_score = float("-inf")
+
         if major_score > best_score:
             best_score = major_score
             best_label = f"{root_name} major"
         if minor_score > best_score:
             best_score = minor_score
             best_label = f"{root_name} minor"
+
     return best_label
 
 
@@ -1014,14 +1026,17 @@ def _parse_variant_temperatures(raw_temperatures: Optional[str], n_variants: int
     try:
         parsed = json.loads(raw_temperatures)
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Invalid temperatures JSON") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid temperatures JSON") from exc
 
     if not isinstance(parsed, list) or not all(isinstance(value, (int, float)) for value in parsed):
-        raise HTTPException(status_code=400, detail="Invalid temperatures JSON")
+        raise HTTPException(
+            status_code=400, detail="Invalid temperatures JSON")
 
     temperatures = [float(value) for value in parsed]
     if len(temperatures) != n_variants:
-        raise HTTPException(status_code=400, detail="temperatures array length must equal n_variants")
+        raise HTTPException(
+            status_code=400, detail="temperatures array length must equal n_variants")
     return temperatures
 
 
@@ -1029,7 +1044,8 @@ def _audio_to_iddm_mel(audio_bytes: bytes, cfg: dict[str, Any]) -> torch.Tensor:
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
     n_fft = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["n_fft"]
     hop_length = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["hop_length"]
-    mel_bins = int(cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
+    mel_bins = int(
+        cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
     t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
 
     audio = _read_audio_bytes(audio_bytes, sample_rate)
@@ -1044,7 +1060,8 @@ def _audio_to_iddm_mel(audio_bytes: bytes, cfg: dict[str, Any]) -> torch.Tensor:
     mel_db = (mel_db - mel_db.mean()) / (mel_db.std() + 1e-8)
     mel_window = mel_db[:, :t_win]
     if mel_window.shape[1] < t_win:
-        mel_window = np.pad(mel_window, ((0, 0), (0, t_win - mel_window.shape[1])))
+        mel_window = np.pad(
+            mel_window, ((0, 0), (0, t_win - mel_window.shape[1])))
     return torch.tensor(mel_window[np.newaxis, ...], dtype=torch.float32, device=DEVICE)
 
 
@@ -1072,12 +1089,15 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
             temp_audio_path = Path(handle.name)
-        sf.write(str(temp_audio_path), np.asarray(audio, dtype=np.float32), sample_rate)
+        sf.write(str(temp_audio_path), np.asarray(
+            audio, dtype=np.float32), sample_rate)
         if basic_pitch_predict is not None:
             try:
-                midi_bytes, note_events = _run_basic_pitch_predict(str(temp_audio_path))
+                midi_bytes, note_events = _run_basic_pitch_predict(
+                    str(temp_audio_path))
             except Exception:
-                logger.exception("Basic Pitch inference failed, falling back to heuristic notes")
+                logger.exception(
+                    "Basic Pitch inference failed, falling back to heuristic notes")
                 midi_bytes = None
                 note_events = []
     finally:
@@ -1089,10 +1109,12 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
 
     if midi_bytes is None:
         estimated_tempo = _estimate_tempo(note_events)
-        midi_bytes = _tokens_to_midi_bytes(note_events, bpm=estimated_tempo, instrument=0)
+        midi_bytes = _tokens_to_midi_bytes(
+            note_events, bpm=estimated_tempo, instrument=0)
 
     tempo_bpm = float(_estimate_tempo(note_events, midi_bytes))
-    avg_pitch = float(np.mean([int(note["pitch"]) for note in note_events])) if note_events else 60.0
+    avg_pitch = float(np.mean([int(note["pitch"])
+                      for note in note_events])) if note_events else 60.0
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch)
     pitch_histogram = _pitch_histogram(note_events)
     key = _extract_key_label(midi_bytes, pitch_histogram)
@@ -1113,26 +1135,27 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
 
 
 def generate_from_audio(audio_bytes_input: bytes, creativity: float = 0.7, chord: Optional[str] = None) -> tuple[list[list[float]], bytes, list[str]]:
-    bundle = _load_vae_bundle()
-    cfg = bundle["audio_cfg"]
+    cfg = _load_audio_cfg()
     sample_rate = int(cfg["audio"]["sample_rate"])
     audio = _read_audio_bytes(audio_bytes_input, sample_rate)
     detected_chords = _detect_chords_from_audio(audio, sample_rate)
     mel_input = _waveform_to_mel(audio, cfg)
 
-    if bundle["model"] is None:
+    try:
+        bundle = _load_cvae_iddm()
+    except HTTPException:
         return mel_input.tolist(), _waveform_to_wav_bytes(audio, sample_rate), detected_chords
 
     try:
         mel_tensor = _encode(audio, cfg)
         with torch.no_grad():
-            mu, logvar = bundle["model"].encode(mel_tensor)
+            mu, logvar = bundle["cvae_model"].encode(mel_tensor)
             std = torch.exp(0.5 * logvar)
-            epsilon = torch.randn_like(std)
-            z = mu + epsilon * std * max(0.05, float(creativity))
-            mel_output = _decode_from_latent(bundle["model"], z)
+            z = mu + torch.randn_like(std) * std * max(0.05, float(creativity))
+            mel_output = _decode_from_latent(bundle["cvae_model"], z)
         return mel_output.tolist(), _mel_to_audio_bytes(mel_output, cfg), detected_chords
-    except Exception:
+    except Exception as exc:
+        logger.warning("CVAE inference failed: %s", exc, exc_info=True)
         return mel_input.tolist(), _waveform_to_wav_bytes(audio, sample_rate), detected_chords
 
 
@@ -1145,7 +1168,8 @@ def generate_from_chord(
     cfg = _audio_cfg()
     sample_rate = int(cfg["audio"]["sample_rate"])
     chord_duration_beats = max(1.0, duration / (60.0 / max(bpm, 1.0)))
-    note_events = _note_events_for_progression([chord], bpm=bpm, temperature=1.0, chord_beats=chord_duration_beats)
+    note_events = _note_events_for_progression(
+        [chord], bpm=bpm, temperature=1.0, chord_beats=chord_duration_beats)
     waveform = _synthesize_note_events_to_waveform(note_events, sample_rate)
     return _waveform_to_mel(waveform, cfg).tolist(), _waveform_to_wav_bytes(waveform, sample_rate), [chord]
 
@@ -1154,7 +1178,8 @@ def _generate_progression_payload(progression: list[str], bpm: float, instrument
     cfg = _audio_cfg()
     sample_rate = int(cfg["audio"]["sample_rate"])
     note_events = _note_events_for_progression(progression, bpm=bpm)
-    midi_bytes = _tokens_to_midi_bytes(note_events, bpm=bpm, instrument=instrument)
+    midi_bytes = _tokens_to_midi_bytes(
+        note_events, bpm=bpm, instrument=instrument)
     midi_filename, _ = _save_bytes(midi_bytes, prefix, ".mid")
 
     waveform = _synthesize_note_events_to_waveform(note_events, sample_rate)
@@ -1197,7 +1222,8 @@ def generate_iddm_variants(
             s_enc = bundle["enc"](mel_window)
             dist = bundle["ac"].get_dist(s_enc)
             for index, temperature in enumerate(temperatures[:n_variants]):
-                z_pol = dist.loc + dist.scale * torch.randn_like(dist.loc) * float(temperature)
+                z_pol = dist.loc + dist.scale * \
+                    torch.randn_like(dist.loc) * float(temperature)
                 mood_oh = torch.zeros(1, n_moods, device=DEVICE)
                 mood_oh[0, int(transcription["mood_idx"])] = 1.0
                 # PPO actor outputs enc_dim=64; CVAE decoder expects latent_dim=16
@@ -1213,7 +1239,8 @@ def generate_iddm_variants(
                     generated_ids.squeeze(0).detach().cpu().tolist(),
                     bpm=120.0,
                 )
-                midi_filename, _ = _save_bytes(midi_bytes, f"variant_{index + 1}", ".mid")
+                midi_filename, _ = _save_bytes(
+                    midi_bytes, f"variant_{index + 1}", ".mid")
                 wav_b64 = _midi_bytes_to_wav_b64(
                     midi_bytes,
                     sample_rate=sample_rate,
@@ -1224,7 +1251,8 @@ def generate_iddm_variants(
                 wav_download_path = ""
                 if wav_b64 is not None:
                     wav_bytes = base64.b64decode(wav_b64)
-                    wav_filename, _ = _save_bytes(wav_bytes, f"variant_{index + 1}", ".wav")
+                    wav_filename, _ = _save_bytes(
+                        wav_bytes, f"variant_{index + 1}", ".wav")
                     wav_download_path = f"/api/download/{wav_filename}"
                 variants.append({
                     "index": index,
@@ -1248,15 +1276,18 @@ def generate_iddm_variants(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("Unexpected Colab parity inference error:\n%s", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Variant generation failed: {exc}") from exc
+        logger.error("Unexpected Colab parity inference error:\n%s",
+                     traceback.format_exc())
+        raise HTTPException(
+            status_code=500, detail="Variant generation failed") from exc
 
 
 def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]:
     _ = original_filename
     transcription = _transcribe_and_mood(file_bytes)
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    midi_filename, _ = _save_bytes(transcription["midi_bytes"], "transcription", ".mid")
+    midi_filename, _ = _save_bytes(
+        transcription["midi_bytes"], "transcription", ".mid")
     wav_b64 = _midi_bytes_to_wav_b64(
         transcription["midi_bytes"],
         sample_rate=sample_rate,
@@ -1386,10 +1417,13 @@ async def generate_progression_route(
     instrument: int = Body(0),
 ) -> dict[str, Any]:
     if not progression:
-        raise HTTPException(status_code=400, detail="Progression must include at least one chord")
-    cleaned_progression = [chord.strip() for chord in progression if chord.strip()]
+        raise HTTPException(
+            status_code=400, detail="Progression must include at least one chord")
+    cleaned_progression = [chord.strip()
+                           for chord in progression if chord.strip()]
     if not cleaned_progression:
-        raise HTTPException(status_code=400, detail="Progression must include at least one chord")
+        raise HTTPException(
+            status_code=400, detail="Progression must include at least one chord")
     return _generate_progression_payload(cleaned_progression, bpm=float(bpm), instrument=int(instrument), prefix="progression")
 
 
@@ -1415,12 +1449,15 @@ async def generate_accompaniment(
 ) -> JSONResponse:
     try:
         raw = vocal.file.read()
-        _, audio_bytes, _ = generate_from_audio(raw, creativity=float(creativity))
+        _, audio_bytes, _ = generate_from_audio(
+            raw, creativity=float(creativity))
         return JSONResponse(_package_audio_bytes(audio_bytes, "accomp"))
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
+        logger.error("Accompaniment generation failed", exc_info=exc)
+        raise HTTPException(
+            status_code=500, detail="Accompaniment generation failed") from exc
 
 
 @router.post("/generate-style")
@@ -1436,15 +1473,19 @@ async def generate_style(
         vocal_audio = _read_audio_from_upload(vocal, sample_rate)
         style_audio = _read_audio_from_upload(style, sample_rate)
         mixed_audio = librosa.util.normalize(
-            (1.0 - float(np.clip(style_mix, 0.0, 1.0))) * vocal_audio[: min(len(vocal_audio), len(style_audio))]
-            + float(np.clip(style_mix, 0.0, 1.0)) * style_audio[: min(len(vocal_audio), len(style_audio))]
+            (1.0 - float(np.clip(style_mix, 0.0, 1.0))) *
+            vocal_audio[: min(len(vocal_audio), len(style_audio))]
+            + float(np.clip(style_mix, 0.0, 1.0)) *
+            style_audio[: min(len(vocal_audio), len(style_audio))]
         )
         audio_bytes = _waveform_to_wav_bytes(mixed_audio, sample_rate)
         return JSONResponse(_package_audio_bytes(audio_bytes, "style"))
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Stylized generation failed: {exc}") from exc
+        logger.error("Stylized generation failed", exc_info=exc)
+        raise HTTPException(
+            status_code=500, detail="Stylized generation failed") from exc
 
 
 @router.post("/generate-lanes")
@@ -1470,4 +1511,6 @@ async def generate_lanes(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Lane masking failed: {exc}") from exc
+        logger.error("Lane masking failed", exc_info=exc)
+        raise HTTPException(
+            status_code=500, detail="Lane masking failed") from exc

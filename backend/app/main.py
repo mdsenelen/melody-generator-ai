@@ -33,7 +33,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "https://my-domain.com"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -64,7 +64,8 @@ async def upload_audio(
     sample_rate: Optional[int] = None,
 ) -> JSONResponse:
     if not file.filename or not file.filename.lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")):
-        raise HTTPException(status_code=400, detail="Supported formats: wav, mp3, flac, ogg, m4a, webm")
+        raise HTTPException(
+            status_code=400, detail="Supported formats: wav, mp3, flac, ogg, m4a, webm")
 
     raw = await file.read()
     if not raw:
@@ -117,7 +118,7 @@ async def generate_audio(
     chord: Optional[str] = Body(None),
     creativity: float = Body(0.7),
     duration: Optional[float] = Body(None),
-    bpm: float = Body(120.0),
+    bpm: float = Body(140.0),
     instrument: int = Body(0),
 ) -> dict[str, Any]:
     return await inference.handle_generate_request(
