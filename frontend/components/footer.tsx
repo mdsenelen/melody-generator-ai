@@ -1,31 +1,27 @@
-import React from "react";
-
-export const Footer = () => {
+export default function Footer() {
   return (
-    <footer className="mt-auto w-full pb-6 text-center text-[0.8rem] text-gray-400">
+    <footer className="mt-auto w-full pb-6 pt-2 text-center text-[12px] text-white/30">
       <span>
-        &copy; {new Date().getFullYear()} Merve Deniz Senelen. Find me on{" "}
+        &copy; {new Date().getFullYear()} Merve Deniz Senelen
+        {" · "}
         <a
           href="https://www.linkedin.com/in/mdenizsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-purple-200 transition hover:text-white"
+          className="transition hover:text-white/60"
         >
           LinkedIn
-        </a>{" "}
-        or{" "}
+        </a>
+        {" · "}
         <a
           href="https://www.youtube.com/@mdsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-purple-200 transition hover:text-white"
+          className="transition hover:text-white/60"
         >
           YouTube
         </a>
-        .
       </span>
     </footer>
   );
-};
-
-export default Footer;
+}
