@@ -21,6 +21,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/transcribe/route.js"
     ],
+    "/listen-progressions/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/listen-progressions/page.js"
+    ],
+    "/api/generate-progression/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/generate-progression/route.js"
+    ],
     "/choose-progression/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -41,10 +51,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/generate-variants/route.js"
     ],
-    "/api/generate-progression/route": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/generate-progression/route.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }
