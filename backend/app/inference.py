@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import traceback
 import uuid
+import shutil
 from pathlib import Path
 from typing import Any, Optional
 
@@ -187,7 +188,7 @@ def _checkpoint_size_mb(path: Path) -> float:
 
 def _fluidsynth_available() -> bool:
     try:
-        return subprocess.run(["which", "fluidsynth"], capture_output=True, check=False).returncode == 0
+        return shutil.which("fluidsynth") is not None
     except Exception:
         return False
 
@@ -751,10 +752,18 @@ def _midi_bytes_to_wav_b64(
                 handle.write(midi_bytes)
                 temp_midi_path = Path(handle.name)
             midi_obj = pretty_midi.PrettyMIDI(str(temp_midi_path))
-            rendered = midi_obj.fluidsynth(fs=sample_rate)
+            _SF2 = os.environ.get(
+                "SOUNDFONT_PATH",
+                str(APP_DIR / "soundfonts" / "GeneralUser-GS.sf2")
+            )
+
+            rendered = midi_obj.fluidsynth(
+                fs=sample_rate,
+                sf2_path=_SF2 if Path(_SF2).exists() else None
+            )
             return base64.b64encode(_waveform_to_wav_bytes(rendered, sample_rate)).decode("utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("FluidSynth render failed: %s", e)
         finally:
             if temp_midi_path and temp_midi_path.exists():
                 temp_midi_path.unlink(missing_ok=True)
