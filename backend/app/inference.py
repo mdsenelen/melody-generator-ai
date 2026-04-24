@@ -443,7 +443,38 @@ def _read_audio_bytes(raw: bytes, target_sr: int) -> np.ndarray:
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio payload")
     buf = io.BytesIO(raw)
-    audio, _ = librosa.load(buf, sr=target_sr, mono=True)
+    try:
+        audio, _ = librosa.load(buf, sr=target_sr, mono=True)
+    except Exception:
+        # Fallback: convert via ffmpeg (handles WebM/Opus from browser recordings)
+        tmp_in = tmp_out = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as f:
+                f.write(raw)
+                tmp_in = f.name
+            tmp_out = tmp_in + "_converted.wav"
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-i", tmp_in,
+                 "-ar", str(target_sr), "-ac", "1", "-f", "wav", tmp_out],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            )
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not decode audio (ffmpeg: " + (
+                        result.stderr.decode(errors="replace").strip().splitlines() or ["(no output)"]
+                    )[-1] + ")",
+                )
+            with open(tmp_out, "rb") as f:
+                wav_bytes = f.read()
+            audio, _ = librosa.load(io.BytesIO(wav_bytes), sr=target_sr, mono=True)
+        finally:
+            for p in (tmp_in, tmp_out):
+                if p:
+                    try:
+                        Path(p).unlink(missing_ok=True)
+                    except Exception:
+                        pass
     if audio.size == 0:
         raise HTTPException(status_code=400, detail="Could not decode audio")
     return librosa.util.normalize(audio).astype(np.float32)
@@ -1361,6 +1392,58 @@ async def handle_generate_request(
     return payload
 
 
+def _rerender_midi_bytes(midi_bytes: bytes, instrument: int, bpm: float) -> bytes:
+    if pretty_midi is None:
+        return midi_bytes
+
+    temp_in: Optional[Path] = None
+    temp_out: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
+            handle.write(midi_bytes)
+            temp_in = Path(handle.name)
+
+        src = pretty_midi.PrettyMIDI(str(temp_in))
+        _, tempo_vals = src.get_tempo_changes()
+        original_bpm = float(tempo_vals[0]) if len(tempo_vals) > 0 else 120.0
+        time_scale = original_bpm / max(bpm, 1.0)
+
+        dst = pretty_midi.PrettyMIDI(initial_tempo=float(bpm))
+        program = max(0, min(127, int(instrument)))
+
+        for src_inst in src.instruments:
+            dst_inst = pretty_midi.Instrument(
+                program=program,
+                is_drum=src_inst.is_drum,
+                name=src_inst.name,
+            )
+            for note in src_inst.notes:
+                dst_inst.notes.append(pretty_midi.Note(
+                    velocity=note.velocity,
+                    pitch=note.pitch,
+                    start=note.start * time_scale,
+                    end=note.end * time_scale,
+                ))
+            dst.instruments.append(dst_inst)
+
+        if not dst.instruments:
+            dst_inst = pretty_midi.Instrument(program=program)
+            dst.instruments.append(dst_inst)
+
+        with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
+            temp_out = Path(handle.name)
+        dst.write(str(temp_out))
+        return temp_out.read_bytes()
+    except Exception:
+        logger.warning("_rerender_midi_bytes failed, returning original", exc_info=True)
+        return midi_bytes
+    finally:
+        if temp_in and temp_in.exists():
+            temp_in.unlink(missing_ok=True)
+        if temp_out and temp_out.exists():
+            temp_out.unlink(missing_ok=True)
+
+
 def download_generated_file(filename: str) -> FileResponse:
     safe_name = Path(filename).name
     file_path = OUTPUT_DIR / safe_name
@@ -1495,6 +1578,23 @@ async def generate_style(
         logger.error("Stylized generation failed", exc_info=exc)
         raise HTTPException(
             status_code=500, detail="Stylized generation failed") from exc
+
+
+@router.post("/render-midi")
+async def render_midi_route(
+    midi_b64: str = Body(...),
+    instrument: int = Body(0),
+    bpm: float = Body(120.0),
+) -> dict[str, Any]:
+    try:
+        midi_bytes = base64.b64decode(midi_b64)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid midi_b64") from exc
+
+    sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+    rerendered = _rerender_midi_bytes(midi_bytes, instrument=instrument, bpm=bpm)
+    wav_b64 = _midi_bytes_to_wav_b64(rerendered, sample_rate=sample_rate, prefer_fluidsynth_only=True)
+    return {"wav_b64": wav_b64}
 
 
 @router.post("/generate-lanes")

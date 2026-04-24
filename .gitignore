@@ -14,3 +14,14 @@ node_modules/
 backend/venv/
 frontend/node_modules/
 backend/resampy/
+
+# Runtime-generated data (uploads, generated audio/MIDI, session logs)
+backend/data/recordings/
+backend/data/generated/
+backend/data/logs/
+
+# Frontend build artefacts
+frontend/.next/
+
+# Large media assets — serve from CDN/object storage instead
+frontend/public/*.mp4

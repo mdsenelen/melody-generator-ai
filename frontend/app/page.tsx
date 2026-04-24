@@ -200,7 +200,7 @@ export default function Home() {
             ? analysisError.message
             : "Analysis failed"
         );
-        setStatusMessage("We couldn’t analyse that audio clip.");
+        setStatusMessage("We couldn't analyse that audio clip.");
       }
     } finally {
       if (requestId === requestIdRef.current) {
@@ -239,7 +239,7 @@ export default function Home() {
     setStatusMessage(
       nextTab === "upload"
         ? "Choose a new file to start analysis."
-        : "Record a fresh idea and we’ll analyse it automatically."
+        : "Record a fresh idea and we'll analyse it automatically."
     );
   };
 
@@ -523,7 +523,7 @@ export default function Home() {
                             </p>
                           </div>
 
-                         
+
                         </div>
                       </div>
                     </div>
