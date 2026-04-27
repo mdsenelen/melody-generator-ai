@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAudioAnalyzer } from "../hooks/use-audio-analyzer";
+import { LivePitchHistogram } from "./live-pitch-histogram";
 
 type AudioRecorderProps = {
   onRecordingComplete: (file: File) => void;
+  showLivePitch?: boolean;
 };
 
 function getSupportedMimeType() {
@@ -15,7 +18,7 @@ function getSupportedMimeType() {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
+export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: AudioRecorderProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -26,6 +29,10 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
   const [recordedFile, setRecordedFile] = useState<File | null>(null);
   const [status, setStatus] = useState("Ready to record");
   const [error, setError] = useState<string | null>(null);
+  // Mirrors streamRef as React state so useAudioAnalyzer re-runs when it changes
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+
+  const analyzerState = useAudioAnalyzer(liveStream, isRecording && showLivePitch);
 
   useEffect(() => {
     return () => {
@@ -63,6 +70,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       chunksRef.current = [];
       streamRef.current = stream;
       mediaRecorderRef.current = recorder;
+      setLiveStream(stream);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -84,6 +92,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
         setPreviewUrl(nextPreviewUrl);
         setRecordedFile(file);
         setStatus("Preview ready. Use this recording or record again.");
+        setLiveStream(null);
         stopStream();
         mediaRecorderRef.current = null;
       };
@@ -118,6 +127,7 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     if (isRecording) {
       stopRecording();
     }
+    setLiveStream(null);
     clearPreviewState();
     setStatus("Ready to record");
     setError(null);
@@ -150,6 +160,16 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
             Stop
           </button>
         </div>
+        {showLivePitch && isRecording && (
+          <LivePitchHistogram
+            noteHistogram={analyzerState.noteHistogram}
+            pitchClass={analyzerState.pitchClass}
+            currentNote={analyzerState.currentNote}
+            currentFrequency={analyzerState.currentFrequency}
+            clarity={analyzerState.clarity}
+          />
+        )}
+
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-300">
           <p>{status}</p>
           {error ? <p className="mt-2 text-red-300">{error}</p> : null}

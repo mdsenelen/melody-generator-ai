@@ -53,7 +53,7 @@ export function UploadButton({
         <span>{isLoading ? "Uploading..." : label}</span>
         <input
           type="file"
-          accept="audio/*"
+          accept=".wav,.mp3,.flac,.ogg,.m4a,.webm,audio/*"
           onChange={handleFile}
           className="absolute inset-0 cursor-pointer opacity-0"
           disabled={isLoading}

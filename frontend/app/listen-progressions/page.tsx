@@ -1,45 +1,80 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import { ChordGraph } from "../../components/chord-graph";
+import { requestJson } from "../lib/request";
 
-const presetProgressions = [
-  {
-    title: "Pop",
-    // description: "A bright loop for quick demos and topline sketching.",
-    progression: ["C", "G", "Am", "F"],
-  },
-  {
-    title: "Soul",
-    // description: "A jazzy turnaround with softer harmony movement.",
-    progression: ["Dm7", "G7", "Cmaj7", "Am7"],
-  },
-  {
-    title: "Indie",
-    // description: "A guitar-friendly progression with stronger push and release.",
-    progression: ["Em", "C", "G", "D"],
-  },
-];
+type Progression = {
+  id: string;
+  name: string;
+  genre: string;
+  source: string;
+  chords: string[];
+  song_title: string | null;
+  artist: string | null;
+  year: number | null;
+};
 
-export default function ListenProgressionsPage() {
+const GENRE_BADGE: Record<string, string> = {
+  Jazz:    "border-amber-400/40  bg-amber-500/15  text-amber-100",
+  Blues:   "border-blue-400/40   bg-blue-500/15   text-blue-100",
+  Pop:     "border-purple-400/40 bg-purple-500/15 text-purple-100",
+  Rock:    "border-red-400/40    bg-red-500/15    text-red-100",
+  General: "border-gray-400/40   bg-gray-500/15   text-gray-100",
+};
+
+function GenreBadge({ genre }: { genre: string }) {
+  const cls = GENRE_BADGE[genre] ?? GENRE_BADGE.General;
   return (
-    <div className="space-y-6">
-      <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-        {/* <h1 className="text-3xl font-semibold text-white" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
-          
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-white/75">
-          
-        </p> */}
-      </section>
-      <div className="grid gap-6">
-        {presetProgressions.map((progression) => (
-          <ChordGraph
-            key={progression.title}
-            title={progression.title}
-            // description={progression.description}
-            progression={progression.progression}
-          />
-        ))}
-      </div>
-    </div>
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {genre}
+    </span>
   );
 }
 
+function ProgressionCard({ prog }: { prog: Progression }) {
+  const subtitle =
+    prog.song_title && prog.artist
+      ? `${prog.song_title} · ${prog.artist}${prog.year ? ` · ${prog.year}` : ""}`
+      : undefined;
+
+  return (
+    <ChordGraph
+      title={prog.name}
+      description={subtitle}
+      progression={prog.chords}
+      genreBadge={<GenreBadge genre={prog.genre} />}
+    />
+  );
+}
+
+export default function ListenProgressionsPage() {
+  const [progressions, setProgressions] = useState<Progression[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    requestJson<{ progressions: Progression[] }>("/api/progressions", {
+      expectedContentType: "application/json",
+    })
+      .then((data) => setProgressions(data.progressions ?? []))
+      .catch(() => setProgressions([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+        </div>
+      ) : (
+        <div className="grid gap-6">
+          {progressions.map((prog) => (
+            <ProgressionCard key={prog.id} prog={prog} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

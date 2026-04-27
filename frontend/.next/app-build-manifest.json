@@ -21,10 +21,40 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/transcribe/route.js"
     ],
-    "/api/render-midi/route": [
+    "/generate-variants/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/render-midi/route.js"
+      "static/chunks/app/generate-variants/page.js"
+    ],
+    "/api/generate-variants/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/generate-variants/route.js"
+    ],
+    "/choose-progression/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/choose-progression/page.js"
+    ],
+    "/listen-progressions/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/listen-progressions/page.js"
+    ],
+    "/api/generate-progression/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/generate-progression/route.js"
+    ],
+    "/api/chords/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/chords/route.js"
+    ],
+    "/api/progressions/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/progressions/route.js"
     ]
   }
 }

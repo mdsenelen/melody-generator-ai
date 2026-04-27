@@ -110,15 +110,27 @@ async function transcribeFile(file: File) {
   );
 }
 
-function LoadingSkeleton() {
+function AnalysisAnimation() {
+  const heights = [40, 65, 50, 80, 45, 70, 35];
+  const durations = ["0.7s", "0.85s", "0.65s", "0.9s", "0.75s", "0.8s", "0.6s"];
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {[0, 1, 2, 3].map((index) => (
-        <div
-          key={index}
-          className="h-28 animate-pulse rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm"
-        />
-      ))}
+    <div className="flex flex-col items-center justify-center gap-6 py-14">
+      <div className="flex items-end gap-[6px] h-20">
+        {heights.map((h, i) => (
+          <div
+            key={i}
+            className="w-3 rounded-full bg-gradient-to-t from-purple-500 to-sky-400 animate-bounce"
+            style={{
+              height: `${h}px`,
+              animationDelay: `${i * 0.11}s`,
+              animationDuration: durations[i],
+            }}
+          />
+        ))}
+      </div>
+      <p className="text-sm font-semibold tracking-wide text-white/75 animate-pulse">
+        Analysing your audio…
+      </p>
     </div>
   );
 }
@@ -270,7 +282,7 @@ export default function Home() {
                 </button>
 
                 {activeTab === "record" ? (
-                  <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+                  <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
                 ) : null}
               </div>
 
@@ -297,47 +309,20 @@ export default function Home() {
               </div>
 
               {analysisResult ? (
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                  <p className="text-sm font-semibold text-white">Next step</p>
-                  <p className="mt-2 text-sm text-white/70">
-                    Explore CVAE + IDDM-PPO generations on the dedicated variants
-                    page.
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => resetForNewInput("upload")}
-                      className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/10"
-                    >
-                      Upload New Audio
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => resetForNewInput("record")}
-                      className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/10"
-                    >
-                      Record New Audio
-                    </button>
-
-                    <Link
-                      href="/generate-variants"
-                      className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-                    >
-                      Generate Variants
-                    </Link>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => resetForNewInput("record")}
+                  className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/10"
+                >
+                  Record New Audio
+                </button>
               ) : null}
             </div>
 
             <div className="space-y-6">
               {isAnalyzing ? (
                 <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                  <p className="mb-4 text-sm font-semibold text-white">
-                    Analysis in progress
-                  </p>
-                  <LoadingSkeleton />
+                  <AnalysisAnimation />
                 </section>
               ) : null}
 
@@ -362,9 +347,6 @@ export default function Home() {
                         >
                           {analysisResult.sourceName}
                         </h2>
-                        <p className="mt-2 text-sm text-white/60">
-                          Stored as {analysisResult.uploadedFilename}
-                        </p>
                       </div>
 
                       {mood ? (
@@ -372,7 +354,7 @@ export default function Home() {
                           className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
                         >
                           <span>{mood.emoji}</span>
-                          <span>{mood.label}</span>
+                          <span>Mood: {mood.label}</span>
                         </div>
                       ) : null}
                     </div>
@@ -512,20 +494,6 @@ export default function Home() {
                         )}
                       </div>
 
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-                              Mood
-                            </p>
-                            <p className="mt-2 text-lg font-semibold text-white">
-                              {analysisResult.mood_label}
-                            </p>
-                          </div>
-
-
-                        </div>
-                      </div>
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
@@ -537,6 +505,7 @@ export default function Home() {
                       </p>
                       <p className="mt-2 text-sm text-white/65">
                         Hover a chord to preview a guitar fingering diagram.
+                        Click on a chord to listen.
                         Chords are grouped by root note.
                       </p>
 

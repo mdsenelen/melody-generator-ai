@@ -1,0 +1,2350 @@
+[
+  {
+    "id": "pop-1",
+    "name": "I–V–vi–IV",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "G",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "pop-2",
+    "name": "I–IV–V–I",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "F",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "pop-3",
+    "name": "I–IV–Vsus4–V",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "F",
+      "Gsus4",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "pop-4",
+    "name": "I–vi–ii–V",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "Am",
+      "Dm",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "pop-5",
+    "name": "I–ii–IV–V",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "Dm",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "pop-6",
+    "name": "I–V–vi–V",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "G",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-1",
+    "name": "I–vi–IV–V",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "Am",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-2",
+    "name": "I–IV–I–V",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "F",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-3",
+    "name": "I–♭III–IV–I",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "Eb",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-4",
+    "name": "III–IV–IVm",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "E",
+      "F",
+      "F",
+      "Fm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-5",
+    "name": "ii–I–V–♭VII",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "Dm",
+      "C",
+      "G",
+      "Bb"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "rock-6",
+    "name": "I–♭VII–IV–vi",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "G",
+      "F",
+      "C",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-1",
+    "name": "ii7–V7–IΔ",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Dm7",
+      "G7",
+      "Cmaj7",
+      "Cmaj7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-2",
+    "name": "ii7–V7–IΔ–VI7",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Dm7",
+      "G7",
+      "Cmaj7",
+      "A7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-3",
+    "name": "IΔ–vi7–ii7–V7",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Cmaj7",
+      "Am7",
+      "Dm7",
+      "G7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-4",
+    "name": "IΔ–#I°–ii7–V7",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Cmaj7",
+      "C#dim",
+      "Dm7",
+      "G7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-5",
+    "name": "IΔ–I7–IVΔ–IVm7",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Cmaj7",
+      "C7",
+      "Fmaj7",
+      "Fm7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-6",
+    "name": "iiø–ii7–V7–IΔ",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Am7",
+      "Dm7",
+      "G7",
+      "Cmaj7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-7",
+    "name": "iiø–V7–im7",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Dm7",
+      "G7",
+      "Cm7",
+      "Cm7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "jazz-8",
+    "name": "im7–V7 (Minor vamp)",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Cm7",
+      "G7",
+      "Cm7",
+      "G7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "blues-1",
+    "name": "12-Bar Blues",
+    "genre": "Blues",
+    "source": "musicca",
+    "chords": [
+      "C7",
+      "C7",
+      "C7",
+      "C7",
+      "F7",
+      "F7",
+      "C7",
+      "C7",
+      "G7",
+      "F7",
+      "C7",
+      "C7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "song-parcels-2018",
+    "name": "With or Without You",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "F",
+      "Dm7",
+      "Gsus4",
+      "G"
+    ],
+    "song_title": "With or Without You",
+    "artist": "Parcels",
+    "year": 2018
+  },
+  {
+    "id": "song-shawnmendes-2016",
+    "name": "Mercy",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Em",
+      "G",
+      "Bm",
+      "A"
+    ],
+    "song_title": "Mercy",
+    "artist": "Shawn Mendes",
+    "year": 2016
+  },
+  {
+    "id": "song-johnnewman-2013",
+    "name": "Love Me Again",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Gm",
+      "Bb",
+      "Dm",
+      "C"
+    ],
+    "song_title": "Love Me Again",
+    "artist": "John Newman",
+    "year": 2013
+  },
+  {
+    "id": "song-capitalcities-2011",
+    "name": "Safe And Sound",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "F",
+      "C",
+      "Am",
+      "G"
+    ],
+    "song_title": "Safe And Sound",
+    "artist": "Capital Cities",
+    "year": 2011
+  },
+  {
+    "id": "song-jessiej-2010",
+    "name": "Price Tag",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "F",
+      "Am",
+      "Dm",
+      "Bb"
+    ],
+    "song_title": "Price Tag",
+    "artist": "Jessie J",
+    "year": 2010
+  },
+  {
+    "id": "song-florence-2009",
+    "name": "You Got the Love",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Abm",
+      "Gb",
+      "Db",
+      "Db"
+    ],
+    "song_title": "You Got the Love",
+    "artist": "Florence and the Machine",
+    "year": 2009
+  },
+  {
+    "id": "song-bep-2003",
+    "name": "Where Is the Love?",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "F",
+      "C",
+      "Dm",
+      "Bb"
+    ],
+    "song_title": "Where Is the Love?",
+    "artist": "The Black Eyed Peas",
+    "year": 2003
+  },
+  {
+    "id": "song-gorillaz-2001",
+    "name": "19-2000 Soulchild Remix",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "G",
+      "F",
+      "C",
+      "G"
+    ],
+    "song_title": "19-2000 Soulchild Remix",
+    "artist": "Gorillaz",
+    "year": 2001
+  },
+  {
+    "id": "song-marymay-1999",
+    "name": "Shackles",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Gm7",
+      "Cm7",
+      "D7",
+      "Gm7"
+    ],
+    "song_title": "Shackles",
+    "artist": "Mary May",
+    "year": 1999
+  },
+  {
+    "id": "song-eagleeye-1997",
+    "name": "Save Tonight",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Dm",
+      "Bb",
+      "F",
+      "C"
+    ],
+    "song_title": "Save Tonight",
+    "artist": "Eagle Eye Cherry",
+    "year": 1997
+  },
+  {
+    "id": "song-verve-1997",
+    "name": "Bitter Sweet Symphony",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "E",
+      "Bm7",
+      "Asus4",
+      "A"
+    ],
+    "song_title": "Bitter Sweet Symphony",
+    "artist": "The Verve",
+    "year": 1997
+  },
+  {
+    "id": "song-cranberries-1994",
+    "name": "Zombie",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "Em",
+      "C",
+      "G",
+      "D"
+    ],
+    "song_title": "Zombie",
+    "artist": "The Cranberries",
+    "year": 1994
+  },
+  {
+    "id": "song-tlc-1994",
+    "name": "Waterfalls",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Ebmaj7",
+      "Bbadd9",
+      "Dbmaj7",
+      "Ab"
+    ],
+    "song_title": "Waterfalls",
+    "artist": "TLC",
+    "year": 1994
+  },
+  {
+    "id": "song-haddaway-1993",
+    "name": "What Is Love",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Gm",
+      "Bb",
+      "Dm",
+      "F"
+    ],
+    "song_title": "What Is Love",
+    "artist": "Haddaway",
+    "year": 1993
+  },
+  {
+    "id": "song-isaak-1989",
+    "name": "Wicked Game",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "Bm",
+      "A",
+      "E",
+      "E"
+    ],
+    "song_title": "Wicked Game",
+    "artist": "Chris Isaak",
+    "year": 1989
+  },
+  {
+    "id": "song-mcferrin-1988",
+    "name": "Don't Worry Be Happy",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "B",
+      "C#m",
+      "E",
+      "B"
+    ],
+    "song_title": "Don't Worry Be Happy",
+    "artist": "Bobby McFerrin",
+    "year": 1988
+  },
+  {
+    "id": "song-u2-1986",
+    "name": "With or Without You",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "D",
+      "A",
+      "Bm",
+      "G"
+    ],
+    "song_title": "With or Without You",
+    "artist": "U2",
+    "year": 1986
+  },
+  {
+    "id": "song-laidback-1983",
+    "name": "Sunshine Reggae",
+    "genre": "Pop",
+    "source": "musicca",
+    "chords": [
+      "Ab",
+      "Cm7",
+      "Fm7",
+      "Bbm7"
+    ],
+    "song_title": "Sunshine Reggae",
+    "artist": "Laid Back",
+    "year": 1983
+  },
+  {
+    "id": "song-stevemiller-1982",
+    "name": "Abracadabra",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "Am",
+      "Dm",
+      "E",
+      "Am"
+    ],
+    "song_title": "Abracadabra",
+    "artist": "Steve Miller Band",
+    "year": 1982
+  },
+  {
+    "id": "song-grover-1981",
+    "name": "Just the Two of Us",
+    "genre": "Jazz",
+    "source": "musicca",
+    "chords": [
+      "Db",
+      "C7",
+      "Fm7",
+      "Ab"
+    ],
+    "song_title": "Just the Two of Us",
+    "artist": "Grover Washington Jr.",
+    "year": 1981
+  },
+  {
+    "id": "song-bto-1974",
+    "name": "Takin' Care of Business",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "C",
+      "Bb",
+      "F",
+      "C"
+    ],
+    "song_title": "Takin' Care of Business",
+    "artist": "Bachman Turner Overdrive",
+    "year": 1974
+  },
+  {
+    "id": "song-eagles-1974",
+    "name": "Already Gone",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "G",
+      "D",
+      "C",
+      "C"
+    ],
+    "song_title": "Already Gone",
+    "artist": "The Eagles",
+    "year": 1974
+  },
+  {
+    "id": "song-hendrix-1967",
+    "name": "All Along the Watchtower",
+    "genre": "Rock",
+    "source": "musicca",
+    "chords": [
+      "Cm",
+      "Bb",
+      "Ab",
+      "Bb"
+    ],
+    "song_title": "All Along the Watchtower",
+    "artist": "Jimi Hendrix",
+    "year": 1967
+  },
+  {
+    "id": "ht-0003",
+    "name": "C–G–F–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0004",
+    "name": "C–G–F–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0005",
+    "name": "C–G–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0006",
+    "name": "C–G–C–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0007",
+    "name": "C–G–C–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0008",
+    "name": "C–G–Dm–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "Dm",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0009",
+    "name": "C–G–Dm–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "Dm",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0010",
+    "name": "C–G–Dm–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "G",
+      "Dm",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0011",
+    "name": "C–F–C–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0014",
+    "name": "C–F–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0015",
+    "name": "C–F–G–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0016",
+    "name": "C–F–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0017",
+    "name": "C–F–Am–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "Am",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0018",
+    "name": "C–F–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "F",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0020",
+    "name": "C–Am–F–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0021",
+    "name": "C–Am–G–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0022",
+    "name": "C–Am–G–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0023",
+    "name": "C–Am–G–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "G",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0024",
+    "name": "C–Am–C–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "C",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0025",
+    "name": "C–Am–C–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0026",
+    "name": "C–Am–C–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0028",
+    "name": "C–Am–Dm–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Dm",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0029",
+    "name": "C–Am–Dm–G7",
+    "genre": "Jazz",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Dm",
+      "G7"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0030",
+    "name": "C–Am–Dm–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Dm",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0031",
+    "name": "C–Am–Em–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Em",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0032",
+    "name": "C–Am–Em–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Em",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0033",
+    "name": "C–Am–Em–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "C",
+      "Am",
+      "Em",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0034",
+    "name": "F–C–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0035",
+    "name": "F–C–G–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0036",
+    "name": "F–C–G–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0037",
+    "name": "F–C–G–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "G",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0038",
+    "name": "F–C–F–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0039",
+    "name": "F–C–F–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0040",
+    "name": "F–C–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0042",
+    "name": "F–C–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0043",
+    "name": "F–C–Am–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "C",
+      "Am",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0044",
+    "name": "F–G–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0045",
+    "name": "F–G–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0046",
+    "name": "F–G–Am–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "Am",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0047",
+    "name": "F–G–Am–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "Am",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0048",
+    "name": "F–G–C–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0049",
+    "name": "F–G–C–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0050",
+    "name": "F–G–C–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "C",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0051",
+    "name": "F–G–F–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0052",
+    "name": "F–G–F–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "G",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0053",
+    "name": "F–Am–G–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0054",
+    "name": "F–Am–G–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0055",
+    "name": "F–Am–G–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "G",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0056",
+    "name": "F–Am–G–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "G",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0057",
+    "name": "F–Am–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0058",
+    "name": "F–Am–C–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0059",
+    "name": "F–Am–C–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0060",
+    "name": "F–Am–C–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "C",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0061",
+    "name": "F–Am–C–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "C",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0062",
+    "name": "F–Am–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0063",
+    "name": "F–Am–F–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0064",
+    "name": "F–Am–F–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "F",
+      "Am",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0065",
+    "name": "Am–F–C–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "F",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0066",
+    "name": "Am–F–C–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "F",
+      "C",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0067",
+    "name": "Am–F–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "F",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0068",
+    "name": "Am–F–G–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "F",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0069",
+    "name": "Am–F–G–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "F",
+      "G",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0070",
+    "name": "Am–G–F–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0071",
+    "name": "Am–G–F–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0072",
+    "name": "Am–G–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0073",
+    "name": "Am–G–F–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "F",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0074",
+    "name": "Am–G–F–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "F",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0075",
+    "name": "Am–G–C–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0076",
+    "name": "Am–G–C–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0077",
+    "name": "Am–G–C–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "C",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0078",
+    "name": "Am–G–C–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "C",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0079",
+    "name": "Am–G–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0080",
+    "name": "Am–G–Am–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "Am",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0081",
+    "name": "Am–G–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "G",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0082",
+    "name": "Am–C–G–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0083",
+    "name": "Am–C–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0084",
+    "name": "Am–C–G–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "G",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0085",
+    "name": "Am–C–F–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0086",
+    "name": "Am–C–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0087",
+    "name": "Am–C–F–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0088",
+    "name": "Am–C–F–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "F",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0089",
+    "name": "Am–C–Am–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Am",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0090",
+    "name": "Am–C–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0091",
+    "name": "Am–C–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0092",
+    "name": "Am–C–Dm–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Dm",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0093",
+    "name": "Am–C–Dm–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Dm",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0094",
+    "name": "Am–C–Dm–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Dm",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0095",
+    "name": "Am–C–Dm–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Dm",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0096",
+    "name": "Am–C–Dm–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "Am",
+      "C",
+      "Dm",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0097",
+    "name": "G–Am–F–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0098",
+    "name": "G–Am–F–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0099",
+    "name": "G–Am–G–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0100",
+    "name": "G–Am–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0101",
+    "name": "G–Am–G–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0102",
+    "name": "G–Am–C–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0103",
+    "name": "G–Am–C–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "Am",
+      "C",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0104",
+    "name": "G–C–F–G",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "F",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0105",
+    "name": "G–C–F–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "F",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0106",
+    "name": "G–C–F–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "F",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0107",
+    "name": "G–C–G–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0108",
+    "name": "G–C–G–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0109",
+    "name": "G–C–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0110",
+    "name": "G–C–Am–F",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "Am",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0111",
+    "name": "G–C–Am–Dm",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "Am",
+      "Dm"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0112",
+    "name": "G–C–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0113",
+    "name": "G–C–Am–Em",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "C",
+      "Am",
+      "Em"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0116",
+    "name": "G–F–C–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "C",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0117",
+    "name": "G–F–G–Am",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "G",
+      "Am"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0118",
+    "name": "G–F–G–C",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "G",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0119",
+    "name": "G–F–G–F",
+    "genre": "Pop",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "G",
+      "F"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0120",
+    "name": "G–F–Am–G",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "Am",
+      "G"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  },
+  {
+    "id": "ht-0121",
+    "name": "G–F–Am–C",
+    "genre": "Rock",
+    "source": "hooktheory",
+    "chords": [
+      "G",
+      "F",
+      "Am",
+      "C"
+    ],
+    "song_title": null,
+    "artist": null,
+    "year": null
+  }
+]
