@@ -24,4 +24,4 @@ backend/data/logs/
 frontend/.next/
 
 # Large media assets — serve from CDN/object storage instead
-frontend/public/*.mp4
+frontend/public/*.mp4"backend/data/recordings/*.wav" 
