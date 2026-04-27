@@ -6,8 +6,6 @@ import { AudioRecorder } from "../../components/audio-recorder";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { requestJson } from "../lib/request";
 
-type TabKey = "upload" | "record";
-
 type Variant = {
   index: number;
   temperature: number;
@@ -35,18 +33,9 @@ type VariantsResponse = {
 };
 
 const moodMeta = {
-  happy: {
-    emoji: "Happy",
-    classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100",
-  },
-  sad: {
-    emoji: "Sad",
-    classes: "border-blue-500 bg-blue-900/40 text-blue-100",
-  },
-  neutral: {
-    emoji: "Neutral",
-    classes: "border-gray-600 bg-gray-800 text-gray-100",
-  },
+  happy:   { emoji: "😄", label: "Happy",   classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100" },
+  sad:     { emoji: "😢", label: "Sad",     classes: "border-blue-500 bg-blue-900/40 text-blue-100" },
+  neutral: { emoji: "😐", label: "Neutral", classes: "border-gray-600 bg-gray-800 text-gray-100" },
 } as const;
 
 function buildDefaultTemperatures(count: number) {
@@ -64,7 +53,7 @@ function triggerBase64Download(filename: string, data: string, mimeType: string)
 }
 
 export default function GenerateVariantsPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("upload");
+  const [showRecorder, setShowRecorder] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
   const [storedFilename, setStoredFilename] = useState<string | null>(null);
@@ -104,6 +93,7 @@ export default function GenerateVariantsPage() {
     setSelectedSourceName(file.name);
     setStoredFilename(null);
     setError(null);
+    setShowRecorder(false);
   };
 
   const generateVariants = async () => {
@@ -143,37 +133,21 @@ export default function GenerateVariantsPage() {
 
       <section className="rounded-[2rem] border border-white/10 bg-gray-900/80 p-6 shadow-xl shadow-black/20">
         <div className="flex flex-wrap gap-3">
+          <UploadButton onUploadSuccess={handleUploadSuccess} onUploadError={setError} label="Upload audio" />
           <button
             type="button"
-            onClick={() => setActiveTab("upload")}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              activeTab === "upload"
-                ? "border border-purple-400/60 bg-purple-500/20 text-white"
-                : "border border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white"
-            }`}
+            onClick={() => setShowRecorder((v) => !v)}
+            className="inline-flex items-center justify-center overflow-hidden rounded-2xl border border-purple-400/40 bg-purple-600/20 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:border-purple-300 hover:bg-purple-500/25"
           >
-            Upload file
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("record")}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              activeTab === "record"
-                ? "border border-purple-400/60 bg-purple-500/20 text-white"
-                : "border border-white/10 bg-white/5 text-gray-300 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Record audio
+            {showRecorder ? "Hide recorder" : "Record audio"}
           </button>
         </div>
 
-        <div className="mt-6">
-          {activeTab === "upload" ? (
-            <UploadButton onUploadSuccess={handleUploadSuccess} onUploadError={setError} label="Upload audio" />
-          ) : (
+        {showRecorder ? (
+          <div className="mt-6">
             <AudioRecorder onRecordingComplete={handleRecordingComplete} />
-          )}
-        </div>
+          </div>
+        ) : null}
 
         <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -241,7 +215,7 @@ export default function GenerateVariantsPage() {
             {mood ? (
               <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}>
                 <span>{mood.emoji}</span>
-                <span>{result.mood_label}</span>
+                <span>Mood: {mood.label}</span>
               </div>
             ) : null}
           </div>

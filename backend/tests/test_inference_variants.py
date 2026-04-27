@@ -14,6 +14,7 @@ from fastapi import UploadFile
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app import inference  # noqa: E402
+from app.model.colab_parity import heuristic_mood_from_metrics
 
 
 class _DummyModule:
@@ -105,7 +106,7 @@ def test_load_cvae_iddm_raises_for_missing_file(tmp_path, monkeypatch):
         inference._load_cvae_iddm()
 
     assert exc.value.status_code == 503
-    assert str(iddm_path) in exc.value.detail
+    assert "missing" in exc.value.detail.lower()
 
 
 def test_load_cvae_iddm_raises_for_tiny_file(tmp_path, monkeypatch):
@@ -121,7 +122,7 @@ def test_load_cvae_iddm_raises_for_tiny_file(tmp_path, monkeypatch):
         inference._load_cvae_iddm()
 
     assert exc.value.status_code == 503
-    assert str(iddm_path) in exc.value.detail
+    assert "corrupt" in exc.value.detail.lower() or "incomplete" in exc.value.detail.lower()
 
 
 def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
@@ -142,6 +143,7 @@ def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
 
     assert result["midi_bytes"] == b"MThd\x00\x00"
     assert result["n_notes"] == 2
+    assert result["note_events"] == note_events
     assert result["tempo_bpm"] == 128.0
     assert result["avg_pitch"] == 74.0
     assert result["mood_idx"] == 0
@@ -251,3 +253,36 @@ def test_model_status_route_does_not_load_models(monkeypatch):
     assert payload["cvae"]["loaded"] is True
     assert payload["iddm_ppo"]["loaded"] is False
     assert payload["load_error"] == "cached error"
+
+
+# ── heuristic_mood_from_metrics ───────────────────────────────────────────────
+
+@pytest.mark.parametrize("tempo,pitch,key,expected_idx,expected_label", [
+    # Fast + major key → happy
+    (120.0, 62.0, "C major", 0, "happy"),
+    # Fast + high pitch (no key info) → happy
+    (115.0, 70.0, "", 0, "happy"),
+    # Slow + minor key → sad
+    (75.0, 64.0, "A minor", 1, "sad"),
+    # Slow + low pitch (no key info) → sad
+    (70.0, 55.0, "", 1, "sad"),
+    # Minor key at moderate tempo (85 BPM) → sad
+    (85.0, 63.0, "D minor", 1, "sad"),
+    # Minor key above 100 BPM → neutral (not slow enough for rule 3)
+    (105.0, 63.0, "D minor", 2, "neutral"),
+    # Unknown key, mid tempo, mid pitch → neutral
+    (95.0, 63.0, "", 2, "neutral"),
+    # Unknown key string → treated as no-key (neutral)
+    (95.0, 63.0, "Unknown", 2, "neutral"),
+])
+def test_heuristic_mood_from_metrics(tempo, pitch, key, expected_idx, expected_label):
+    idx, label = heuristic_mood_from_metrics(tempo, pitch, key)
+    assert idx == expected_idx
+    assert label == expected_label
+
+
+def test_heuristic_mood_from_metrics_default_key_arg():
+    """key_label defaults to '' so old two-arg callers still work."""
+    idx, label = heuristic_mood_from_metrics(120.0, 70.0)
+    assert idx == 0
+    assert label == "happy"

@@ -91,48 +91,56 @@ DEFAULT_AUDIO_CFG = {
 }
 
 DEFAULT_CHORDS = [
-    "C",
-    "Cm",
-    "D",
-    "Dm",
-    "E",
-    "Em",
-    "F",
-    "G",
-    "Am",
-    "Bm",
-    "G7",
-    "Cmaj7",
-    "Am7",
-    "Dm7",
+    # Major (all 12 roots, both spellings where conventional)
+    "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B",
+    # Minor (all 12 roots)
+    "Cm", "C#m", "Dbm", "Dm", "D#m", "Ebm", "Em", "Fm", "F#m", "Gbm", "Gm", "G#m", "Abm", "Am", "A#m", "Bbm", "Bm",
+    # Augmented (all 12 roots)
+    "Caug", "C#aug", "Daug", "D#aug", "Ebaug", "Eaug", "Faug", "F#aug", "Gaug", "G#aug", "Abaug", "Aaug", "Bbaug", "Baug",
+    # Diminished (all 12 roots)
+    "Cdim", "C#dim", "Ddim", "D#dim", "Ebdim", "Edim", "Fdim", "F#dim", "Gdim", "G#dim", "Abdim", "Adim", "Bbdim", "Bdim",
+    # Power / 5th chords (all 12 roots)
+    "C5", "C#5", "D5", "D#5", "Eb5", "E5", "F5", "F#5", "G5", "G#5", "Ab5", "A5", "Bb5", "B5",
+    # Dominant 7th (all 12 roots)
+    "C7", "C#7", "Db7", "D7", "D#7", "Eb7", "E7", "F7", "F#7", "Gb7", "G7", "G#7", "Ab7", "A7", "A#7", "Bb7", "B7",
+    # Major 7th (all 12 roots)
+    "Cmaj7", "C#maj7", "Dbmaj7", "Dmaj7", "D#maj7", "Ebmaj7", "Emaj7", "Fmaj7", "F#maj7", "Gbmaj7", "Gmaj7", "G#maj7", "Abmaj7", "Amaj7", "A#maj7", "Bbmaj7", "Bmaj7",
+    # Minor 7th (all 12 roots)
+    "Cm7", "C#m7", "Dm7", "D#m7", "Ebm7", "Em7", "Fm7", "F#m7", "Gm7", "G#m7", "Abm7", "Am7", "Bbm7", "Bm7",
+    # Sus2 (all 12 roots)
+    "Csus2", "C#sus2", "Dsus2", "D#sus2", "Ebsus2", "Esus2", "Fsus2", "F#sus2", "Gsus2", "G#sus2", "Absus2", "Asus2", "Bbsus2", "Bsus2",
+    # Sus4 (all 12 roots)
+    "Csus4", "C#sus4", "Dsus4", "D#sus4", "Ebsus4", "Esus4", "Fsus4", "F#sus4", "Gsus4", "G#sus4", "Absus4", "Asus4", "Bbsus4", "Bsus4",
+    # Dominant 9th
+    "C9", "D9", "E9", "F9", "G9", "A9", "B9", "Bb9",
+    # Major 9th
+    "Cmaj9", "Dmaj9", "Emaj9", "Fmaj9", "Gmaj9", "Amaj9", "Bmaj9",
+    # Minor 9th
+    "Cm9", "Dm9", "Em9", "Fm9", "Gm9", "Am9", "Bm9",
+    # Add9
+    "Cadd9", "Dadd9", "Eadd9", "Fadd9", "Gadd9", "Aadd9", "Badd9",
 ]
 
-PRESET_PROGRESSIONS = [
-    {
-        "id": "sunrise-pop",
-        "name": "Sunrise Pop",
-        "description": "A bright I-V-vi-IV loop for quick demos.",
-        "progression": ["C", "G", "Am", "F"],
-    },
-    {
-        "id": "midnight-soul",
-        "name": "Midnight Soul",
-        "description": "A warm jazz-flavoured turnaround.",
-        "progression": ["Dm7", "G7", "Cmaj7", "Am7"],
-    },
-    {
-        "id": "indie-drive",
-        "name": "Indie Drive",
-        "description": "A guitar-friendly loop with forward motion.",
-        "progression": ["Em", "C", "G", "D"],
-    },
-    {
-        "id": "blue-hour",
-        "name": "Blue Hour",
-        "description": "A moody minor progression for darker sketches.",
-        "progression": ["Am", "F", "C", "G"],
-    },
+_PROGRESSIONS_JSON = Path(__file__).resolve().parent / "data" / "progressions.json"
+
+_PRESET_PROGRESSIONS_FALLBACK: list[dict[str, Any]] = [
+    {"id": "pop-1",   "name": "I-V-vi-IV",  "genre": "Pop",  "source": "fallback", "chords": ["C","G","Am","F"],           "song_title": None, "artist": None, "year": None},
+    {"id": "jazz-2",  "name": "ii7-V7-I",   "genre": "Jazz", "source": "fallback", "chords": ["Dm7","G7","Cmaj7","A7"],     "song_title": None, "artist": None, "year": None},
+    {"id": "rock-1",  "name": "I-vi-IV-V",  "genre": "Rock", "source": "fallback", "chords": ["Em","C","G","D"],            "song_title": None, "artist": None, "year": None},
+    {"id": "pop-4",   "name": "I-vi-ii-V",  "genre": "Pop",  "source": "fallback", "chords": ["Am","F","C","G"],            "song_title": None, "artist": None, "year": None},
 ]
+
+
+def _load_preset_progressions() -> list[dict[str, Any]]:
+    if _PROGRESSIONS_JSON.exists():
+        try:
+            return json.loads(_PROGRESSIONS_JSON.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return _PRESET_PROGRESSIONS_FALLBACK
+
+
+PRESET_PROGRESSIONS: list[dict[str, Any]] = _load_preset_progressions()
 
 PITCH_CLASS_NAMES = ["C", "C#", "D", "D#",
                      "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -615,6 +623,22 @@ def _parse_chord_notes(chord: str) -> list[int]:
         intervals = [0, 3, 7, 10]
     elif quality == "dim":
         intervals = [0, 3, 6]
+    elif quality == "aug":
+        intervals = [0, 4, 8]
+    elif quality == "5":
+        intervals = [0, 7]
+    elif quality == "sus2":
+        intervals = [0, 2, 7]
+    elif quality == "sus4":
+        intervals = [0, 5, 7]
+    elif quality == "9":
+        intervals = [0, 4, 7, 10, 14]
+    elif quality == "maj9":
+        intervals = [0, 4, 7, 11, 14]
+    elif quality in {"m9", "min9"}:
+        intervals = [0, 3, 7, 10, 14]
+    elif quality == "add9":
+        intervals = [0, 4, 7, 14]
 
     root_midi = 60 + root_semitone
     notes = [root_midi - 12] + [root_midi + interval for interval in intervals]
@@ -799,10 +823,16 @@ def _midi_bytes_to_wav_b64(
             if temp_midi_path and temp_midi_path.exists():
                 temp_midi_path.unlink(missing_ok=True)
 
-    if prefer_fluidsynth_only or not note_events:
+    if prefer_fluidsynth_only:
         return None
 
-    rendered = _synthesize_note_events_to_waveform(note_events, sample_rate)
+    # Lazily extract note events from midi_bytes when not provided, so callers
+    # don't pay the parsing cost when FluidSynth succeeds.
+    effective = note_events if note_events else _note_events_from_midi_bytes(midi_bytes)
+    if not effective:
+        return None
+
+    rendered = _synthesize_note_events_to_waveform(effective, sample_rate)
     return base64.b64encode(_waveform_to_wav_bytes(rendered, sample_rate)).decode("utf-8")
 
 
@@ -961,7 +991,12 @@ def _estimate_tempo(note_events: list[dict[str, float | int]], midi_bytes: Optio
                 handle.write(midi_bytes)
                 temp_midi_path = Path(handle.name)
             midi_obj = pretty_midi.PrettyMIDI(str(temp_midi_path))
-            return float(midi_obj.estimate_tempo())
+            raw_bpm = float(midi_obj.estimate_tempo())
+            while raw_bpm > 180:
+                raw_bpm /= 2
+            while raw_bpm < 60:
+                raw_bpm *= 2
+            return raw_bpm
         except Exception:
             pass
         finally:
@@ -981,6 +1016,27 @@ def _estimate_tempo(note_events: list[dict[str, float | int]], midi_bytes: Optio
     while bpm > 180:
         bpm /= 2
     return bpm
+
+
+def _note_events_from_midi_bytes(midi_bytes: bytes) -> list[dict[str, float | int]]:
+    if pretty_midi is None:
+        return []
+    temp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
+            handle.write(midi_bytes)
+            temp_path = Path(handle.name)
+        pm = pretty_midi.PrettyMIDI(str(temp_path))
+        events: list[dict[str, float | int]] = []
+        for inst in pm.instruments:
+            for note in inst.notes:
+                events.append({"start": note.start, "end": note.end, "pitch": note.pitch, "velocity": note.velocity})
+        return events
+    except Exception:
+        return []
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def _pitch_histogram(note_events: list[dict[str, float | int]]) -> list[float]:
@@ -1045,12 +1101,6 @@ def _extract_key_label(midi_bytes: bytes, histogram: list[float]) -> str:
             temp_midi_path.unlink(missing_ok=True)
 
 
-def _mood_from_metrics(tempo_bpm: float, average_pitch: float) -> tuple[str, int]:
-    if tempo_bpm > 110 and average_pitch > 65:
-        return "happy", 0
-    if tempo_bpm < 80 and average_pitch < 60:
-        return "sad", 1
-    return "neutral", 2
 
 
 def _default_variant_temperatures(n_variants: int) -> list[float]:
@@ -1155,13 +1205,14 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
     tempo_bpm = float(_estimate_tempo(note_events, midi_bytes))
     avg_pitch = float(np.mean([int(note["pitch"])
                       for note in note_events])) if note_events else 60.0
-    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch)
     pitch_histogram = _pitch_histogram(note_events)
     key = _extract_key_label(midi_bytes, pitch_histogram)
+    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
     detected_chords = _detect_chords_from_audio(audio, sample_rate)
 
     return {
         "midi_bytes": midi_bytes,
+        "note_events": note_events,
         "n_notes": len(note_events),
         "duration_sec": duration_sec,
         "tempo_bpm": tempo_bpm,
@@ -1284,8 +1335,8 @@ def generate_iddm_variants(
                 wav_b64 = _midi_bytes_to_wav_b64(
                     midi_bytes,
                     sample_rate=sample_rate,
-                    note_events=None,
-                    prefer_fluidsynth_only=True,
+                    note_events=None,  # parsed lazily inside if FluidSynth unavailable
+                    prefer_fluidsynth_only=False,
                 )
                 wav_filename = ""
                 wav_download_path = ""
@@ -1331,8 +1382,8 @@ def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]
     wav_b64 = _midi_bytes_to_wav_b64(
         transcription["midi_bytes"],
         sample_rate=sample_rate,
-        note_events=None,
-        prefer_fluidsynth_only=True,
+        note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
+        prefer_fluidsynth_only=False,
     )
     wav_filename = ""
     if wav_b64 is not None:
@@ -1466,8 +1517,11 @@ def chords() -> dict[str, list[str]]:
 
 
 @router.get("/progressions")
-def progressions() -> dict[str, Any]:
-    return {"progressions": PRESET_PROGRESSIONS}
+def progressions(genre: Optional[str] = None) -> dict[str, Any]:
+    result = PRESET_PROGRESSIONS
+    if genre:
+        result = [p for p in result if p.get("genre", "").lower() == genre.lower()]
+    return {"progressions": result}
 
 
 @router.get("/download/{filename}")

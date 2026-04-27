@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ChordDiagram } from "./chord-diagram";
 import { requestJson } from "../app/lib/request";
@@ -29,6 +29,7 @@ type ChordGraphProps = {
   progression: string[];
   initialBpm?: number;
   initialInstrument?: number;
+  genreBadge?: ReactNode;
 };
 
 function createAudioObjectUrl(base64Audio: string) {
@@ -42,6 +43,7 @@ export function ChordGraph({
   progression,
   initialBpm = 120,
   initialInstrument = 0,
+  genreBadge,
 }: ChordGraphProps) {
   const [bpm, setBpm] = useState(initialBpm);
   const [instrument, setInstrument] = useState(initialInstrument);
@@ -94,9 +96,12 @@ export function ChordGraph({
     <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
       <div className="flex flex-col gap-5">
         <div>
-          <h2 className="text-xl font-semibold text-white" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
-            {title}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold text-white" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+              {title}
+            </h2>
+            {genreBadge ?? null}
+          </div>
           {description ? <p className="mt-2 text-sm text-white/70">{description}</p> : null}
         </div>
 
@@ -109,7 +114,9 @@ export function ChordGraph({
           ))}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+        <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+          {/* Instrument dropdown hidden — backend support coming later; defaults to Piano (0) */}
+          {/*
           <label className="flex flex-col gap-2 text-sm text-white/75">
             <span className="font-medium text-white">Instrument</span>
             <select
@@ -124,6 +131,7 @@ export function ChordGraph({
               ))}
             </select>
           </label>
+          */}
           <label className="flex flex-col gap-2 text-sm text-white/75">
             <span className="font-medium text-white">Tempo: {bpm} BPM</span>
             <input

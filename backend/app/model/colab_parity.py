@@ -227,9 +227,19 @@ def tokens_to_midi(tokens: list[int], bpm: float = 120.0, out_path: str | Path =
     return str(out_path)
 
 
-def heuristic_mood_from_metrics(tempo_bpm: float, average_pitch: float) -> tuple[int, str]:
-    if tempo_bpm > 110 and average_pitch > 65:
+def heuristic_mood_from_metrics(tempo_bpm: float, average_pitch: float, key_label: str = "") -> tuple[int, str]:
+    # key_label may be "" when key detection failed; both flags are False then,
+    # which gracefully falls back to the original pitch-only heuristic.
+    is_minor = "minor" in key_label.lower()
+    is_major = "major" in key_label.lower()
+
+    # Fast + bright key (or high register) → happy
+    if tempo_bpm > 110 and (is_major or average_pitch > 65):
         return 0, MOOD_LABELS[0]
-    if tempo_bpm < 80 and average_pitch < 60:
+    # Slow + dark key (or low register) → sad
+    if tempo_bpm < 80 and (is_minor or average_pitch < 60):
+        return 1, MOOD_LABELS[1]
+    # Minor key at moderate tempo (80–100 BPM) still reads as melancholic
+    if is_minor and tempo_bpm < 100:
         return 1, MOOD_LABELS[1]
     return 2, MOOD_LABELS[2]
