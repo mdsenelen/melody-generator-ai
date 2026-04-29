@@ -467,7 +467,7 @@ export default function Home() {
                                 triggerBase64Download(
                                   analysisResult.wav_filename ||
                                     "transcription.wav",
-                                  analysisResult.wav_b64,
+                                  analysisResult.wav_b64!,
                                   "audio/wav"
                                 )
                               }

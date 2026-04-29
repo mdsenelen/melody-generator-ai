@@ -37,7 +37,7 @@ export function useAudioAnalyzer(stream: MediaStream | null, enabled: boolean): 
   // Pitchy detector instance — created once per stream, reused every frame
   const detectorRef = useRef<PitchDetector<Float32Array> | null>(null);
   // Buffer reused every frame to avoid per-frame allocations
-  const bufferRef = useRef<Float32Array | null>(null);
+  const bufferRef = useRef<Float32Array<ArrayBuffer> | null>(null);
 
   const stopAnalysis = useCallback(() => {
     if (rafRef.current !== null) {
