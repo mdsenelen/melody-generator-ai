@@ -2,3 +2,38 @@
 > frontend@1.0.0 dev
 > next dev
 
+   ▲ Next.js 15.3.8
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.102:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.8s
+ ○ Compiling / ...
+ ✓ Compiled / in 6.9s (774 modules)
+ GET / 200 in 7723ms
+ ○ Compiling /choose-progression ...
+ ✓ Compiled /choose-progression in 1242ms (776 modules)
+ GET /choose-progression 200 in 1460ms
+ GET /choose-progression 200 in 58ms
+ ○ Compiling /api/chords ...
+ ✓ Compiled /api/chords in 611ms (782 modules)
+ GET /api/chords 200 in 1101ms
+ GET /api/chords 200 in 29ms
+ GET /api/chords 200 in 29ms
+ GET /api/chords 200 in 30ms
+ GET /api/chords 200 in 29ms
+ GET /api/chords 200 in 37ms
+ GET /api/chords 200 in 37ms
+ GET /api/chords 200 in 31ms
+ ○ Compiling /listen-progressions ...
+ ✓ Compiled /listen-progressions in 537ms (789 modules)
+ GET /listen-progressions 200 in 701ms
+ ○ Compiling /api/progressions ...
+ ✓ Compiled /api/progressions in 638ms (791 modules)
+ GET /api/progressions 200 in 763ms
+ GET /api/progressions 200 in 46ms
+ ○ Compiling /generate-variants ...
+ ✓ Compiled /generate-variants in 647ms (798 modules)
+ GET /generate-variants 200 in 781ms
+ GET / 200 in 30ms

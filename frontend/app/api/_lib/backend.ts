@@ -17,6 +17,7 @@ function isPlaceholderBackendUrl(value: string) {
 export function getBackendBaseUrl() {
   const configuredBaseUrl =
     process.env.BACKEND_BASE_URL ??
+    process.env.BACKEND_URL ??
     process.env.NEXT_PUBLIC_BACKEND_URL ??
     DEFAULT_BACKEND_BASE_URL;
   const rawBaseUrl = isPlaceholderBackendUrl(configuredBaseUrl)
