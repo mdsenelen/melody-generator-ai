@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; nb = json.load\\(open\\('melody_generation_ORDERED_FINAL_\\(1\\).ipynb'\\)\\); cells = [c['source'] for c in nb['cells'] if c['cell_type']=='code']; print\\(len\\(cells\\), 'code cells'\\)\")",
+      "Bash(Get-Item \"melody_generation_ORDERED_FINAL_\\(1\\).ipynb\")",
+      "Bash(Select-Object Length)",
+      "PowerShell(Get-Item *)",
+      "Bash(python)",
+      "Bash(python -m pytest tests/test_inference_variants.py -v)"
+    ]
+  }
+}

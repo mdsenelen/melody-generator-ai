@@ -81,6 +81,11 @@ const CHORD_SHAPES: Record<string, ChordShape> = {
   Fmaj7: { label: "Fmaj7", positions: [{ string: 4, fret: 3, finger: 3 }, { string: 3, fret: 2, finger: 2 }, { string: 2, fret: 1, finger: 1 }], muted: [6, 5], open: [1] },
   Gmaj7: { label: "Gmaj7", positions: [{ string: 6, fret: 3, finger: 2 }, { string: 5, fret: 2, finger: 1 }, { string: 1, fret: 2, finger: 3 }], open: [4, 3, 2] },
   Bmaj7: { label: "Bmaj7", positions: [{ string: 4, fret: 4, finger: 4 }, { string: 3, fret: 4, finger: 3 }, { string: 2, fret: 3, finger: 2 }], muted: [6], barre: { fret: 2, fromString: 1, toString: 5, finger: 1 }, baseFret: 2 },
+  Abmaj7: { label: "Abmaj7", positions: [{ string: 5, fret: 6, finger: 4 }, { string: 4, fret: 5, finger: 3 }, { string: 3, fret: 5, finger: 2 }], barre: { fret: 4, fromString: 1, toString: 6, finger: 1 }, baseFret: 4 },
+  Bbmaj7: { label: "Bbmaj7", positions: [{ string: 4, fret: 3, finger: 3 }, { string: 3, fret: 2, finger: 2 }, { string: 2, fret: 3, finger: 4 }], muted: [6], barre: { fret: 1, fromString: 1, toString: 5, finger: 1 }, baseFret: 1 },
+  Dbmaj7: { label: "Dbmaj7", positions: [{ string: 4, fret: 6, finger: 3 }, { string: 3, fret: 5, finger: 2 }, { string: 2, fret: 6, finger: 4 }], muted: [6], barre: { fret: 4, fromString: 1, toString: 5, finger: 1 }, baseFret: 4 },
+  Ebmaj7: { label: "Ebmaj7", positions: [{ string: 4, fret: 1, finger: 1 }, { string: 3, fret: 3, finger: 2 }, { string: 2, fret: 3, finger: 3 }, { string: 1, fret: 3, finger: 4 }], muted: [6, 5] },
+  "F#maj7": { label: "F#maj7", positions: [{ string: 5, fret: 4, finger: 4 }, { string: 4, fret: 3, finger: 3 }, { string: 3, fret: 3, finger: 2 }], barre: { fret: 2, fromString: 1, toString: 6, finger: 1 }, baseFret: 2 },
   // ── Minor 7ths ────────────────────────────────────────────────────────────
   Am7:   { label: "Am7",   positions: [{ string: 4, fret: 2, finger: 2 }, { string: 2, fret: 1, finger: 1 }], muted: [6], open: [5, 3, 1] },
   Dm7:   { label: "Dm7",   positions: [{ string: 3, fret: 2, finger: 2 }, { string: 2, fret: 1, finger: 1 }], muted: [6, 5], open: [4, 1] },

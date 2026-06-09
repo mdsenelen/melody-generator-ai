@@ -241,20 +241,6 @@ export default function Home() {
     void runSelectedAnalysis(file, null);
   };
 
-  const resetForNewInput = (nextTab: TabKey) => {
-    setActiveTab(nextTab);
-    setSelectedFile(null);
-    setSelectedSourceName(null);
-    setSelectedUploadFilename(null);
-    setPendingSourceName(null);
-    setErrorMessage(null);
-    setStatusMessage(
-      nextTab === "upload"
-        ? "Choose a new file to start analysis."
-        : "Record a fresh idea and we'll analyse it automatically."
-    );
-  };
-
   const groupedChords = analysisResult
     ? groupChordsByRoot(analysisResult.detected_chords)
     : {};
@@ -308,15 +294,6 @@ export default function Home() {
                 ) : null}
               </div>
 
-              {analysisResult ? (
-                <button
-                  type="button"
-                  onClick={() => resetForNewInput("record")}
-                  className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/10"
-                >
-                  Record New Audio
-                </button>
-              ) : null}
             </div>
 
             <div className="space-y-6">
