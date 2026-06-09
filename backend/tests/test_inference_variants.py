@@ -14,7 +14,7 @@ from fastapi import UploadFile
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app import inference  # noqa: E402
-from app.model.colab_parity import heuristic_mood_from_metrics
+from app.model.colab_parity import ActorCritic, heuristic_mood_from_metrics
 
 
 class _DummyModule:
@@ -42,9 +42,66 @@ def reset_variant_bundle(monkeypatch):
     monkeypatch.setattr(inference, "_CVAE_IDDM_BUNDLE", None)
 
 
+_NEW_CFG = {
+    "vocab": 177,
+    "emb_dim": 48,
+    "hidden": 128,
+    "latent_dim": 32,
+    "n_moods": 3,
+    "mel_bins": 80,
+    "T_win": 32,
+    "enc_dim": 96,
+    "seq_len": 129,
+    "use_chord_cond": True,
+    "use_bar_cond": True,
+    "chord_emb_dim": 12,
+    "bar_emb_dim": 8,
+    "n_chord_classes": 25,
+    "n_bar_bins": 8,
+}
+
+
 def test_load_cvae_iddm_success_and_cached(tmp_path, monkeypatch, caplog):
+    joint_path = tmp_path / "joint_e2e_weights.pth"
+    joint_path.write_bytes(b"0" * 20001)
+
+    load_calls: list[Path] = []
+
+    def fake_torch_load(path, map_location=None):
+        load_calls.append(Path(path))
+        return {
+            "cfg": _NEW_CFG,
+            "cvae": {"cvae.weight": torch.zeros(1)},
+            "state_enc": {"enc.weight": torch.zeros(1)},
+            "actor_critic": {"ac.weight": torch.zeros(1)},
+            "discriminator": {"disc.weight": torch.zeros(1)},
+            "mine": {"mine.weight": torch.zeros(1)},
+            "alpha": 0.1,
+        }
+
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", joint_path)
+    monkeypatch.setattr(inference, "torch", type("TorchProxy", (), {"load": staticmethod(fake_torch_load), "tensor": staticmethod(torch.tensor)})())
+    monkeypatch.setattr(inference, "MelodyCVAE", _DummyCVAE)
+    monkeypatch.setattr(inference, "MelStateEncoder", _DummyModule)
+    monkeypatch.setattr(inference, "TransitionDiscriminator", _DummyModule)
+    monkeypatch.setattr(inference, "ActorCritic", _DummyModule)
+    monkeypatch.setattr(inference, "MINENetwork", _DummyModule)
+
+    with caplog.at_level("INFO"):
+        bundle = inference._load_cvae_iddm()
+        cached = inference._load_cvae_iddm()
+
+    assert bundle["ready"] is True
+    assert cached is bundle
+    assert load_calls == [joint_path]
+    assert "CVAE checkpoint keys" in caplog.text
+    assert "IDDM-PPO checkpoint keys" in caplog.text
+
+
+def test_load_cvae_iddm_legacy_two_file_format(tmp_path, monkeypatch, caplog):
     cvae_path = tmp_path / "cvae_weights.pth"
     iddm_path = tmp_path / "iddm_ppo_weights.pth"
+    missing_joint = tmp_path / "joint_e2e_weights.pth"
     cvae_path.write_bytes(b"0" * 20001)
     iddm_path.write_bytes(b"1" * 22001)
 
@@ -54,17 +111,7 @@ def test_load_cvae_iddm_success_and_cached(tmp_path, monkeypatch, caplog):
         load_calls.append(Path(path))
         if Path(path) == cvae_path:
             return {
-                "cfg": {
-                    "vocab": 177,
-                    "emb_dim": 32,
-                    "hidden": 64,
-                    "latent_dim": 16,
-                    "n_moods": 3,
-                    "mel_bins": 80,
-                    "T_win": 16,
-                    "enc_dim": 64,
-                    "seq_len": 129,
-                },
+                "cfg": {"vocab": 177, "emb_dim": 32, "hidden": 64, "latent_dim": 16, "n_moods": 3, "enc_dim": 64, "seq_len": 129},
                 "model": {"decoder.weight": torch.zeros(1)},
             }
         return {
@@ -74,31 +121,31 @@ def test_load_cvae_iddm_success_and_cached(tmp_path, monkeypatch, caplog):
             "mine": {"mine.weight": torch.zeros(1)},
         }
 
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", missing_joint)
     monkeypatch.setattr(inference, "CVAE_WEIGHTS_PATH", cvae_path)
     monkeypatch.setattr(inference, "IDDM_WEIGHTS_PATH", iddm_path)
-    monkeypatch.setattr(inference, "torch", type("TorchProxy", (), {"load": staticmethod(fake_torch_load)})())
+    monkeypatch.setattr(inference, "torch", type("TorchProxy", (), {"load": staticmethod(fake_torch_load), "tensor": staticmethod(torch.tensor)})())
     monkeypatch.setattr(inference, "MelodyCVAE", _DummyCVAE)
     monkeypatch.setattr(inference, "MelStateEncoder", _DummyModule)
     monkeypatch.setattr(inference, "TransitionDiscriminator", _DummyModule)
-    monkeypatch.setattr(inference, "MelodyPPOActorCritic", _DummyModule)
+    monkeypatch.setattr(inference, "ActorCritic", _DummyModule)
     monkeypatch.setattr(inference, "MINENetwork", _DummyModule)
 
     with caplog.at_level("INFO"):
         bundle = inference._load_cvae_iddm()
-        cached = inference._load_cvae_iddm()
 
     assert bundle["ready"] is True
-    assert cached is bundle
     assert load_calls == [cvae_path, iddm_path]
     assert "CVAE checkpoint keys" in caplog.text
-    assert "IDDM-PPO checkpoint keys" in caplog.text
 
 
 def test_load_cvae_iddm_raises_for_missing_file(tmp_path, monkeypatch):
     cvae_path = tmp_path / "cvae_weights.pth"
     iddm_path = tmp_path / "iddm_ppo_weights.pth"
+    missing_joint = tmp_path / "joint_e2e_weights.pth"
     cvae_path.write_bytes(b"0" * 20001)
 
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", missing_joint)
     monkeypatch.setattr(inference, "CVAE_WEIGHTS_PATH", cvae_path)
     monkeypatch.setattr(inference, "IDDM_WEIGHTS_PATH", iddm_path)
 
@@ -112,9 +159,11 @@ def test_load_cvae_iddm_raises_for_missing_file(tmp_path, monkeypatch):
 def test_load_cvae_iddm_raises_for_tiny_file(tmp_path, monkeypatch):
     cvae_path = tmp_path / "cvae_weights.pth"
     iddm_path = tmp_path / "iddm_ppo_weights.pth"
+    missing_joint = tmp_path / "joint_e2e_weights.pth"
     cvae_path.write_bytes(b"0" * 20001)
     iddm_path.write_bytes(b"1" * 16)
 
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", missing_joint)
     monkeypatch.setattr(inference, "CVAE_WEIGHTS_PATH", cvae_path)
     monkeypatch.setattr(inference, "IDDM_WEIGHTS_PATH", iddm_path)
 

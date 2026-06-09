@@ -22,12 +22,17 @@ from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from .model.colab_parity import (
+    ActorCritic,
     MINENetwork,
     MelStateEncoder,
     MelodyCVAE,
     MelodyPPOActorCritic,
     TransitionDiscriminator,
+    build_mood_onehot,
     heuristic_mood_from_metrics,
+    midi_to_tokens,
+    tokens_to_chord_idx,
+    tokens_to_bar_idx,
     tokens_to_midi,
 )
 
@@ -66,15 +71,16 @@ for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
 AUDIO_CONFIG_PATH = WEIGHTS_DIR / "audio_params.json"
 CVAE_WEIGHTS_PATH = WEIGHTS_DIR / "cvae_weights.pth"
 IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
+JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
 NOTEBOOK_VARIANT_AUDIO_DEFAULTS = {
-    "sample_rate": 22050,
+    "sample_rate": 16000,
     "n_fft": 1024,
     "hop_length": 256,
     "mel_bins": 80,
-    "T_win": 16,
+    "T_win": 32,
 }
 
 DEFAULT_AUDIO_CFG = {
@@ -203,17 +209,20 @@ def _fluidsynth_available() -> bool:
 
 def _variant_model_status() -> dict[str, Any]:
     bundle = _CVAE_IDDM_BUNDLE or {}
+    joint_exists = JOINT_WEIGHTS_PATH.exists()
+    cvae_path = JOINT_WEIGHTS_PATH if joint_exists else CVAE_WEIGHTS_PATH
+    iddm_path = JOINT_WEIGHTS_PATH if joint_exists else IDDM_WEIGHTS_PATH
     return {
         "cvae": {
-            "path": str(CVAE_WEIGHTS_PATH),
-            "exists": CVAE_WEIGHTS_PATH.exists(),
-            "size_mb": _checkpoint_size_mb(CVAE_WEIGHTS_PATH),
+            "path": str(cvae_path),
+            "exists": cvae_path.exists(),
+            "size_mb": _checkpoint_size_mb(cvae_path),
             "loaded": bool(bundle.get("cvae_loaded", False)),
         },
         "iddm_ppo": {
-            "path": str(IDDM_WEIGHTS_PATH),
-            "exists": IDDM_WEIGHTS_PATH.exists(),
-            "size_mb": _checkpoint_size_mb(IDDM_WEIGHTS_PATH),
+            "path": str(iddm_path),
+            "exists": iddm_path.exists(),
+            "size_mb": _checkpoint_size_mb(iddm_path),
             "loaded": bool(bundle.get("iddm_loaded", False)),
         },
         "device": str(DEVICE),
@@ -234,119 +243,118 @@ def _load_cvae_iddm() -> dict[str, Any]:
                 str(_CVAE_IDDM_BUNDLE["load_error"]))
         return _CVAE_IDDM_BUNDLE
 
-    expected_files = {
-        "cvae": CVAE_WEIGHTS_PATH,
-        "iddm_ppo": IDDM_WEIGHTS_PATH,
-    }
+    def _err(detail: str) -> None:
+        global _CVAE_IDDM_BUNDLE
+        _CVAE_IDDM_BUNDLE = {
+            "cfg": {},
+            "cvae_loaded": False,
+            "iddm_loaded": False,
+            "load_error": detail,
+            "ready": False,
+        }
+        _raise_variant_service_unavailable(detail)
+
+    use_joint = JOINT_WEIGHTS_PATH.exists()
+
     try:
-        for label, path in expected_files.items():
-            if not os.path.exists(path):
-                detail = "Required model weights file is missing"
-                _CVAE_IDDM_BUNDLE = {
-                    "cfg": {},
-                    "cvae_loaded": False,
-                    "iddm_loaded": False,
-                    "load_error": detail,
-                    "ready": False,
-                }
-                _raise_variant_service_unavailable(detail)
+        if use_joint:
+            path = JOINT_WEIGHTS_PATH
             file_size = os.path.getsize(path)
             if file_size <= 10_000:
-                detail = "Model weights file is corrupted or incomplete"
-                _CVAE_IDDM_BUNDLE = {
-                    "cfg": {},
-                    "cvae_loaded": False,
-                    "iddm_loaded": False,
-                    "load_error": detail,
-                    "ready": False,
-                }
-                _raise_variant_service_unavailable(detail)
-            logger.info("Found %s checkpoint at %s (%.2f MB)",
-                        label, path, file_size / (1024 * 1024))
+                _err("Model weights file is corrupted or incomplete")
+            logger.info("Found joint checkpoint at %s (%.2f MB)", path, file_size / (1024 * 1024))
 
-        cvae_checkpoint = torch.load(CVAE_WEIGHTS_PATH, map_location=DEVICE)
-        iddm_checkpoint = torch.load(IDDM_WEIGHTS_PATH, map_location=DEVICE)
-        logger.info(
-            "CVAE checkpoint keys: %s",
-            sorted(cvae_checkpoint.keys()) if isinstance(
-                cvae_checkpoint, dict) else type(cvae_checkpoint).__name__,
-        )
-        logger.info(
-            "IDDM-PPO checkpoint keys: %s",
-            sorted(iddm_checkpoint.keys()) if isinstance(
-                iddm_checkpoint, dict) else type(iddm_checkpoint).__name__,
-        )
+            ckpt = torch.load(path, map_location=DEVICE)
+            logger.info("CVAE checkpoint keys: %s", sorted(ckpt.keys()) if isinstance(ckpt, dict) else type(ckpt).__name__)
+            logger.info("IDDM-PPO checkpoint keys: %s", sorted(ckpt.keys()) if isinstance(ckpt, dict) else type(ckpt).__name__)
 
-        if not isinstance(cvae_checkpoint, dict) or "model" not in cvae_checkpoint:
-            detail = "CVAE checkpoint is missing the 'model' state dict"
-            _CVAE_IDDM_BUNDLE = {
-                "cfg": {},
-                "cvae_loaded": False,
-                "iddm_loaded": False,
-                "load_error": detail,
-                "ready": False,
-            }
-            _raise_variant_service_unavailable(detail)
-        if not isinstance(iddm_checkpoint, dict):
-            detail = "IDDM-PPO checkpoint has an unexpected format"
-            _CVAE_IDDM_BUNDLE = {
-                "cfg": {},
-                "cvae_loaded": False,
-                "iddm_loaded": False,
-                "load_error": detail,
-                "ready": False,
-            }
-            _raise_variant_service_unavailable(detail)
+            if not isinstance(ckpt, dict) or "cvae" not in ckpt:
+                _err("Joint checkpoint is missing the 'cvae' state dict")
 
-        raw_cfg = cvae_checkpoint.get("cfg") if isinstance(
-            cvae_checkpoint, dict) else None
-        if isinstance(raw_cfg, dict):
-            cfg = dict(raw_cfg)
+            cfg = dict(ckpt.get("cfg") or {})
+            raw_alpha = ckpt.get("alpha", 0.1)
+            alpha = torch.tensor(float(raw_alpha), device=DEVICE)
+
+            cvae_sd = ckpt["cvae"]
+            state_enc_sd = ckpt.get("state_enc")
+            ac_sd = ckpt.get("actor_critic")
+            disc_sd = ckpt.get("discriminator")
+            mine_sd = ckpt.get("mine")
+            strict = True
         else:
-            logger.warning(
-                "WARNING: cfg not in checkpoint, using notebook defaults")
-            cfg = {}
-        vocab = int(cfg.get("vocab", 177))
-        emb_dim = int(cfg.get("emb_dim", 32))
-        hidden = int(cfg.get("hidden", 64))
-        latent_dim = int(cfg.get("latent_dim", 16))
-        n_moods = int(cfg.get("n_moods", 3))
-        mel_bins = int(
-            cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
-        t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
-        enc_dim = int(cfg.get("enc_dim", 64))
+            for label, path in [("cvae", CVAE_WEIGHTS_PATH), ("iddm_ppo", IDDM_WEIGHTS_PATH)]:
+                if not os.path.exists(path):
+                    _err("Required model weights file is missing")
+                file_size = os.path.getsize(path)
+                if file_size <= 10_000:
+                    _err("Model weights file is corrupted or incomplete")
+                logger.info("Found %s checkpoint at %s (%.2f MB)", label, path, file_size / (1024 * 1024))
 
-        cvae_model = MelodyCVAE(vocab=vocab, emb_dim=emb_dim, hidden=hidden,
-                                latent=latent_dim, n_moods=n_moods).to(DEVICE)
-        cvae_model.load_state_dict(cvae_checkpoint["model"], strict=True)
+            cvae_ckpt = torch.load(CVAE_WEIGHTS_PATH, map_location=DEVICE)
+            iddm_ckpt = torch.load(IDDM_WEIGHTS_PATH, map_location=DEVICE)
+            logger.info("CVAE checkpoint keys: %s", sorted(cvae_ckpt.keys()) if isinstance(cvae_ckpt, dict) else type(cvae_ckpt).__name__)
+            logger.info("IDDM-PPO checkpoint keys: %s", sorted(iddm_ckpt.keys()) if isinstance(iddm_ckpt, dict) else type(iddm_ckpt).__name__)
+
+            if not isinstance(cvae_ckpt, dict):
+                _err("CVAE checkpoint has an unexpected format")
+            if not isinstance(iddm_ckpt, dict):
+                _err("IDDM-PPO checkpoint has an unexpected format")
+
+            cfg = dict(cvae_ckpt.get("cfg") or {})
+            alpha = torch.tensor(0.1, device=DEVICE)
+
+            # Support both old key "model" and new key "cvae"
+            cvae_sd = cvae_ckpt.get("cvae") or cvae_ckpt.get("model")
+            if cvae_sd is None:
+                _err("CVAE checkpoint is missing 'cvae' or 'model' state dict")
+
+            state_enc_sd = iddm_ckpt.get("enc")
+            ac_sd = iddm_ckpt.get("ac")
+            disc_sd = iddm_ckpt.get("disc")
+            mine_sd = iddm_ckpt.get("mine")
+            strict = False  # legacy format may have architecture mismatches
+
+        if not cfg:
+            logger.warning("cfg not in checkpoint, using notebook defaults")
+
+        latent_dim = int(cfg.get("latent_dim", 32))
+        enc_dim = int(cfg.get("enc_dim", 96))
+        mel_bins = int(cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
+        t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
+        n_moods = int(cfg.get("n_moods", 3))
+
+        cvae_model = MelodyCVAE(cfg).to(DEVICE)
+        cvae_model.load_state_dict(cvae_sd, strict=strict)
         cvae_model.eval()
 
-        state_encoder = MelStateEncoder(
-            mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(DEVICE)
-        state_encoder.load_state_dict(iddm_checkpoint["enc"], strict=True)
+        state_encoder = MelStateEncoder(mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(DEVICE)
+        if state_enc_sd is not None:
+            state_encoder.load_state_dict(state_enc_sd, strict=strict)
         state_encoder.eval()
 
         discriminator = TransitionDiscriminator(enc_dim=enc_dim).to(DEVICE)
-        discriminator.load_state_dict(iddm_checkpoint["disc"], strict=True)
+        if disc_sd is not None:
+            discriminator.load_state_dict(disc_sd, strict=strict)
         discriminator.eval()
 
-        actor_critic = MelodyPPOActorCritic(
-            enc_dim=enc_dim, latent_dim=latent_dim).to(DEVICE)
-        actor_critic.load_state_dict(iddm_checkpoint["ac"], strict=True)
+        actor_critic = ActorCritic(enc_dim=enc_dim, latent_dim=latent_dim).to(DEVICE)
+        if ac_sd is not None:
+            actor_critic.load_state_dict(ac_sd, strict=strict)
         actor_critic.eval()
 
-        mine = MINENetwork(sa_dim=enc_dim + latent_dim,
-                           sp_dim=enc_dim).to(DEVICE)
-        mine.load_state_dict(iddm_checkpoint["mine"], strict=True)
+        mine = MINENetwork(sa_dim=enc_dim + latent_dim, sp_dim=enc_dim).to(DEVICE)
+        if mine_sd is not None:
+            mine.load_state_dict(mine_sd, strict=strict)
         mine.eval()
 
         _CVAE_IDDM_BUNDLE = {
             "cfg": cfg,
             "cvae_model": cvae_model,
-            "enc": state_encoder,
+            "state_enc": state_encoder,
             "disc": discriminator,
             "ac": actor_critic,
             "mine": mine,
+            "alpha": alpha,
             "cvae_loaded": True,
             "iddm_loaded": True,
             "load_error": None,
@@ -1303,31 +1311,59 @@ def generate_iddm_variants(
         bundle = _load_cvae_iddm()
         transcription = _transcribe_and_mood(audio_bytes)
         mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"])
-        latent_dim = int(bundle["cfg"].get("latent_dim", 16))
-        n_moods = int(bundle["cfg"].get("n_moods", 3))
-        seq_len = int(bundle["cfg"].get("seq_len", 129))
+        cfg = bundle["cfg"]
+        latent_dim = int(cfg.get("latent_dim", 32))
+        n_moods = int(cfg.get("n_moods", 3))
+        seq_len = int(cfg.get("seq_len", 129))
+        n_bar_bins = int(cfg.get("n_bar_bins", 8))
         sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
         variants: list[dict[str, Any]] = []
 
+        # Build seed tokens from transcription MIDI (used for base_mu and chord/bar conditioning)
+        seed_tokens: list[int] = []
+        if pretty_midi is not None and transcription.get("midi_bytes"):
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp:
+                    tmp.write(transcription["midi_bytes"])
+                    tmp_path = Path(tmp.name)
+                seed_tokens = midi_to_tokens(tmp_path, max_notes=64)
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                seed_tokens = []
+
+        # Pad or truncate seed tokens to seq_len
+        if len(seed_tokens) < seq_len:
+            from .model.colab_parity import PAD_TOKEN
+            seed_tokens = seed_tokens + [PAD_TOKEN] * (seq_len - len(seed_tokens))
+        else:
+            seed_tokens = seed_tokens[:seq_len]
+
+        seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=DEVICE).unsqueeze(0)
+        mood_idx = int(transcription["mood_idx"])
+        chord_idx_val = tokens_to_chord_idx(seed_tokens)
+        bar_idx_val = tokens_to_bar_idx(seed_tokens, n_bins=n_bar_bins)
+
         with torch.no_grad():
-            s_enc = bundle["enc"](mel_window)
-            dist = bundle["ac"].get_dist(s_enc)
+            s_enc = bundle["state_enc"](mel_window)
+            dist, _ = bundle["ac"].dist_and_value(s_enc)
+            base_mu = bundle["cvae_model"].encode_mu(seed_t)
+            mood_oh = build_mood_onehot([mood_idx], n_moods=n_moods, device=DEVICE)
+            chord_t = torch.tensor([chord_idx_val], dtype=torch.long, device=DEVICE)
+            bar_t = torch.tensor([bar_idx_val], dtype=torch.long, device=DEVICE)
+            cond = bundle["cvae_model"].build_cond(mood_oh, chord_t, bar_t)
+            alpha = bundle["alpha"].clamp(0.0, 1.0)
+
             for index, temperature in enumerate(temperatures[:n_variants]):
-                z_pol = dist.loc + dist.scale * \
-                    torch.randn_like(dist.loc) * float(temperature)
-                mood_oh = torch.zeros(1, n_moods, device=DEVICE)
-                mood_oh[0, int(transcription["mood_idx"])] = 1.0
-                # PPO actor outputs enc_dim=64; CVAE decoder expects latent_dim=16
-                # Slice to match CVAE input dimensionality (Colab Cell 12, line: z_in = z_pol[:, :CFG['latent_dim']])
-                z_in = z_pol[:, :latent_dim]
-                z_cond = torch.cat([z_in, mood_oh], dim=-1)
-                generated_ids = bundle["cvae_model"].decoder.generate(
-                    z_cond,
+                temp = float(temperature)
+                delta_z = dist.loc + dist.scale * torch.randn_like(dist.loc) * temp
+                z_final = base_mu + alpha * delta_z
+                gen_tokens, _, _ = bundle["cvae_model"].decoder.sample(
+                    torch.cat([z_final, cond], dim=-1),
                     seq_len=seq_len,
-                    temperature=float(temperature),
+                    temperature=temp,
                 )
                 midi_bytes = _token_ids_to_midi_bytes(
-                    generated_ids.squeeze(0).detach().cpu().tolist(),
+                    gen_tokens.squeeze(0).detach().cpu().tolist(),
                     bpm=120.0,
                 )
                 midi_filename, _ = _save_bytes(
@@ -1335,7 +1371,7 @@ def generate_iddm_variants(
                 wav_b64 = _midi_bytes_to_wav_b64(
                     midi_bytes,
                     sample_rate=sample_rate,
-                    note_events=None,  # parsed lazily inside if FluidSynth unavailable
+                    note_events=None,
                     prefer_fluidsynth_only=False,
                 )
                 wav_filename = ""
@@ -1347,7 +1383,7 @@ def generate_iddm_variants(
                     wav_download_path = f"/api/download/{wav_filename}"
                 variants.append({
                     "index": index,
-                    "temperature": float(temperature),
+                    "temperature": temp,
                     "midi_b64": base64.b64encode(midi_bytes).decode("utf-8"),
                     "midi_filename": midi_filename,
                     "midi_download_path": f"/api/download/{midi_filename}",

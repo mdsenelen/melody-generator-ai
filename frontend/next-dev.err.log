@@ -1,3 +1,9 @@
 Browserslist: browsers data (caniuse-lite) is 12 months old. Please run:
   npx update-browserslist-db@latest
   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ⨯ [Error: ENOENT: no such file or directory, open 'C:\Users\HP\Documents\GitHub\music-generator-ai\frontend\.next\server\app-paths-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\HP\\Documents\\GitHub\\music-generator-ai\\frontend\\.next\\server\\app-paths-manifest.json'
+}

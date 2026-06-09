@@ -37,3 +37,12 @@
  ✓ Compiled /generate-variants in 647ms (798 modules)
  GET /generate-variants 200 in 781ms
  GET / 200 in 30ms
+ GET / 200 in 1277ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 3.6s (790 modules)
+ GET / 404 in 4235ms
+ GET /_next/static/css/app/layout.css?v=1778522603253 404 in 83ms
+ GET /_next/static/chunks/main-app.js?v=1778522603253 404 in 174ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 225ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 4.4s (1124 modules)
