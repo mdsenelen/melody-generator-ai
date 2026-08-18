@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import json
@@ -8,6 +9,8 @@ import os
 import random
 import subprocess
 import tempfile
+import threading
+import time
 import traceback
 import uuid
 import shutil
@@ -19,6 +22,7 @@ import numpy as np
 import soundfile as sf
 import torch
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 
 from .model.colab_parity import (
@@ -74,6 +78,9 @@ IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
+GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "120"))
+DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
+DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
 NOTEBOOK_VARIANT_AUDIO_DEFAULTS = {
     "sample_rate": 16000,
@@ -181,6 +188,7 @@ MINOR_PROFILE = np.asarray(
 
 _AUDIO_CFG: Optional[dict[str, Any]] = None
 _CVAE_IDDM_BUNDLE: Optional[dict[str, Any]] = None
+_CVAE_IDDM_LOAD_LOCK = threading.Lock()
 
 
 def _load_audio_cfg() -> dict[str, Any]:
@@ -235,13 +243,50 @@ def _raise_variant_service_unavailable(detail: str) -> None:
     raise HTTPException(status_code=503, detail=detail)
 
 
+async def _run_generation(func, *args, **kwargs) -> Any:
+    """Run a blocking generation function off the event loop with a bounded
+    wall-clock timeout.
+
+    Note: asyncio.wait_for only bounds how long the caller waits for a
+    result — it can't forcibly stop the underlying thread-pool worker, so a
+    truly runaway computation keeps running (and holding a worker thread)
+    after this raises. What it does guarantee is that a single pathological
+    request can no longer hang the client, or a caller awaiting it,
+    indefinitely.
+    """
+    try:
+        return await asyncio.wait_for(
+            run_in_threadpool(func, *args, **kwargs),
+            timeout=GENERATION_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS:.0f}s",
+        ) from exc
+
+
 def _load_cvae_iddm() -> dict[str, Any]:
-    global _CVAE_IDDM_BUNDLE
     if _CVAE_IDDM_BUNDLE is not None:
         if _CVAE_IDDM_BUNDLE.get("load_error"):
             _raise_variant_service_unavailable(
                 str(_CVAE_IDDM_BUNDLE["load_error"]))
         return _CVAE_IDDM_BUNDLE
+
+    # Cold start: serialize the actual load so concurrent requests (routes now
+    # run in a thread pool, see run_in_threadpool call sites) don't each pay
+    # for torch.load + model construction at once.
+    with _CVAE_IDDM_LOAD_LOCK:
+        if _CVAE_IDDM_BUNDLE is not None:
+            if _CVAE_IDDM_BUNDLE.get("load_error"):
+                _raise_variant_service_unavailable(
+                    str(_CVAE_IDDM_BUNDLE["load_error"]))
+            return _CVAE_IDDM_BUNDLE
+        return _load_cvae_iddm_locked()
+
+
+def _load_cvae_iddm_locked() -> dict[str, Any]:
+    global _CVAE_IDDM_BUNDLE
 
     def _err(detail: str) -> None:
         global _CVAE_IDDM_BUNDLE
@@ -312,7 +357,11 @@ def _load_cvae_iddm() -> dict[str, Any]:
             ac_sd = iddm_ckpt.get("ac")
             disc_sd = iddm_ckpt.get("disc")
             mine_sd = iddm_ckpt.get("mine")
-            strict = False  # legacy format may have architecture mismatches
+            # strict=True: a mismatched/renamed key must fail loudly here rather
+            # than silently loading that submodule with random-initialized
+            # weights for the unmatched parameters (see CLAUDE.md's documented
+            # 503-on-schema-mismatch behavior).
+            strict = True
 
         if not cfg:
             logger.warning("cfg not in checkpoint, using notebook defaults")
@@ -515,6 +564,46 @@ def _read_audio_from_upload(file: UploadFile, target_sr: int) -> np.ndarray:
     _ensure_supported_audio_filename(file.filename)
     raw = file.file.read()
     return _read_audio_bytes(raw, target_sr)
+
+
+def cleanup_stale_files(max_age_hours: Optional[float] = None) -> int:
+    """Delete files under UPLOAD_DIR/OUTPUT_DIR older than max_age_hours.
+
+    Uploaded and generated audio/MIDI files otherwise accumulate on disk
+    forever — there was no retention policy at all before this. Returns the
+    number of files removed. A non-positive max_age disables cleanup.
+    """
+    max_age = DATA_RETENTION_HOURS if max_age_hours is None else max_age_hours
+    if max_age <= 0:
+        return 0
+    cutoff = time.time() - max_age * 3600
+    removed = 0
+    for directory in (UPLOAD_DIR, OUTPUT_DIR):
+        for path in directory.glob("*"):
+            if not path.is_file():
+                continue
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink(missing_ok=True)
+                    removed += 1
+            except OSError:
+                logger.warning("Failed to remove stale file %s", path, exc_info=True)
+    if removed:
+        logger.info("Cleanup removed %d stale file(s) older than %.1fh", removed, max_age)
+    return removed
+
+
+async def run_periodic_cleanup() -> None:
+    """Background loop that periodically clears stale upload/generated
+    files. Started from main.py's lifespan; runs until cancelled at
+    shutdown. A failed cleanup pass is logged and retried next interval
+    rather than crashing the loop."""
+    while True:
+        try:
+            await run_in_threadpool(cleanup_stale_files)
+        except Exception:
+            logger.exception("Periodic cleanup failed")
+        await asyncio.sleep(DATA_CLEANUP_INTERVAL_SECONDS)
 
 
 def _save_bytes(raw: bytes, prefix: str, extension: str) -> tuple[str, Path]:
@@ -1409,6 +1498,44 @@ def generate_iddm_variants(
             status_code=500, detail="Variant generation failed") from exc
 
 
+def _generate_style_payload(
+    vocal_file: UploadFile,
+    style_file: UploadFile,
+    style_mix: float,
+) -> dict[str, Any]:
+    cfg = _audio_cfg()
+    sample_rate = int(cfg["audio"]["sample_rate"])
+    vocal_audio = _read_audio_from_upload(vocal_file, sample_rate)
+    style_audio = _read_audio_from_upload(style_file, sample_rate)
+    mix_ratio = float(np.clip(style_mix, 0.0, 1.0))
+    mixed_audio = librosa.util.normalize(
+        (1.0 - mix_ratio) * vocal_audio[: min(len(vocal_audio), len(style_audio))]
+        + mix_ratio * style_audio[: min(len(vocal_audio), len(style_audio))]
+    )
+    audio_bytes = _waveform_to_wav_bytes(mixed_audio, sample_rate)
+    return _package_audio_bytes(audio_bytes, "style")
+
+
+def _generate_lanes_payload(
+    audio_file: UploadFile,
+    keep_bass: bool,
+    keep_piano: bool,
+    keep_drums: bool,
+    keep_other: bool,
+) -> dict[str, Any]:
+    cfg = _audio_cfg()
+    sample_rate = int(cfg["audio"]["sample_rate"])
+    waveform = _read_audio_from_upload(audio_file, sample_rate)
+    harmonic, percussive = librosa.effects.hpss(waveform)
+    mix = np.zeros_like(waveform)
+    if keep_drums:
+        mix += percussive
+    if keep_bass or keep_piano or keep_other:
+        mix += harmonic
+    mix = librosa.util.normalize(mix if np.any(mix) else waveform)
+    return _package_audio_bytes(_waveform_to_wav_bytes(mix, sample_rate), "lanes")
+
+
 def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]:
     _ = original_filename
     transcription = _transcribe_and_mood(file_bytes)
@@ -1453,7 +1580,8 @@ async def handle_generate_request(
     instrument: int = 0,
 ) -> dict[str, Any]:
     if chord and not filename and not upload_id:
-        mel, audio_bytes, detected_chords = generate_from_chord(
+        mel, audio_bytes, detected_chords = await _run_generation(
+            generate_from_chord,
             chord=chord,
             duration=duration or 5.0,
             bpm=bpm,
@@ -1468,7 +1596,8 @@ async def handle_generate_request(
     if input_path is None:
         raise HTTPException(status_code=404, detail="Uploaded file not found")
 
-    mel, audio_bytes, detected_chords = generate_from_audio(
+    mel, audio_bytes, detected_chords = await _run_generation(
+        generate_from_audio,
         input_path.read_bytes(),
         creativity=creativity,
         chord=chord,
@@ -1589,7 +1718,7 @@ async def generate_audio_route(
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)) -> dict[str, Any]:
     raw = await _read_upload_bytes(file)
-    return run_basic_pitch(raw, file.filename or "audio.wav")
+    return await _run_generation(run_basic_pitch, raw, file.filename or "audio.wav")
 
 
 @router.post("/generate-progression")
@@ -1606,7 +1735,13 @@ async def generate_progression_route(
     if not cleaned_progression:
         raise HTTPException(
             status_code=400, detail="Progression must include at least one chord")
-    return _generate_progression_payload(cleaned_progression, bpm=float(bpm), instrument=int(instrument), prefix="progression")
+    return await _run_generation(
+        _generate_progression_payload,
+        cleaned_progression,
+        bpm=float(bpm),
+        instrument=int(instrument),
+        prefix="progression",
+    )
 
 
 @router.post("/generate-variants")
@@ -1617,7 +1752,8 @@ async def generate_variants_route(
 ) -> dict[str, Any]:
     count = max(1, min(8, int(n_variants)))
     raw = await _read_upload_bytes(file)
-    return generate_iddm_variants(
+    return await _run_generation(
+        generate_iddm_variants,
         audio_bytes=raw,
         n_variants=count,
         temperatures=_parse_variant_temperatures(temperatures, count),
@@ -1631,8 +1767,8 @@ async def generate_accompaniment(
 ) -> JSONResponse:
     try:
         raw = vocal.file.read()
-        _, audio_bytes, _ = generate_from_audio(
-            raw, creativity=float(creativity))
+        _, audio_bytes, _ = await _run_generation(
+            generate_from_audio, raw, creativity=float(creativity))
         return JSONResponse(_package_audio_bytes(audio_bytes, "accomp"))
     except HTTPException:
         raise
@@ -1650,18 +1786,9 @@ async def generate_style(
     creativity: float = Form(0.6),
 ) -> JSONResponse:
     try:
-        cfg = _audio_cfg()
-        sample_rate = int(cfg["audio"]["sample_rate"])
-        vocal_audio = _read_audio_from_upload(vocal, sample_rate)
-        style_audio = _read_audio_from_upload(style, sample_rate)
-        mixed_audio = librosa.util.normalize(
-            (1.0 - float(np.clip(style_mix, 0.0, 1.0))) *
-            vocal_audio[: min(len(vocal_audio), len(style_audio))]
-            + float(np.clip(style_mix, 0.0, 1.0)) *
-            style_audio[: min(len(vocal_audio), len(style_audio))]
-        )
-        audio_bytes = _waveform_to_wav_bytes(mixed_audio, sample_rate)
-        return JSONResponse(_package_audio_bytes(audio_bytes, "style"))
+        payload = await _run_generation(
+            _generate_style_payload, vocal, style, float(style_mix))
+        return JSONResponse(payload)
     except HTTPException:
         raise
     except Exception as exc:
@@ -1682,8 +1809,10 @@ async def render_midi_route(
         raise HTTPException(status_code=400, detail="Invalid midi_b64") from exc
 
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    rerendered = _rerender_midi_bytes(midi_bytes, instrument=instrument, bpm=bpm)
-    wav_b64 = _midi_bytes_to_wav_b64(rerendered, sample_rate=sample_rate, prefer_fluidsynth_only=True)
+    rerendered = await _run_generation(
+        _rerender_midi_bytes, midi_bytes, instrument=instrument, bpm=bpm)
+    wav_b64 = await _run_generation(
+        _midi_bytes_to_wav_b64, rerendered, sample_rate=sample_rate, prefer_fluidsynth_only=True)
     return {"wav_b64": wav_b64}
 
 
@@ -1696,17 +1825,9 @@ async def generate_lanes(
     keep_other: bool = Form(True),
 ) -> JSONResponse:
     try:
-        cfg = _audio_cfg()
-        sample_rate = int(cfg["audio"]["sample_rate"])
-        waveform = _read_audio_from_upload(audio, sample_rate)
-        harmonic, percussive = librosa.effects.hpss(waveform)
-        mix = np.zeros_like(waveform)
-        if keep_drums:
-            mix += percussive
-        if keep_bass or keep_piano or keep_other:
-            mix += harmonic
-        mix = librosa.util.normalize(mix if np.any(mix) else waveform)
-        return JSONResponse(_package_audio_bytes(_waveform_to_wav_bytes(mix, sample_rate), "lanes"))
+        payload = await _run_generation(
+            _generate_lanes_payload, audio, keep_bass, keep_piano, keep_drums, keep_other)
+        return JSONResponse(payload)
     except HTTPException:
         raise
     except Exception as exc:

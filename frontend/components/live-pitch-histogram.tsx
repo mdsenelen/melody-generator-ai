@@ -23,17 +23,13 @@ export function LivePitchHistogram({
     <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
       {/* Header row: current note name + frequency */}
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-widest text-white/50">
-          Live pitch
-        </p>
+        <p className="text-xs font-semibold tracking-widest text-white/50 uppercase">Live pitch</p>
         <div className="flex items-center gap-2">
           {isPitched ? (
             <>
               {/* Pulsing dot — indicates live signal */}
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              <span className="text-sm font-bold text-white">
-                {currentNote}
-              </span>
+              <span className="text-sm font-bold text-white">{currentNote}</span>
               <span className="text-xs text-white/50">{currentFrequency} Hz</span>
             </>
           ) : (
@@ -72,7 +68,7 @@ export function LivePitchHistogram({
               {/* Note label below the bar */}
               <span
                 className={[
-                  "text-[10px] font-semibold leading-none",
+                  "text-[10px] leading-none font-semibold",
                   isActive ? "text-sky-300" : "text-white/40",
                 ].join(" ")}
               >

@@ -6,10 +6,7 @@ type DownloadRouteContext = {
   params: Promise<{ filename: string }>;
 };
 
-export async function GET(
-  request: NextRequest,
-  context: DownloadRouteContext,
-) {
+export async function GET(request: NextRequest, context: DownloadRouteContext) {
   const { filename } = await context.params;
   return proxyBackendGet(`/download/${encodeURIComponent(filename)}`, request);
 }
