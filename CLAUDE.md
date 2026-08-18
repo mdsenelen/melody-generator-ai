@@ -52,20 +52,20 @@ npx prettier --write .    # uses .prettierrc (100 char width, trailing commas, T
 music-generator-ai/
 ├── frontend/                    # Next.js 15 + React 19 + TypeScript + Tailwind CSS
 ├── backend/                     # FastAPI + PyTorch audio/ML pipeline
-└── backend/notebook-new.ipynb  # Training notebook for CVAE + IDDM-PPO models
+└── backend/melody_generation_ORDERED_FINAL_(1).ipynb  # Training notebook for CVAE + IDDM-PPO models
 ```
 
 ### Backend (`backend/app/`)
 
 | File | Role |
 | --- | --- |
-| `main.py` | FastAPI app entry point — CORS, static file mount (`/data`), router registration |
+| `main.py` | FastAPI app entry point — CORS, router registration |
 | `inference.py` | Core logic: audio load → pitch/chord/mood/key analysis → VAE encode/decode → MIDI/WAV synthesis |
-| `chord_utils.py` | Chord vocabulary (14 chords), tries to load from `web_model.pt` chord_vocab key, falls back to hardcoded list |
+| `chord_utils.py` | Chord vocabulary (~170 entries: major/minor/aug/dim/5th across all 12 roots), tries to load from `web_model.pt` chord_vocab key, falls back to hardcoded list |
 | `model/vae.py` | **Legacy** WebVAE — 2D depthwise-separable CNN VAE over mel spectrograms; not used in the active inference path |
 | `model/colab_parity.py` | **Active** MelodyCVAE, MelStateEncoder, MelodyPPOActorCritic, TransitionDiscriminator, MINENetwork; used for all `/generate-variants` calls |
 | `model/utils.py` | AudioProcessor, save_model/load_model helpers (target WebVAE, not used at inference time) |
-| `model/weights/` | `.pth` checkpoint files — **not committed**, loaded at runtime with graceful fallback |
+| `model/weights/` | `.pth` checkpoint files — not committed (gitignored), loaded at runtime with graceful fallback |
 
 **Audio pipeline in `inference.py`:**
 librosa (load) → ffmpeg fallback for WebM/Opus → Basic Pitch (pitch detection) → librosa pyin fallback → music21 (chord/key) → CVAE encode/decode melody → pretty_midi + FluidSynth (optional WAV synthesis) → fallback sine-wave synthesizer
@@ -140,12 +140,15 @@ Next.js App Router. All backend communication is proxied through Next.js API rou
 
 **API route proxies** (each forwards to FastAPI):
 
+- `POST /api/upload` — store uploaded audio, returns `{id, filename}`
 - `POST /api/transcribe` — analyze uploaded audio
 - `POST /api/generate` — generate melody
 - `POST /api/generate-progression` — generate chord progressions
 - `POST /api/generate-variants` — create melody variants
 - `GET /api/chords` — list available chords
 - `GET /api/download/[filename]` — stream generated file
+
+All backend routes are canonicalized under `/api/*` (served by `inference.router`, mounted with that prefix in `main.py`), except `/api/upload`, `/model-info`, `/process/`, and `/health`, which are registered directly on the FastAPI app.
 
 **Backend URL resolution in `_lib/backend.ts`** (server-side only, precedence order):
 
@@ -159,7 +162,7 @@ Next.js App Router. All backend communication is proxied through Next.js API rou
 Browser → Next.js page → Next.js API route → FastAPI backend → inference.py → model → response
 ```
 
-Upload flow: `POST /upload/` stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed to `/generate` to reference the stored file.
+Upload flow: `POST /api/upload` stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed to `/api/generate` to reference the stored file.
 
 ---
 
@@ -169,7 +172,7 @@ Upload flow: `POST /upload/` stores `upload_{uuid}{ext}` → returns `{id, filen
 - **Backend env:** `backend/.env` — `PYTHONPATH=.`
 - **Audio params override:** `model/weights/audio_params.json` — if present, overrides `DEFAULT_AUDIO_CFG` for mel spectrogram processing
 - **Soundfont:** `app/soundfonts/GeneralUser-GS.sf2` or `SOUNDFONT_PATH` env var — used by FluidSynth for WAV synthesis
-- **CORS:** `main.py` hardcodes `localhost:3000` and `my-domain.com` — update `allow_origins` for deployment
+- **CORS:** `main.py` reads `CORS_ALLOWED_ORIGINS` (comma-separated, defaults to `http://localhost:3000`) — set it for deployment
 - **PyTorch:** CPU wheels only, sourced from `https://download.pytorch.org/whl/cpu`
 - **ffmpeg:** Required at runtime as fallback decoder for WebM/Opus browser recordings that librosa cannot decode natively
 - **FluidSynth:** Optional system package; without it, MIDI synthesis falls back to a sine-wave synthesizer

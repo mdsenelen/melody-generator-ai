@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AudioRecorder } from "../../components/audio-recorder";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { requestJson } from "../lib/request";
+import { useSessionStore } from "../lib/session-store";
 
 type Variant = {
   index: number;
@@ -57,10 +58,12 @@ function triggerBase64Download(filename: string, data: string, mimeType: string)
 }
 
 export default function GenerateVariantsPage() {
+  const lastUpload = useSessionStore((state) => state.lastUpload);
   const [showRecorder, setShowRecorder] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
   const [storedFilename, setStoredFilename] = useState<string | null>(null);
+  const [useStoredUpload, setUseStoredUpload] = useState(false);
   const [nVariants, setNVariants] = useState(4);
   const [temperatures, setTemperatures] = useState<number[]>(buildDefaultTemperatures(4));
   const [loading, setLoading] = useState(false);
@@ -91,6 +94,7 @@ export default function GenerateVariantsPage() {
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setStoredFilename(filename);
+    setUseStoredUpload(false);
     setError(null);
   };
 
@@ -98,12 +102,22 @@ export default function GenerateVariantsPage() {
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setStoredFilename(null);
+    setUseStoredUpload(false);
     setError(null);
     setShowRecorder(false);
   };
 
+  const handleUseStoredUpload = () => {
+    if (!lastUpload) return;
+    setSelectedFile(null);
+    setSelectedSourceName(lastUpload.sourceName);
+    setStoredFilename(lastUpload.filename);
+    setUseStoredUpload(true);
+    setError(null);
+  };
+
   const generateVariants = async () => {
-    if (!selectedFile) {
+    if (!selectedFile && !useStoredUpload) {
       setError("Choose or record an audio clip before generating variants.");
       return;
     }
@@ -112,7 +126,12 @@ export default function GenerateVariantsPage() {
     setError(null);
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      if (selectedFile) {
+        formData.append("file", selectedFile);
+      } else if (lastUpload) {
+        formData.append("filename", lastUpload.filename);
+        formData.append("upload_id", lastUpload.uploadId);
+      }
       formData.append("n_variants", String(nVariants));
       formData.append("temperatures", JSON.stringify(temperatures.slice(0, nVariants)));
 
@@ -159,6 +178,23 @@ export default function GenerateVariantsPage() {
           </div>
         ) : null}
 
+        {lastUpload ? (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Recent upload available</p>
+              <p className="mt-1 text-sm text-gray-400">{lastUpload.sourceName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleUseStoredUpload}
+              disabled={useStoredUpload}
+              className="rounded-full border border-purple-400/40 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {useStoredUpload ? "Using this upload" : "Use my last upload"}
+            </button>
+          </div>
+        ) : null}
+
         <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -175,7 +211,7 @@ export default function GenerateVariantsPage() {
             <button
               type="button"
               onClick={generateVariants}
-              disabled={loading || !selectedFile}
+              disabled={loading || (!selectedFile && !useStoredUpload)}
               className="rounded-2xl border border-purple-400/40 bg-purple-500/15 px-5 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Generating..." : "Generate variants"}

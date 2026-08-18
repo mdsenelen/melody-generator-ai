@@ -50,14 +50,37 @@ function ProgressionCard({ prog }: { prog: Progression }) {
 export default function ListenProgressionsPage() {
   const [progressions, setProgressions] = useState<Progression[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    requestJson<{ progressions: Progression[] }>("/api/progressions", {
-      expectedContentType: "application/json",
-    })
-      .then((data) => setProgressions(data.progressions ?? []))
-      .catch(() => setProgressions([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadProgressions() {
+      try {
+        const data = await requestJson<{ progressions: Progression[] }>("/api/progressions", {
+          expectedContentType: "application/json",
+        });
+        if (!cancelled) {
+          setProgressions(data.progressions ?? []);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          setError(
+            fetchError instanceof Error ? fetchError.message : "Failed to load progressions",
+          );
+          setProgressions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProgressions();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -65,6 +88,14 @@ export default function ListenProgressionsPage() {
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
+          Couldn&apos;t load chord progressions: {error}
+        </div>
+      ) : progressions.length === 0 ? (
+        <div className="flex min-h-[200px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65">
+          No chord progressions available yet.
         </div>
       ) : (
         <div className="grid gap-6">

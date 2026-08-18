@@ -85,7 +85,11 @@ class MelodyDecoder(nn.Module):
         return self.forward_teacher(z_cond, tokens, tf)
 
     def sample(
-        self, z_cond: torch.Tensor, seq_len: int = 129, temperature: float = 1.0
+        self,
+        z_cond: torch.Tensor,
+        seq_len: int = 129,
+        temperature: float = 1.0,
+        generator: Optional[torch.Generator] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         batch_size = z_cond.size(0)
         device = z_cond.device
@@ -100,7 +104,7 @@ class MelodyDecoder(nn.Module):
             output, hidden = self.gru(torch.cat([embedded, context], dim=-1), hidden)
             logits = self.out(output.squeeze(1)) / max(temperature, 1e-4)
             probs = F.softmax(logits, dim=-1)
-            current = torch.multinomial(probs, 1).squeeze(1)
+            current = torch.multinomial(probs, 1, generator=generator).squeeze(1)
             lp = torch.log(probs.gather(1, current.unsqueeze(1)).squeeze(1) + 1e-8)
             ent = -(probs * torch.log(probs + 1e-8)).sum(-1)
             log_probs = log_probs + lp

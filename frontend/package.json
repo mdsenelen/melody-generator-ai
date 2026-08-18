@@ -29,14 +29,19 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.7.1",
     "winston": "^3.17.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.5",
     "@types/jest": "^30.0.0",
     "@types/react": "19.2.14",
     "autoprefixer": "^10.4.21",
     "jest": "^30.2.0",
+    "jest-environment-jsdom": "30.4.1",
     "postcss": "^8.5.6",
     "prettier": "3.9.6",
     "prettier-plugin-tailwindcss": "0.8.1",

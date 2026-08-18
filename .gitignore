@@ -25,6 +25,10 @@ backend/data/recordings/
 backend/data/generated/
 backend/data/logs/
 
+# Model checkpoints — large binaries, not source-controlled (see CLAUDE.md
+# for the expected checkpoint schema)
+backend/app/model/weights/*.pth
+
 # Frontend build artefacts
 frontend/.next/
 frontend/tsconfig.tsbuildinfo
@@ -36,3 +40,5 @@ frontend/tsconfig.tsbuildinfo
 # Large media assets — serve from CDN/object storage instead
 frontend/public/*.mp4
 
+
+.DS_Store

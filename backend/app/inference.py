@@ -39,6 +39,8 @@ from .model.colab_parity import (
     tokens_to_bar_idx,
     tokens_to_midi,
 )
+from .chord_utils import get_all_chord_labels
+from .schemas import GenerateProgressionRequest, GenerateRequest
 
 try:  # pragma: no cover - optional dependency
     import pretty_midi
@@ -102,37 +104,6 @@ DEFAULT_AUDIO_CFG = {
         "max_frames": 256,
     }
 }
-
-DEFAULT_CHORDS = [
-    # Major (all 12 roots, both spellings where conventional)
-    "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B",
-    # Minor (all 12 roots)
-    "Cm", "C#m", "Dbm", "Dm", "D#m", "Ebm", "Em", "Fm", "F#m", "Gbm", "Gm", "G#m", "Abm", "Am", "A#m", "Bbm", "Bm",
-    # Augmented (all 12 roots)
-    "Caug", "C#aug", "Daug", "D#aug", "Ebaug", "Eaug", "Faug", "F#aug", "Gaug", "G#aug", "Abaug", "Aaug", "Bbaug", "Baug",
-    # Diminished (all 12 roots)
-    "Cdim", "C#dim", "Ddim", "D#dim", "Ebdim", "Edim", "Fdim", "F#dim", "Gdim", "G#dim", "Abdim", "Adim", "Bbdim", "Bdim",
-    # Power / 5th chords (all 12 roots)
-    "C5", "C#5", "D5", "D#5", "Eb5", "E5", "F5", "F#5", "G5", "G#5", "Ab5", "A5", "Bb5", "B5",
-    # Dominant 7th (all 12 roots)
-    "C7", "C#7", "Db7", "D7", "D#7", "Eb7", "E7", "F7", "F#7", "Gb7", "G7", "G#7", "Ab7", "A7", "A#7", "Bb7", "B7",
-    # Major 7th (all 12 roots)
-    "Cmaj7", "C#maj7", "Dbmaj7", "Dmaj7", "D#maj7", "Ebmaj7", "Emaj7", "Fmaj7", "F#maj7", "Gbmaj7", "Gmaj7", "G#maj7", "Abmaj7", "Amaj7", "A#maj7", "Bbmaj7", "Bmaj7",
-    # Minor 7th (all 12 roots)
-    "Cm7", "C#m7", "Dm7", "D#m7", "Ebm7", "Em7", "Fm7", "F#m7", "Gm7", "G#m7", "Abm7", "Am7", "Bbm7", "Bm7",
-    # Sus2 (all 12 roots)
-    "Csus2", "C#sus2", "Dsus2", "D#sus2", "Ebsus2", "Esus2", "Fsus2", "F#sus2", "Gsus2", "G#sus2", "Absus2", "Asus2", "Bbsus2", "Bsus2",
-    # Sus4 (all 12 roots)
-    "Csus4", "C#sus4", "Dsus4", "D#sus4", "Ebsus4", "Esus4", "Fsus4", "F#sus4", "Gsus4", "G#sus4", "Absus4", "Asus4", "Bbsus4", "Bsus4",
-    # Dominant 9th
-    "C9", "D9", "E9", "F9", "G9", "A9", "B9", "Bb9",
-    # Major 9th
-    "Cmaj9", "Dmaj9", "Emaj9", "Fmaj9", "Gmaj9", "Amaj9", "Bmaj9",
-    # Minor 9th
-    "Cm9", "Dm9", "Em9", "Fm9", "Gm9", "Am9", "Bm9",
-    # Add9
-    "Cadd9", "Dadd9", "Eadd9", "Fadd9", "Gadd9", "Aadd9", "Badd9",
-]
 
 _PROGRESSIONS_JSON = Path(__file__).resolve().parent / "data" / "progressions.json"
 
@@ -450,7 +421,7 @@ def get_model_info() -> dict[str, Any]:
 
 
 def get_available_chords() -> list[str]:
-    return DEFAULT_CHORDS
+    return get_all_chord_labels()
 
 
 def _audio_cfg() -> dict[str, Any]:
@@ -1322,7 +1293,27 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
     }
 
 
-def generate_from_audio(audio_bytes_input: bytes, creativity: float = 0.7, chord: Optional[str] = None) -> tuple[list[list[float]], bytes, list[str]]:
+def _randn_like(tensor: torch.Tensor, generator: Optional[torch.Generator]) -> torch.Tensor:
+    """torch.randn_like doesn't accept a generator, so route through
+    torch.randn explicitly when the caller wants reproducible sampling;
+    otherwise behave exactly like torch.randn_like (global RNG, unseeded)."""
+    if generator is None:
+        return torch.randn_like(tensor)
+    return torch.randn(tensor.shape, generator=generator, device=tensor.device, dtype=tensor.dtype)
+
+
+def _seed_generator(seed: Optional[int]) -> Optional[torch.Generator]:
+    if seed is None:
+        return None
+    return torch.Generator(device=DEVICE).manual_seed(seed)
+
+
+def generate_from_audio(
+    audio_bytes_input: bytes,
+    creativity: float = 0.7,
+    chord: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> tuple[list[list[float]], bytes, list[str]]:
     cfg = _load_audio_cfg()
     sample_rate = int(cfg["audio"]["sample_rate"])
     audio = _read_audio_bytes(audio_bytes_input, sample_rate)
@@ -1336,10 +1327,11 @@ def generate_from_audio(audio_bytes_input: bytes, creativity: float = 0.7, chord
 
     try:
         mel_tensor = _encode(audio, cfg)
+        generator = _seed_generator(seed)
         with torch.no_grad():
             mu, logvar = bundle["cvae_model"].encode(mel_tensor)
             std = torch.exp(0.5 * logvar)
-            z = mu + torch.randn_like(std) * std * max(0.05, float(creativity))
+            z = mu + _randn_like(std, generator) * std * max(0.05, float(creativity))
             mel_output = _decode_from_latent(bundle["cvae_model"], z)
         return mel_output.tolist(), _mel_to_audio_bytes(mel_output, cfg), detected_chords
     except Exception as exc:
@@ -1395,8 +1387,10 @@ def generate_iddm_variants(
     audio_bytes: bytes,
     n_variants: int,
     temperatures: list[float],
+    seed: Optional[int] = None,
 ) -> dict[str, Any]:
     try:
+        generator = _seed_generator(seed)
         bundle = _load_cvae_iddm()
         transcription = _transcribe_and_mood(audio_bytes)
         mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"])
@@ -1444,12 +1438,13 @@ def generate_iddm_variants(
 
             for index, temperature in enumerate(temperatures[:n_variants]):
                 temp = float(temperature)
-                delta_z = dist.loc + dist.scale * torch.randn_like(dist.loc) * temp
+                delta_z = dist.loc + dist.scale * _randn_like(dist.loc, generator) * temp
                 z_final = base_mu + alpha * delta_z
                 gen_tokens, _, _ = bundle["cvae_model"].decoder.sample(
                     torch.cat([z_final, cond], dim=-1),
                     seq_len=seq_len,
                     temperature=temp,
+                    generator=generator,
                 )
                 midi_bytes = _token_ids_to_midi_bytes(
                     gen_tokens.squeeze(0).detach().cpu().tolist(),
@@ -1578,6 +1573,7 @@ async def handle_generate_request(
     duration: Optional[float] = None,
     bpm: float = 120.0,
     instrument: int = 0,
+    seed: Optional[int] = None,
 ) -> dict[str, Any]:
     if chord and not filename and not upload_id:
         mel, audio_bytes, detected_chords = await _run_generation(
@@ -1601,6 +1597,7 @@ async def handle_generate_request(
         input_path.read_bytes(),
         creativity=creativity,
         chord=chord,
+        seed=seed,
     )
     payload = _package_audio_bytes(audio_bytes, "generated")
     payload["detected_chords"] = detected_chords
@@ -1695,23 +1692,16 @@ def download(filename: str) -> FileResponse:
 
 
 @router.post("/generate")
-async def generate_audio_route(
-    filename: Optional[str] = Body(None),
-    id: Optional[str] = Body(None),
-    chord: Optional[str] = Body(None),
-    creativity: float = Body(0.7),
-    duration: Optional[float] = Body(None),
-    bpm: float = Body(120.0),
-    instrument: int = Body(0),
-) -> dict[str, Any]:
+async def generate_audio_route(payload: GenerateRequest) -> dict[str, Any]:
     return await handle_generate_request(
-        filename=filename,
-        upload_id=id,
-        chord=chord,
-        creativity=creativity,
-        duration=duration,
-        bpm=bpm,
-        instrument=instrument,
+        filename=payload.filename,
+        upload_id=payload.id,
+        chord=payload.chord,
+        creativity=payload.creativity,
+        duration=payload.duration,
+        bpm=payload.bpm,
+        instrument=payload.instrument,
+        seed=payload.seed,
     )
 
 
@@ -1722,41 +1712,50 @@ async def transcribe_audio(file: UploadFile = File(...)) -> dict[str, Any]:
 
 
 @router.post("/generate-progression")
-async def generate_progression_route(
-    progression: list[str] = Body(...),
-    bpm: float = Body(120.0),
-    instrument: int = Body(0),
-) -> dict[str, Any]:
-    if not progression:
+async def generate_progression_route(payload: GenerateProgressionRequest) -> dict[str, Any]:
+    if not payload.progression:
         raise HTTPException(
             status_code=400, detail="Progression must include at least one chord")
     cleaned_progression = [chord.strip()
-                           for chord in progression if chord.strip()]
+                           for chord in payload.progression if chord.strip()]
     if not cleaned_progression:
         raise HTTPException(
             status_code=400, detail="Progression must include at least one chord")
     return await _run_generation(
         _generate_progression_payload,
         cleaned_progression,
-        bpm=float(bpm),
-        instrument=int(instrument),
+        bpm=float(payload.bpm),
+        instrument=int(payload.instrument),
         prefix="progression",
     )
 
 
 @router.post("/generate-variants")
 async def generate_variants_route(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    upload_id: Optional[str] = Form(None),
+    filename: Optional[str] = Form(None),
     n_variants: int = Form(4),
     temperatures: Optional[str] = Form(None),
+    seed: Optional[int] = Form(None),
 ) -> dict[str, Any]:
     count = max(1, min(8, int(n_variants)))
-    raw = await _read_upload_bytes(file)
+    if file is not None:
+        raw = await _read_upload_bytes(file)
+    else:
+        input_path = _resolve_upload_path(filename, upload_id)
+        if input_path is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No file uploaded and no matching prior upload found",
+            )
+        raw = input_path.read_bytes()
     return await _run_generation(
         generate_iddm_variants,
         audio_bytes=raw,
         n_variants=count,
         temperatures=_parse_variant_temperatures(temperatures, count),
+        seed=seed,
     )
 
 

@@ -3,19 +3,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import Body, FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app import inference
-from app.chord_utils import get_all_chord_labels
+from app.schemas import ProcessRequest
 
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -47,14 +47,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://my-domain.com"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=str(DATA_DIR)), name="static")
+# No public static mount: data/recordings, data/generated, and data/logs all
+# hold user-uploaded/generated content and were previously exposed under
+# /static with no auth or sanitization, despite nothing in the app ever
+# using that route. Generated files are served through the sanitized
+# /api/download/{filename} endpoint instead.
+#
+# All routes are canonicalized under /api/*, served by inference.router
+# below (chords, download, generate, generate-variants, generate-progression,
+# transcribe). /api/upload, /model-info, /process/, and /health are the only
+# routes registered directly on `app`.
 app.include_router(inference.router, prefix="/api")
 
 
@@ -74,7 +89,7 @@ def health() -> dict[str, Any]:
     }
 
 
-@app.post("/upload/")
+@app.post("/api/upload")
 async def upload_audio(
     file: UploadFile = File(...),
     sample_rate: Optional[int] = None,
@@ -104,57 +119,14 @@ async def upload_audio(
     return JSONResponse(status_code=201, content={"id": unique_id, "filename": filename})
 
 
-@app.post("/api/upload")
-async def api_upload_audio(
-    file: UploadFile = File(...),
-    sample_rate: Optional[int] = None,
-) -> JSONResponse:
-    return await upload_audio(file=file, sample_rate=sample_rate)
-
-
 @app.get("/model-info")
 def get_model_info() -> dict[str, Any]:
     return inference.get_model_info()
 
 
-@app.get("/chords")
-def get_chords() -> dict[str, list[str]]:
-    return {"chords": get_all_chord_labels()}
-
-
-@app.get("/download/{filename}")
-def download_generated_file(filename: str):
-    return inference.download_generated_file(filename)
-
-
-@app.post("/generate")
-async def generate_audio(
-    filename: Optional[str] = Body(None),
-    id: Optional[str] = Body(None),
-    chord: Optional[str] = Body(None),
-    creativity: float = Body(0.7),
-    duration: Optional[float] = Body(None),
-    bpm: float = Body(140.0),
-    instrument: int = Body(0),
-) -> dict[str, Any]:
-    return await inference.handle_generate_request(
-        filename=filename,
-        upload_id=id,
-        chord=chord,
-        creativity=creativity,
-        duration=duration,
-        bpm=bpm,
-        instrument=instrument,
-    )
-
-
 @app.post("/process/")
-async def process_audio(
-    id: str = Body(...),
-    intensity: float = Body(0.5),
-    creativity: float = Body(0.7),
-) -> dict[str, Any]:
+async def process_audio(payload: ProcessRequest) -> dict[str, Any]:
     return await inference.handle_generate_request(
-        upload_id=id,
-        creativity=creativity,
+        upload_id=payload.id,
+        creativity=payload.creativity,
     )

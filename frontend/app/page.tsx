@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AudioRecorder } from "../components/audio-recorder";
 import { ChordDiagram } from "../components/chord-diagram";
@@ -9,6 +9,7 @@ import ErrorBoundary from "../components/error-boundary";
 import { ErrorToast } from "../components/error-toast";
 import { UploadButton, type UploadSuccessPayload } from "../components/upload-button";
 import { requestJson } from "./lib/request";
+import { useSessionStore } from "./lib/session-store";
 import { uploadFile } from "./lib/upload";
 
 type TabKey = "upload" | "record";
@@ -125,6 +126,11 @@ export default function Home() {
   const [pendingSourceName, setPendingSourceName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
+  // Stable reference: ErrorToast's auto-dismiss effect depends on this
+  // callback, so a fresh function identity on every render would reset its
+  // timer before it ever fires.
+  const dismissError = useCallback(() => setErrorMessage(null), []);
+
   useEffect(() => {
     if (!analysisResult?.wav_b64) {
       setAnalysisAudioUrl(null);
@@ -139,7 +145,10 @@ export default function Home() {
     };
   }, [analysisResult?.wav_b64]);
 
-  const runSelectedAnalysis = async (file: File, uploadedFilename: string | null) => {
+  const runSelectedAnalysis = async (
+    file: File,
+    uploaded: { id: string; filename: string } | null,
+  ) => {
     const requestId = ++requestIdRef.current;
     setErrorMessage(null);
     setPendingSourceName(file.name);
@@ -147,11 +156,11 @@ export default function Home() {
     setStatusMessage(`Analysing ${file.name}...`);
 
     try {
-      let storedFilename = uploadedFilename;
+      let stored = uploaded;
 
-      if (!storedFilename) {
+      if (!stored) {
         const uploadResult = await uploadFile(file);
-        storedFilename = uploadResult.filename;
+        stored = { id: uploadResult.id, filename: uploadResult.filename };
         setSelectedUploadFilename(uploadResult.filename);
       }
 
@@ -164,7 +173,19 @@ export default function Home() {
       setAnalysisResult({
         ...result,
         sourceName: file.name,
-        uploadedFilename: storedFilename,
+        uploadedFilename: stored.filename,
+      });
+
+      useSessionStore.getState().setLastUpload({
+        uploadId: stored.id,
+        filename: stored.filename,
+        sourceName: file.name,
+        transcription: {
+          chords: result.detected_chords,
+          key: result.key,
+          moodLabel: result.mood_label,
+          pitchHistogram: result.pitch_histogram,
+        },
       });
 
       setStatusMessage(`Analysis ready for ${file.name}.`);
@@ -181,14 +202,14 @@ export default function Home() {
     }
   };
 
-  const handleUploadSuccess = ({ filename, file }: UploadSuccessPayload) => {
+  const handleUploadSuccess = ({ id, filename, file }: UploadSuccessPayload) => {
     setActiveTab("upload");
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setSelectedUploadFilename(filename);
     setErrorMessage(null);
     setStatusMessage(`Uploaded ${file.name}. Starting analysis...`);
-    void runSelectedAnalysis(file, filename);
+    void runSelectedAnalysis(file, { id, filename });
   };
 
   const handleRecordingComplete = (file: File) => {
@@ -450,9 +471,7 @@ export default function Home() {
           </section>
         </main>
 
-        {errorMessage ? (
-          <ErrorToast message={errorMessage} onDismiss={() => setErrorMessage(null)} />
-        ) : null}
+        {errorMessage ? <ErrorToast message={errorMessage} onDismiss={dismissError} /> : null}
       </>
     </ErrorBoundary>
   );

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import io
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -10,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import soundfile as sf
 import torch
 from fastapi import HTTPException
 from fastapi import UploadFile
@@ -363,10 +367,13 @@ def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
 def test_generate_variants_route_accepts_formdata(monkeypatch):
     captured = {}
 
-    def fake_generate_iddm_variants(audio_bytes: bytes, n_variants: int, temperatures: list[float]):
+    def fake_generate_iddm_variants(
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+    ):
         captured["audio_bytes"] = audio_bytes
         captured["n_variants"] = n_variants
         captured["temperatures"] = temperatures
+        captured["seed"] = seed
         return {
             "n_variants": n_variants,
             "temperatures": temperatures,
@@ -396,6 +403,106 @@ def test_generate_variants_route_accepts_formdata(monkeypatch):
     assert captured["audio_bytes"] == b"audio-bytes"
     assert captured["n_variants"] == 2
     assert captured["temperatures"] == [0.7, 0.9]
+    assert captured["seed"] is None
+
+
+def test_generate_variants_route_forwards_seed(monkeypatch):
+    captured = {}
+
+    def fake_generate_iddm_variants(
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+    ):
+        captured["seed"] = seed
+        return {
+            "n_variants": n_variants,
+            "temperatures": temperatures,
+            "mood_idx": 2,
+            "mood_label": "neutral",
+            "model_status": {
+                "cvae": {"path": "cvae", "exists": True, "size_mb": 1.0, "loaded": True},
+                "iddm_ppo": {"path": "iddm", "exists": True, "size_mb": 1.0, "loaded": True},
+                "device": "cpu",
+                "load_error": None,
+                "fluidsynth_available": False,
+            },
+            "variants": [],
+        }
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+
+    asyncio.run(
+        inference.generate_variants_route(
+            file=UploadFile(filename="clip.wav", file=io.BytesIO(b"audio-bytes")),
+            n_variants=1,
+            temperatures="[0.7]",
+            seed=1234,
+        )
+    )
+
+    assert captured["seed"] == 1234
+
+
+def test_generate_variants_route_accepts_prior_upload_reference(tmp_path, monkeypatch):
+    """generate-variants should be usable without re-uploading a file, by
+    referencing a previously-uploaded one (filename or upload_id) — this is
+    what powers the frontend's "use my last upload" cross-page flow."""
+    upload_dir = tmp_path / "recordings"
+    upload_dir.mkdir()
+    stored = upload_dir / "upload_abc123.wav"
+    stored.write_bytes(b"stored-audio-bytes")
+    monkeypatch.setattr(inference, "UPLOAD_DIR", upload_dir)
+
+    captured = {}
+
+    def fake_generate_iddm_variants(
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+    ):
+        captured["audio_bytes"] = audio_bytes
+        return {
+            "n_variants": n_variants,
+            "temperatures": temperatures,
+            "mood_idx": 0,
+            "mood_label": "neutral",
+            "model_status": {
+                "cvae": {"path": "cvae", "exists": True, "size_mb": 1.0, "loaded": True},
+                "iddm_ppo": {"path": "iddm", "exists": True, "size_mb": 1.0, "loaded": True},
+                "device": "cpu",
+                "load_error": None,
+                "fluidsynth_available": False,
+            },
+            "variants": [],
+        }
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+
+    response = asyncio.run(
+        inference.generate_variants_route(
+            file=None,
+            filename="upload_abc123.wav",
+            n_variants=1,
+            temperatures="[0.8]",
+        )
+    )
+
+    assert response["temperatures"] == [0.8]
+    assert captured["audio_bytes"] == b"stored-audio-bytes"
+
+
+def test_generate_variants_route_404s_when_no_file_and_no_prior_upload(tmp_path, monkeypatch):
+    monkeypatch.setattr(inference, "UPLOAD_DIR", tmp_path / "recordings")
+    (tmp_path / "recordings").mkdir()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            inference.generate_variants_route(
+                file=None,
+                filename="does-not-exist.wav",
+                n_variants=1,
+                temperatures=None,
+            )
+        )
+
+    assert exc.value.status_code == 404
 
 
 def test_generate_variants_route_rejects_temperature_length_mismatch(monkeypatch):
@@ -493,3 +600,274 @@ def test_heuristic_mood_from_metrics_default_key_arg():
     idx, label = heuristic_mood_from_metrics(120.0, 70.0)
     assert idx == 0
     assert label == "happy"
+
+
+def test_chords_route_delegates_to_chord_utils(monkeypatch):
+    """The canonical /api/chords route (inference.chords) must be the same
+    source of truth as chord_utils, including the web_model.pt chord_vocab
+    override -- the old duplicate /chords route in main.py used a separate
+    hardcoded copy of this list that never picked up that override."""
+    monkeypatch.setattr(inference, "get_all_chord_labels", lambda: ["C", "Am", "F", "G"])
+
+    response = inference.chords()
+
+    assert response == {"chords": ["C", "Am", "F", "G"]}
+
+
+def test_generate_audio_route_accepts_pydantic_payload_with_seed(monkeypatch):
+    """The canonical /api/generate route (inference.generate_audio_route,
+    reached at /api/generate through the router) must accept the same
+    GenerateRequest schema -- including seed -- as handle_generate_request,
+    rather than the stale raw-Body() duplicate this replaced."""
+    from app.schemas import GenerateRequest
+
+    captured = {}
+
+    async def fake_handle_generate_request(**kwargs):
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(inference, "handle_generate_request", fake_handle_generate_request)
+
+    response = asyncio.run(
+        inference.generate_audio_route(
+            GenerateRequest(filename="clip.wav", creativity=0.5, seed=99)
+        )
+    )
+
+    assert response == {"ok": True}
+    assert captured["filename"] == "clip.wav"
+    assert captured["seed"] == 99
+
+
+def test_generate_progression_route_accepts_pydantic_payload(monkeypatch):
+    from app.schemas import GenerateProgressionRequest
+
+    captured = {}
+
+    def fake_payload(progression, bpm, instrument, prefix):
+        captured["progression"] = progression
+        captured["bpm"] = bpm
+        captured["instrument"] = instrument
+        return {"progression": progression, "bpm": bpm, "instrument": instrument}
+
+    monkeypatch.setattr(inference, "_generate_progression_payload", fake_payload)
+
+    response = asyncio.run(
+        inference.generate_progression_route(
+            GenerateProgressionRequest(progression=["C", " G ", ""], bpm=100.0, instrument=2)
+        )
+    )
+
+    # Blank/whitespace-only entries are stripped before reaching generation.
+    assert captured["progression"] == ["C", "G"]
+    assert response["bpm"] == 100.0
+
+
+def test_generate_progression_route_rejects_empty_progression():
+    from app.schemas import GenerateProgressionRequest
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(inference.generate_progression_route(GenerateProgressionRequest(progression=[])))
+
+    assert exc.value.status_code == 400
+
+
+def test_generate_progression_route_rejects_all_blank_entries():
+    from app.schemas import GenerateProgressionRequest
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            inference.generate_progression_route(GenerateProgressionRequest(progression=["  ", ""]))
+        )
+
+    assert exc.value.status_code == 400
+
+
+# ── generation seeding/determinism ────────────────────────────────────────────
+
+def test_seed_generator_and_randn_like_reproducible():
+    gen_a = inference._seed_generator(42)
+    gen_b = inference._seed_generator(42)
+    tensor = torch.zeros(3, 5)
+
+    sample_a = inference._randn_like(tensor, gen_a)
+    sample_b = inference._randn_like(tensor, gen_b)
+
+    assert torch.equal(sample_a, sample_b)
+
+
+def test_seed_generator_none_returns_none():
+    assert inference._seed_generator(None) is None
+    # Unseeded _randn_like still works and returns the right shape.
+    tensor = torch.zeros(2, 4)
+    result = inference._randn_like(tensor, None)
+    assert result.shape == tensor.shape
+
+
+def test_melody_decoder_sample_is_reproducible_with_seed():
+    from app.model.colab_parity import MelodyDecoder
+
+    torch.manual_seed(0)
+    decoder = MelodyDecoder(vocab=177, emb_dim=8, hidden=16, latent=4, n_cond=4)
+    decoder.eval()
+    z_cond = torch.randn(1, 8)
+
+    gen_a = inference._seed_generator(7)
+    gen_b = inference._seed_generator(7)
+
+    tokens_a, _, _ = decoder.sample(z_cond, seq_len=12, temperature=1.0, generator=gen_a)
+    tokens_b, _, _ = decoder.sample(z_cond, seq_len=12, temperature=1.0, generator=gen_b)
+
+    assert torch.equal(tokens_a, tokens_b)
+
+
+def test_melody_decoder_sample_differs_across_seeds():
+    from app.model.colab_parity import MelodyDecoder
+
+    torch.manual_seed(0)
+    decoder = MelodyDecoder(vocab=177, emb_dim=8, hidden=16, latent=4, n_cond=4)
+    decoder.eval()
+    z_cond = torch.randn(1, 8)
+
+    tokens_a, _, _ = decoder.sample(
+        z_cond, seq_len=12, temperature=1.0, generator=inference._seed_generator(1)
+    )
+    tokens_b, _, _ = decoder.sample(
+        z_cond, seq_len=12, temperature=1.0, generator=inference._seed_generator(2)
+    )
+
+    assert not torch.equal(tokens_a, tokens_b)
+
+
+# ── real fallback chains (librosa->ffmpeg, basic_pitch->pyin, fluidsynth->sine) ──
+#
+# These exercise the actual fallback code paths against real audio/MIDI data
+# instead of mocking the chain itself. Where a fallback exists specifically
+# because a system binary may be missing (ffmpeg, fluidsynth), we either skip
+# when that binary genuinely isn't on PATH, or stub out only the literal
+# external-process call so the application's own fallback logic still runs
+# for real.
+
+FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
+
+
+def _sine_wav_bytes(frequency: float, duration: float, sample_rate: int) -> bytes:
+    t = np.linspace(0.0, duration, int(sample_rate * duration), endpoint=False)
+    tone = (0.5 * np.sin(2 * np.pi * frequency * t)).astype(np.float32)
+    buf = io.BytesIO()
+    sf.write(buf, tone, sample_rate, format="WAV")
+    return buf.getvalue()
+
+
+def test_read_audio_bytes_decodes_real_wav_without_needing_fallback():
+    raw = _sine_wav_bytes(440.0, 0.5, 22050)
+
+    audio = inference._read_audio_bytes(raw, target_sr=22050)
+
+    assert audio.dtype == np.float32
+    assert audio.size > 0
+
+
+@pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="ffmpeg not installed")
+def test_read_audio_bytes_falls_back_to_real_ffmpeg_for_webm(tmp_path):
+    """WebM/Opus browser recordings are the actual reason this fallback
+    exists (see CLAUDE.md) — librosa/soundfile cannot decode webm natively,
+    so a non-empty result here proves the real ffmpeg subprocess ran."""
+    webm_path = tmp_path / "clip.webm"
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.5", str(webm_path)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    )
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+
+    audio = inference._read_audio_bytes(webm_path.read_bytes(), target_sr=22050)
+
+    assert audio.dtype == np.float32
+    assert audio.size > 0
+
+
+@pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="ffmpeg not installed")
+def test_read_audio_bytes_raises_when_ffmpeg_also_cannot_decode():
+    garbage = b"this is definitely not an audio file" * 50
+
+    with pytest.raises(HTTPException) as exc:
+        inference._read_audio_bytes(garbage, target_sr=22050)
+
+    assert exc.value.status_code == 400
+    assert "ffmpeg" in exc.value.detail.lower()
+
+
+def test_transcribe_falls_back_to_real_pyin_when_basic_pitch_unavailable(monkeypatch):
+    """When basic_pitch isn't installed/available, _transcribe_and_mood must
+    fall back to _fallback_note_events_from_audio, which runs real
+    librosa.pyin pitch tracking. A clean 440Hz (A4=MIDI 69) tone should be
+    detected near pitch 69, proving pyin genuinely ran rather than the
+    fallback silently returning nothing."""
+    monkeypatch.setattr(inference, "basic_pitch_predict", None)
+    audio_bytes = _sine_wav_bytes(440.0, 1.0, 22050)
+
+    result = inference._transcribe_and_mood(audio_bytes)
+
+    assert result["note_events"]
+    detected_pitch = result["note_events"][0]["pitch"]
+    assert 60 <= detected_pitch <= 80
+
+
+def _real_midi_bytes(pitch: int = 69, duration: float = 0.5) -> bytes:
+    import pretty_midi
+
+    midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+    instrument = pretty_midi.Instrument(program=0)
+    instrument.notes.append(
+        pretty_midi.Note(velocity=100, pitch=pitch, start=0.0, end=duration)
+    )
+    midi.instruments.append(instrument)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
+        temp_path = Path(handle.name)
+    try:
+        midi.write(str(temp_path))
+        return temp_path.read_bytes()
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def test_midi_to_wav_falls_back_to_real_sine_synth_when_fluidsynth_fails(monkeypatch):
+    """Stubs out only the literal FluidSynth call (the one part we can't
+    guarantee has a working audio backend in CI) and asserts the rest of the
+    fallback -- real MIDI parsing, real sine synthesis, real WAV encoding --
+    genuinely executes and produces valid audio."""
+    import pretty_midi
+
+    def _boom(self, fs=None, sf2_path=None):
+        raise RuntimeError("no fluidsynth binary available")
+
+    monkeypatch.setattr(pretty_midi.PrettyMIDI, "fluidsynth", _boom)
+
+    midi_bytes = _real_midi_bytes()
+    wav_b64 = inference._midi_bytes_to_wav_b64(
+        midi_bytes, sample_rate=22050, note_events=None, prefer_fluidsynth_only=False
+    )
+
+    assert wav_b64 is not None
+    decoded = base64.b64decode(wav_b64)
+    assert decoded[:4] == b"RIFF"
+    assert decoded[8:12] == b"WAVE"
+
+
+def test_midi_to_wav_returns_none_when_fluidsynth_fails_and_prefer_only(monkeypatch):
+    import pretty_midi
+
+    def _boom(self, fs=None, sf2_path=None):
+        raise RuntimeError("no fluidsynth binary available")
+
+    monkeypatch.setattr(pretty_midi.PrettyMIDI, "fluidsynth", _boom)
+
+    midi_bytes = _real_midi_bytes()
+    wav_b64 = inference._midi_bytes_to_wav_b64(
+        midi_bytes, sample_rate=22050, note_events=None, prefer_fluidsynth_only=True
+    )
+
+    assert wav_b64 is None
