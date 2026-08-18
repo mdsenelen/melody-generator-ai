@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
-import { requestJson } from '../app/lib/request';
+import { requestJson } from "../app/lib/request";
 
 type Sample = {
   id: string;
@@ -13,7 +13,7 @@ type Sample = {
 
 function createAudioObjectUrl(base64Audio: string) {
   const bytes = Uint8Array.from(atob(base64Audio), (character) => character.charCodeAt(0));
-  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+  return URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
 }
 
 export function GeneratedSamples() {
@@ -34,11 +34,11 @@ export function GeneratedSamples() {
         audio_b64?: string;
         download_path?: string;
         filename?: string;
-      }>('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chord: 'Cmaj7', duration: 4 }),
-        expectedContentType: 'application/json',
+      }>("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chord: "Cmaj7", duration: 4 }),
+        expectedContentType: "application/json",
       });
       if (!data.audio_b64 || !data.download_path || !data.filename) {
         return;
@@ -69,11 +69,11 @@ export function GeneratedSamples() {
         onClick={generateSample}
         disabled={isGenerating}
         className={`flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-white transition-colors ${
-          isGenerating ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'
+          isGenerating ? "bg-gray-400" : "bg-indigo-600 hover:bg-indigo-700"
         }`}
       >
         <span aria-hidden="true">♪</span>
-        {isGenerating ? 'Generating...' : 'Generate sample'}
+        {isGenerating ? "Generating..." : "Generate sample"}
       </button>
 
       {samples.length > 0 ? (

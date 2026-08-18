@@ -33,8 +33,12 @@ type VariantsResponse = {
 };
 
 const moodMeta = {
-  happy:   { emoji: "😄", label: "Happy",   classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100" },
-  sad:     { emoji: "😢", label: "Sad",     classes: "border-blue-500 bg-blue-900/40 text-blue-100" },
+  happy: {
+    emoji: "😄",
+    label: "Happy",
+    classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100",
+  },
+  sad: { emoji: "😢", label: "Sad", classes: "border-blue-500 bg-blue-900/40 text-blue-100" },
   neutral: { emoji: "😐", label: "Neutral", classes: "border-gray-600 bg-gray-800 text-gray-100" },
 } as const;
 
@@ -78,7 +82,9 @@ export default function GenerateVariantsPage() {
   };
 
   const updateTemperature = (index: number, value: number) => {
-    setTemperatures((current) => current.map((entry, entryIndex) => (entryIndex === index ? value : entry)));
+    setTemperatures((current) =>
+      current.map((entry, entryIndex) => (entryIndex === index ? value : entry)),
+    );
   };
 
   const handleUploadSuccess = ({ filename, file }: UploadSuccessPayload) => {
@@ -121,7 +127,9 @@ export default function GenerateVariantsPage() {
       setResult(data);
       setActiveVariant(0);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Variant generation failed");
+      setError(
+        generationError instanceof Error ? generationError.message : "Variant generation failed",
+      );
     } finally {
       setLoading(false);
     }
@@ -129,11 +137,13 @@ export default function GenerateVariantsPage() {
 
   return (
     <div className="space-y-6">
-
-
       <section className="rounded-[2rem] border border-white/10 bg-gray-900/80 p-6 shadow-xl shadow-black/20">
         <div className="flex flex-wrap gap-3">
-          <UploadButton onUploadSuccess={handleUploadSuccess} onUploadError={setError} label="Upload audio" />
+          <UploadButton
+            onUploadSuccess={handleUploadSuccess}
+            onUploadError={setError}
+            label="Upload audio"
+          />
           <button
             type="button"
             onClick={() => setShowRecorder((v) => !v)}
@@ -153,8 +163,14 @@ export default function GenerateVariantsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">Selected source</p>
-              <p className="mt-2 text-sm text-gray-300">{selectedSourceName ?? "No audio selected yet"}</p>
-              {storedFilename ? <p className="mt-1 text-xs uppercase tracking-[0.2em] text-gray-500">{storedFilename}</p> : null}
+              <p className="mt-2 text-sm text-gray-300">
+                {selectedSourceName ?? "No audio selected yet"}
+              </p>
+              {storedFilename ? (
+                <p className="mt-1 text-xs tracking-[0.2em] text-gray-500 uppercase">
+                  {storedFilename}
+                </p>
+              ) : null}
             </div>
             <button
               type="button"
@@ -181,7 +197,10 @@ export default function GenerateVariantsPage() {
             </label>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {temperatures.slice(0, nVariants).map((temperature, index) => (
-                <label key={`temperature-${index}`} className="flex flex-col gap-2 text-sm text-gray-300">
+                <label
+                  key={`temperature-${index}`}
+                  className="flex flex-col gap-2 text-sm text-gray-300"
+                >
                   <span className="font-medium text-gray-200">Temperature {index + 1}</span>
                   <input
                     type="number"
@@ -190,7 +209,7 @@ export default function GenerateVariantsPage() {
                     step={0.1}
                     value={temperature}
                     onChange={(event) => updateTemperature(index, Number(event.target.value))}
-                    className="rounded-2xl border border-white/10 bg-gray-950 px-3 py-2 text-white outline-none transition focus:border-purple-400"
+                    className="rounded-2xl border border-white/10 bg-gray-950 px-3 py-2 text-white transition outline-none focus:border-purple-400"
                   />
                 </label>
               ))}
@@ -200,7 +219,9 @@ export default function GenerateVariantsPage() {
       </section>
 
       {error ? (
-        <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">{error}</div>
+        <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
+          {error}
+        </div>
       ) : null}
 
       {result ? (
@@ -209,11 +230,14 @@ export default function GenerateVariantsPage() {
             <div>
               <h2 className="text-2xl font-semibold text-white">Rendered variants</h2>
               <p className="mt-2 text-sm text-gray-400">
-                Device: {result.model_status.device}. FluidSynth available: {result.model_status.fluidsynth_available ? "yes" : "no"}.
+                Device: {result.model_status.device}. FluidSynth available:{" "}
+                {result.model_status.fluidsynth_available ? "yes" : "no"}.
               </p>
             </div>
             {mood ? (
-              <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}>
+              <div
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
+              >
                 <span>{mood.emoji}</span>
                 <span>Mood: {mood.label}</span>
               </div>
@@ -226,14 +250,17 @@ export default function GenerateVariantsPage() {
               <p className="mt-2">CVAE loaded: {result.model_status.cvae.loaded ? "yes" : "no"}</p>
               <p>IDDM-PPO loaded: {result.model_status.iddm_ppo.loaded ? "yes" : "no"}</p>
               <p className="mt-2 text-xs text-gray-500">
-                CVAE {result.model_status.cvae.size_mb} MB, IDDM-PPO {result.model_status.iddm_ppo.size_mb} MB
+                CVAE {result.model_status.cvae.size_mb} MB, IDDM-PPO{" "}
+                {result.model_status.iddm_ppo.size_mb} MB
               </p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm text-gray-300">
               <p className="font-semibold text-white">Variant controls used</p>
               <p className="mt-2">{result.n_variants} variants</p>
               <p className="mt-1">Temperatures: {result.temperatures.join(", ")}</p>
-              {result.model_status.load_error ? <p className="mt-2 text-red-300">{result.model_status.load_error}</p> : null}
+              {result.model_status.load_error ? (
+                <p className="mt-2 text-red-300">{result.model_status.load_error}</p>
+              ) : null}
             </div>
           </div>
 
@@ -257,15 +284,23 @@ export default function GenerateVariantsPage() {
           {result.variants[activeVariant] ? (
             <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5">
               <p className="text-sm text-gray-400">
-                Temperature: <span className="font-semibold text-white">{result.variants[activeVariant].temperature}</span>
+                Temperature:{" "}
+                <span className="font-semibold text-white">
+                  {result.variants[activeVariant].temperature}
+                </span>
               </p>
               {result.variants[activeVariant].wav_b64 ? (
-                <audio controls className="mt-4 w-full" src={`data:audio/wav;base64,${result.variants[activeVariant].wav_b64}`}>
+                <audio
+                  controls
+                  className="mt-4 w-full"
+                  src={`data:audio/wav;base64,${result.variants[activeVariant].wav_b64}`}
+                >
                   Your browser does not support the audio element.
                 </audio>
               ) : (
                 <p className="mt-4 text-sm text-gray-400">
-                  WAV preview is unavailable because FluidSynth could not render this variant in the current backend environment.
+                  WAV preview is unavailable because FluidSynth could not render this variant in the
+                  current backend environment.
                 </p>
               )}
               <div className="mt-4 flex flex-wrap gap-3">

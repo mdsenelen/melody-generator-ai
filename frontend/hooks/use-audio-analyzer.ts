@@ -11,11 +11,11 @@ import {
 } from "../utils/pitch";
 
 export type AudioAnalyzerState = {
-  currentNote: string | null;       // e.g. "A4"
-  currentFrequency: number | null;  // Hz
-  pitchClass: number | null;        // 0–11 (index into NOTE_NAMES)
-  clarity: number;                  // 0–1 confidence from Pitchy
-  noteHistogram: number[];          // length 12, accumulated count per pitch class
+  currentNote: string | null; // e.g. "A4"
+  currentFrequency: number | null; // Hz
+  pitchClass: number | null; // 0–11 (index into NOTE_NAMES)
+  clarity: number; // 0–1 confidence from Pitchy
+  noteHistogram: number[]; // length 12, accumulated count per pitch class
 };
 
 const INITIAL_STATE: AudioAnalyzerState = {
@@ -25,7 +25,6 @@ const INITIAL_STATE: AudioAnalyzerState = {
   clarity: 0,
   noteHistogram: new Array(12).fill(0),
 };
-
 
 export function useAudioAnalyzer(stream: MediaStream | null, enabled: boolean): AudioAnalyzerState {
   const [state, setState] = useState<AudioAnalyzerState>(INITIAL_STATE);
@@ -77,7 +76,9 @@ export function useAudioAnalyzer(stream: MediaStream | null, enabled: boolean): 
 
     // Create Pitchy detector sized to match the analyser buffer
     detectorRef.current = PitchDetector.forFloat32Array(analyser.fftSize);
-    bufferRef.current = new Float32Array(new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT));
+    bufferRef.current = new Float32Array(
+      new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT),
+    );
 
     // Histogram accumulated across this recording session
     const histogram = new Array<number>(12).fill(0);

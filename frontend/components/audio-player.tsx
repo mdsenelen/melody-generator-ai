@@ -17,10 +17,7 @@ export function AudioPlayer({ audioUrl }: { audioUrl: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={togglePlay}
-        className="p-2 rounded-full bg-indigo-100 text-indigo-600"
-      >
+      <button onClick={togglePlay} className="rounded-full bg-indigo-100 p-2 text-indigo-600">
         <span aria-hidden="true">{isPlaying ? "Pause" : "Play"}</span>
       </button>
       <audio ref={audioRef} src={audioUrl} />

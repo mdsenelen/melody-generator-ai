@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -98,6 +101,66 @@ def test_load_cvae_iddm_success_and_cached(tmp_path, monkeypatch, caplog):
     assert "IDDM-PPO checkpoint keys" in caplog.text
 
 
+def test_load_cvae_iddm_concurrent_calls_load_once(tmp_path, monkeypatch):
+    """Two concurrent cold-start callers (now realistic since generation
+    routes run in FastAPI's thread pool) must not race: only one should
+    actually construct the models, the other waits and reuses the result."""
+    joint_path = tmp_path / "joint_e2e_weights.pth"
+    joint_path.write_bytes(b"0" * 20001)
+
+    load_started = threading.Event()
+    release_load = threading.Event()
+    load_call_count = 0
+    count_lock = threading.Lock()
+
+    def fake_torch_load(path, map_location=None):
+        nonlocal load_call_count
+        with count_lock:
+            load_call_count += 1
+        load_started.set()
+        assert release_load.wait(timeout=5), "second caller never reached the lock"
+        return {
+            "cfg": _NEW_CFG,
+            "cvae": {"cvae.weight": torch.zeros(1)},
+            "state_enc": {"enc.weight": torch.zeros(1)},
+            "actor_critic": {"ac.weight": torch.zeros(1)},
+            "discriminator": {"disc.weight": torch.zeros(1)},
+            "mine": {"mine.weight": torch.zeros(1)},
+            "alpha": 0.1,
+        }
+
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", joint_path)
+    monkeypatch.setattr(inference, "torch", type("TorchProxy", (), {"load": staticmethod(fake_torch_load), "tensor": staticmethod(torch.tensor)})())
+    monkeypatch.setattr(inference, "MelodyCVAE", _DummyCVAE)
+    monkeypatch.setattr(inference, "MelStateEncoder", _DummyModule)
+    monkeypatch.setattr(inference, "TransitionDiscriminator", _DummyModule)
+    monkeypatch.setattr(inference, "ActorCritic", _DummyModule)
+    monkeypatch.setattr(inference, "MINENetwork", _DummyModule)
+
+    results: list[dict] = []
+
+    def call_load():
+        results.append(inference._load_cvae_iddm())
+
+    first = threading.Thread(target=call_load)
+    first.start()
+    assert load_started.wait(timeout=5), "first caller never started loading"
+
+    second = threading.Thread(target=call_load)
+    second.start()
+    # Give the second caller time to reach (and block on) the load lock
+    # before releasing the in-flight load.
+    time.sleep(0.2)
+    release_load.set()
+
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert load_call_count == 1
+    assert len(results) == 2
+    assert results[0] is results[1]
+
+
 def test_load_cvae_iddm_legacy_two_file_format(tmp_path, monkeypatch, caplog):
     cvae_path = tmp_path / "cvae_weights.pth"
     iddm_path = tmp_path / "iddm_ppo_weights.pth"
@@ -139,6 +202,43 @@ def test_load_cvae_iddm_legacy_two_file_format(tmp_path, monkeypatch, caplog):
     assert "CVAE checkpoint keys" in caplog.text
 
 
+def test_load_cvae_iddm_legacy_format_raises_on_schema_drift(tmp_path, monkeypatch):
+    """A legacy-format checkpoint whose 'cvae'/'model' state dict doesn't match
+    the current MelodyCVAE architecture must fail loudly (503) instead of
+    silently loading with random weights for the unmatched parameters."""
+    cvae_path = tmp_path / "cvae_weights.pth"
+    iddm_path = tmp_path / "iddm_ppo_weights.pth"
+    missing_joint = tmp_path / "joint_e2e_weights.pth"
+    cvae_path.write_bytes(b"0" * 20001)
+    iddm_path.write_bytes(b"1" * 22001)
+
+    def fake_torch_load(path, map_location=None):
+        if Path(path) == cvae_path:
+            return {
+                "cfg": {"vocab": 177, "emb_dim": 32, "hidden": 64, "latent_dim": 16, "n_moods": 3, "enc_dim": 64, "seq_len": 129},
+                # Deliberately renamed/incompatible key, simulating checkpoint
+                # schema drift against the current MelodyCVAE architecture.
+                "model": {"decoder.this_key_does_not_exist": torch.zeros(1)},
+            }
+        return {"enc": {}, "disc": {}, "ac": {}, "mine": {}}
+
+    monkeypatch.setattr(inference, "JOINT_WEIGHTS_PATH", missing_joint)
+    monkeypatch.setattr(inference, "CVAE_WEIGHTS_PATH", cvae_path)
+    monkeypatch.setattr(inference, "IDDM_WEIGHTS_PATH", iddm_path)
+    monkeypatch.setattr(inference, "torch", type("TorchProxy", (), {"load": staticmethod(fake_torch_load), "tensor": staticmethod(torch.tensor)})())
+    # Deliberately do NOT stub out MelodyCVAE here: the real module's
+    # load_state_dict is what needs to reject the mismatched keys.
+    monkeypatch.setattr(inference, "MelStateEncoder", _DummyModule)
+    monkeypatch.setattr(inference, "TransitionDiscriminator", _DummyModule)
+    monkeypatch.setattr(inference, "ActorCritic", _DummyModule)
+    monkeypatch.setattr(inference, "MINENetwork", _DummyModule)
+
+    with pytest.raises(HTTPException) as exc:
+        inference._load_cvae_iddm()
+
+    assert exc.value.status_code == 503
+
+
 def test_load_cvae_iddm_raises_for_missing_file(tmp_path, monkeypatch):
     cvae_path = tmp_path / "cvae_weights.pth"
     iddm_path = tmp_path / "iddm_ppo_weights.pth"
@@ -172,6 +272,64 @@ def test_load_cvae_iddm_raises_for_tiny_file(tmp_path, monkeypatch):
 
     assert exc.value.status_code == 503
     assert "corrupt" in exc.value.detail.lower() or "incomplete" in exc.value.detail.lower()
+
+
+def test_run_generation_returns_result_within_timeout():
+    result = asyncio.run(inference._run_generation(lambda: 42))
+    assert result == 42
+
+
+def test_run_generation_times_out(monkeypatch):
+    monkeypatch.setattr(inference, "GENERATION_TIMEOUT_SECONDS", 0.05)
+
+    def slow():
+        time.sleep(0.5)
+        return "should not be reached"
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(inference._run_generation(slow))
+
+    assert exc.value.status_code == 504
+    assert "timed out" in exc.value.detail.lower()
+
+
+def test_cleanup_stale_files_removes_old_and_keeps_recent(tmp_path, monkeypatch):
+    upload_dir = tmp_path / "recordings"
+    output_dir = tmp_path / "generated"
+    upload_dir.mkdir()
+    output_dir.mkdir()
+
+    old_file = upload_dir / "upload_old.wav"
+    old_file.write_bytes(b"old")
+    recent_file = output_dir / "generated_recent.wav"
+    recent_file.write_bytes(b"recent")
+
+    old_time = time.time() - 48 * 3600
+    os.utime(old_file, (old_time, old_time))
+
+    monkeypatch.setattr(inference, "UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr(inference, "OUTPUT_DIR", output_dir)
+
+    removed = inference.cleanup_stale_files(max_age_hours=24)
+
+    assert removed == 1
+    assert not old_file.exists()
+    assert recent_file.exists()
+
+
+def test_cleanup_stale_files_disabled_when_non_positive(tmp_path, monkeypatch):
+    upload_dir = tmp_path / "recordings"
+    upload_dir.mkdir()
+    old_file = upload_dir / "upload_old.wav"
+    old_file.write_bytes(b"old")
+    os.utime(old_file, (time.time() - 100 * 3600, time.time() - 100 * 3600))
+
+    monkeypatch.setattr(inference, "UPLOAD_DIR", upload_dir)
+    monkeypatch.setattr(inference, "OUTPUT_DIR", tmp_path / "generated")
+    (tmp_path / "generated").mkdir()
+
+    assert inference.cleanup_stale_files(max_age_hours=0) == 0
+    assert old_file.exists()
 
 
 def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):

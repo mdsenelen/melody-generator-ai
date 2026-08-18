@@ -64,15 +64,12 @@ export function ChordGraph({
     setLoading(true);
     setError(null);
     try {
-      const data = await requestJson<ProgressionResponse>(
-        "/api/generate-progression",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ progression, bpm, instrument }),
-          expectedContentType: "application/json",
-        }
-      );
+      const data = await requestJson<ProgressionResponse>("/api/generate-progression", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progression, bpm, instrument }),
+        expectedContentType: "application/json",
+      });
       if (!data.audio_b64) {
         throw new Error("Could not render progression");
       }
@@ -86,7 +83,9 @@ export function ChordGraph({
       });
       setResult(data);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not render progression");
+      setError(
+        requestError instanceof Error ? requestError.message : "Could not render progression",
+      );
     } finally {
       setLoading(false);
     }
@@ -97,7 +96,10 @@ export function ChordGraph({
       <div className="flex flex-col gap-5">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold text-white" style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+            <h2
+              className="text-xl font-semibold text-white"
+              style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+            >
               {title}
             </h2>
             {genreBadge ?? null}

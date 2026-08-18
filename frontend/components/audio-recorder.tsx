@@ -65,7 +65,9 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = getSupportedMimeType();
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
 
       chunksRef.current = [];
       streamRef.current = stream;
@@ -101,7 +103,8 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
       setIsRecording(true);
       setStatus("Recording...");
     } catch (recordingError) {
-      const message = recordingError instanceof Error ? recordingError.message : "Microphone access failed";
+      const message =
+        recordingError instanceof Error ? recordingError.message : "Microphone access failed";
       setError(message);
       setStatus("Recording unavailable");
     }
@@ -138,9 +141,7 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
       <div className="flex flex-col gap-4">
         <div>
           <p className="text-sm font-semibold text-white">Browser recorder</p>
-          <p className="mt-1 text-sm text-gray-400">
-            
-          </p>
+          <p className="mt-1 text-sm text-gray-400"></p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button

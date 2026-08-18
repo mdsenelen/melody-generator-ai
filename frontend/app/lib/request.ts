@@ -14,10 +14,7 @@ function tryParseJson<T>(raw: string): T | null {
   }
 }
 
-export async function requestJson<T>(
-  input: RequestInfo | URL,
-  options: RequestJsonOptions = {},
-) {
+export async function requestJson<T>(input: RequestInfo | URL, options: RequestJsonOptions = {}) {
   const response = await fetch(input, options);
   const contentType = response.headers.get("content-type") ?? "";
   const rawBody = await response.text();
@@ -29,7 +26,9 @@ export async function requestJson<T>(
     const detail =
       (parsedBody && typeof parsedBody === "object" && "detail" in parsedBody
         ? parsedBody.detail
-        : null) ?? rawBody ?? response.statusText;
+        : null) ??
+      rawBody ??
+      response.statusText;
     throw new Error(detail || "Request failed");
   }
 

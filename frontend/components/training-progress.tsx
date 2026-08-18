@@ -1,42 +1,39 @@
 // components/training-progress.tsx
-'use client'
-import { useEffect, useState } from 'react'
+"use client";
+import { useEffect, useState } from "react";
 
-import { requestJson } from '../app/lib/request'
+import { requestJson } from "../app/lib/request";
 
 export function TrainingProgress() {
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const fetchProgress = async () => {
       try {
-        const data = await requestJson<{ progress?: number }>(
-          '/api/training-progress',
-          { expectedContentType: 'application/json' }
-        )
-        if (typeof data.progress === 'number') {
-          setProgress(data.progress)
+        const data = await requestJson<{ progress?: number }>("/api/training-progress", {
+          expectedContentType: "application/json",
+        });
+        if (typeof data.progress === "number") {
+          setProgress(data.progress);
         }
       } catch {
-        return
+        return;
       }
-    }
-    
-    const interval = setInterval(fetchProgress, 3000)
-    return () => clearInterval(interval)
-  }, [])
+    };
+
+    const interval = setInterval(fetchProgress, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="mt-4">
-      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-indigo-600 transition-all duration-300" 
+      <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+        <div
+          className="h-full bg-indigo-600 transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>
-      <p className="text-xs text-gray-500 mt-1">
-        Training progress: {Math.round(progress)}%
-      </p>
+      <p className="mt-1 text-xs text-gray-500">Training progress: {Math.round(progress)}%</p>
     </div>
-  )
+  );
 }
