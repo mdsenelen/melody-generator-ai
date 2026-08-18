@@ -1740,6 +1740,7 @@ async def generate_variants_route(
     seed: Optional[int] = Form(None),
 ) -> dict[str, Any]:
     count = max(1, min(8, int(n_variants)))
+
     if file is not None:
         raw = await _read_upload_bytes(file)
     else:
@@ -1750,6 +1751,10 @@ async def generate_variants_route(
                 detail="No file uploaded and no matching prior upload found",
             )
         raw = input_path.read_bytes()
+
+    if not isinstance(seed, int):
+        seed = None
+
     return await _run_generation(
         generate_iddm_variants,
         audio_bytes=raw,
