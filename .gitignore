@@ -4,6 +4,8 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+.env.local
+.env.*.local
 .venv/
 venv/
 
@@ -15,6 +17,9 @@ backend/venv/
 frontend/node_modules/
 backend/resampy/
 
+# Unrelated tooling artifacts (accidentally committed)
+.sfdx/
+
 # Runtime-generated data (uploads, generated audio/MIDI, session logs)
 backend/data/recordings/
 backend/data/generated/
@@ -22,7 +27,12 @@ backend/data/logs/
 
 # Frontend build artefacts
 frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Logs
+*.log
+*.err
 
 # Large media assets — serve from CDN/object storage instead
-frontend/public/*.mp4"backend/data/recordings/*.wav" 
-"backend/data/recordings/" 
+frontend/public/*.mp4
+

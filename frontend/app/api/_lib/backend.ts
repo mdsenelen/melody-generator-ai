@@ -25,9 +25,7 @@ export function getBackendBaseUrl() {
     : configuredBaseUrl;
 
   const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, "");
-  return normalizedBaseUrl.endsWith("/api")
-    ? normalizedBaseUrl.slice(0, -4)
-    : normalizedBaseUrl;
+  return normalizedBaseUrl.endsWith("/api") ? normalizedBaseUrl.slice(0, -4) : normalizedBaseUrl;
 }
 
 export function getBackendApiUrl(path: string) {
@@ -69,10 +67,7 @@ export async function proxyBackendGet(path: string, request?: NextRequest) {
   return buildProxyResponse(response);
 }
 
-export async function proxyBackendRequest(
-  request: NextRequest,
-  path: string,
-) {
+export async function proxyBackendRequest(request: NextRequest, path: string) {
   const backendApiUrl = getBackendApiUrl(path);
   const headers = new Headers();
   const accept = request.headers.get("accept");

@@ -17,19 +17,17 @@ type Progression = {
 };
 
 const GENRE_BADGE: Record<string, string> = {
-  Jazz:    "border-amber-400/40  bg-amber-500/15  text-amber-100",
-  Blues:   "border-blue-400/40   bg-blue-500/15   text-blue-100",
-  Pop:     "border-purple-400/40 bg-purple-500/15 text-purple-100",
-  Rock:    "border-red-400/40    bg-red-500/15    text-red-100",
+  Jazz: "border-amber-400/40  bg-amber-500/15  text-amber-100",
+  Blues: "border-blue-400/40   bg-blue-500/15   text-blue-100",
+  Pop: "border-purple-400/40 bg-purple-500/15 text-purple-100",
+  Rock: "border-red-400/40    bg-red-500/15    text-red-100",
   General: "border-gray-400/40   bg-gray-500/15   text-gray-100",
 };
 
 function GenreBadge({ genre }: { genre: string }) {
   const cls = GENRE_BADGE[genre] ?? GENRE_BADGE.General;
   return (
-    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
-      {genre}
-    </span>
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>{genre}</span>
   );
 }
 

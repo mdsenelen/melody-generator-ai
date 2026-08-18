@@ -36,4 +36,3 @@ export async function generateMelody(file: File) {
     body: form,
   });
 }
-

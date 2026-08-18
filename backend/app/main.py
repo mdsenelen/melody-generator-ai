@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,10 +28,23 @@ for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    inference.cleanup_stale_files()
+    cleanup_task = asyncio.create_task(inference.run_periodic_cleanup())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await cleanup_task
+
+
 app = FastAPI(
     title="Musical VAE Playground",
     description="AI-powered audio processing for musicians",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

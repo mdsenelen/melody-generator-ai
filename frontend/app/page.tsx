@@ -7,10 +7,7 @@ import { AudioRecorder } from "../components/audio-recorder";
 import { ChordDiagram } from "../components/chord-diagram";
 import ErrorBoundary from "../components/error-boundary";
 import { ErrorToast } from "../components/error-toast";
-import {
-  UploadButton,
-  type UploadSuccessPayload,
-} from "../components/upload-button";
+import { UploadButton, type UploadSuccessPayload } from "../components/upload-button";
 import { requestJson } from "./lib/request";
 import { uploadFile } from "./lib/upload";
 
@@ -34,20 +31,7 @@ type AnalysisResult = {
   uploadedFilename: string;
 };
 
-const PITCH_CLASS_LABELS = [
-  "C",
-  "C#",
-  "D",
-  "D#",
-  "E",
-  "F",
-  "F#",
-  "G",
-  "G#",
-  "A",
-  "A#",
-  "B",
-];
+const PITCH_CLASS_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 const moodMeta = {
   happy: {
@@ -78,11 +62,7 @@ function groupChordsByRoot(chords: string[]) {
   }, {});
 }
 
-function triggerBase64Download(
-  filename: string,
-  data: string,
-  mimeType: string
-) {
+function triggerBase64Download(filename: string, data: string, mimeType: string) {
   const anchor = document.createElement("a");
   anchor.href = `data:${mimeType};base64,${data}`;
   anchor.download = filename;
@@ -90,9 +70,7 @@ function triggerBase64Download(
 }
 
 function createAudioObjectUrl(base64Audio: string, mimeType: string) {
-  const bytes = Uint8Array.from(atob(base64Audio), (character) =>
-    character.charCodeAt(0)
-  );
+  const bytes = Uint8Array.from(atob(base64Audio), (character) => character.charCodeAt(0));
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
@@ -100,14 +78,11 @@ async function transcribeFile(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  return requestJson<Omit<AnalysisResult, "sourceName" | "uploadedFilename">>(
-    "/api/transcribe",
-    {
-      method: "POST",
-      body: formData,
-      expectedContentType: "application/json",
-    }
-  );
+  return requestJson<Omit<AnalysisResult, "sourceName" | "uploadedFilename">>("/api/transcribe", {
+    method: "POST",
+    body: formData,
+    expectedContentType: "application/json",
+  });
 }
 
 function AnalysisAnimation() {
@@ -115,11 +90,11 @@ function AnalysisAnimation() {
   const durations = ["0.7s", "0.85s", "0.65s", "0.9s", "0.75s", "0.8s", "0.6s"];
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-14">
-      <div className="flex items-end gap-[6px] h-20">
+      <div className="flex h-20 items-end gap-[6px]">
         {heights.map((h, i) => (
           <div
             key={i}
-            className="w-3 rounded-full bg-gradient-to-t from-purple-500 to-sky-400 animate-bounce"
+            className="w-3 animate-bounce rounded-full bg-gradient-to-t from-purple-500 to-sky-400"
             style={{
               height: `${h}px`,
               animationDelay: `${i * 0.11}s`,
@@ -128,7 +103,7 @@ function AnalysisAnimation() {
           />
         ))}
       </div>
-      <p className="text-sm font-semibold tracking-wide text-white/75 animate-pulse">
+      <p className="animate-pulse text-sm font-semibold tracking-wide text-white/75">
         Analysing your audio…
       </p>
     </div>
@@ -138,24 +113,16 @@ function AnalysisAnimation() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabKey>("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedSourceName, setSelectedSourceName] = useState<string | null>(
-    null
-  );
-  const [selectedUploadFilename, setSelectedUploadFilename] = useState<
-    string | null
-  >(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
-    null
-  );
+  const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
+  const [selectedUploadFilename, setSelectedUploadFilename] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisAudioUrl, setAnalysisAudioUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
-    "Choose a file or record a clip to start analysis."
+    "Choose a file or record a clip to start analysis.",
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [pendingSourceName, setPendingSourceName] = useState<string | null>(
-    null
-  );
+  const [pendingSourceName, setPendingSourceName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -172,10 +139,7 @@ export default function Home() {
     };
   }, [analysisResult?.wav_b64]);
 
-  const runSelectedAnalysis = async (
-    file: File,
-    uploadedFilename: string | null
-  ) => {
+  const runSelectedAnalysis = async (file: File, uploadedFilename: string | null) => {
     const requestId = ++requestIdRef.current;
     setErrorMessage(null);
     setPendingSourceName(file.name);
@@ -207,11 +171,7 @@ export default function Home() {
       setPendingSourceName(null);
     } catch (analysisError) {
       if (requestId === requestIdRef.current) {
-        setErrorMessage(
-          analysisError instanceof Error
-            ? analysisError.message
-            : "Analysis failed"
-        );
+        setErrorMessage(analysisError instanceof Error ? analysisError.message : "Analysis failed");
         setStatusMessage("We couldn't analyse that audio clip.");
       }
     } finally {
@@ -241,9 +201,7 @@ export default function Home() {
     void runSelectedAnalysis(file, null);
   };
 
-  const groupedChords = analysisResult
-    ? groupChordsByRoot(analysisResult.detected_chords)
-    : {};
+  const groupedChords = analysisResult ? groupChordsByRoot(analysisResult.detected_chords) : {};
   const mood = analysisResult ? moodMeta[analysisResult.mood_label] : null;
 
   return (
@@ -275,9 +233,7 @@ export default function Home() {
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-semibold text-white">
-                      Analyse source
-                    </p>
+                    <p className="text-sm font-semibold text-white">Analyse source</p>
                     <p className="mt-2 text-sm text-white/70">
                       Analysis starts automatically after upload or recording.
                     </p>
@@ -287,13 +243,10 @@ export default function Home() {
                 {selectedFile ? (
                   <p className="mt-3 text-sm text-white/70">
                     Selected source:{" "}
-                    <span className="font-medium text-white">
-                      {selectedFile.name}
-                    </span>
+                    <span className="font-medium text-white">{selectedFile.name}</span>
                   </p>
                 ) : null}
               </div>
-
             </div>
 
             <div className="space-y-6">
@@ -338,16 +291,14 @@ export default function Home() {
 
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-                          Key
-                        </p>
+                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
                         <p className="mt-3 text-lg font-semibold text-white">
                           🔑 {analysisResult.key}
                         </p>
                       </div>
 
                       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
                           Detected notes
                         </p>
                         <p className="mt-3 text-lg font-semibold text-white">
@@ -356,16 +307,14 @@ export default function Home() {
                       </div>
 
                       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-                          Tempo
-                        </p>
+                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
                         <p className="mt-3 text-lg font-semibold text-white">
                           {analysisResult.tempo_bpm} BPM
                         </p>
                       </div>
 
                       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
                           Average pitch
                         </p>
                         <p className="mt-3 text-lg font-semibold text-white">
@@ -395,14 +344,10 @@ export default function Home() {
 
                       <div className="mt-5 grid grid-cols-12 gap-2">
                         {PITCH_CLASS_LABELS.map((label, index) => {
-                          const value =
-                            analysisResult.pitch_histogram[index] ?? 0;
+                          const value = analysisResult.pitch_histogram[index] ?? 0;
 
                           return (
-                            <div
-                              key={label}
-                              className="flex flex-col items-center gap-2"
-                            >
+                            <div key={label} className="flex flex-col items-center gap-2">
                               <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
                                 <div
                                   className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
@@ -411,9 +356,7 @@ export default function Home() {
                                   }}
                                 />
                               </div>
-                              <span className="text-[11px] text-white/60">
-                                {label}
-                              </span>
+                              <span className="text-[11px] text-white/60">{label}</span>
                             </div>
                           );
                         })}
@@ -429,7 +372,7 @@ export default function Home() {
                               triggerBase64Download(
                                 analysisResult.midi_filename,
                                 analysisResult.midi_b64,
-                                "audio/midi"
+                                "audio/midi",
                               )
                             }
                             className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
@@ -442,10 +385,9 @@ export default function Home() {
                               type="button"
                               onClick={() =>
                                 triggerBase64Download(
-                                  analysisResult.wav_filename ||
-                                    "transcription.wav",
+                                  analysisResult.wav_filename || "transcription.wav",
                                   analysisResult.wav_b64!,
-                                  "audio/wav"
+                                  "audio/wav",
                                 )
                               }
                               className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
@@ -456,21 +398,16 @@ export default function Home() {
                         </div>
 
                         {analysisAudioUrl ? (
-                          <audio
-                            controls
-                            className="mt-4 w-full"
-                            src={analysisAudioUrl}
-                          >
+                          <audio controls className="mt-4 w-full" src={analysisAudioUrl}>
                             Your browser does not support the audio element.
                           </audio>
                         ) : (
                           <p className="mt-4 text-sm text-white/65">
-                            WAV preview will appear here when FluidSynth is
-                            available on the backend.
+                            WAV preview will appear here when FluidSynth is available on the
+                            backend.
                           </p>
                         )}
                       </div>
-
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
@@ -481,24 +418,20 @@ export default function Home() {
                         Detected chords
                       </p>
                       <p className="mt-2 text-sm text-white/65">
-                        Hover a chord to preview a guitar fingering diagram.
-                        Click on a chord to listen.
-                        Chords are grouped by root note.
+                        Hover a chord to preview a guitar fingering diagram. Click on a chord to
+                        listen. Chords are grouped by root note.
                       </p>
 
                       <div className="mt-4 space-y-4">
                         {Object.entries(groupedChords).length > 0 ? (
                           Object.entries(groupedChords).map(([root, chords]) => (
                             <div key={root} className="space-y-2">
-                              <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                              <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
                                 {root}
                               </p>
                               <div className="flex flex-wrap gap-2">
                                 {chords.map((chord, index) => (
-                                  <ChordDiagram
-                                    key={`${chord}-${index}`}
-                                    chord={chord}
-                                  />
+                                  <ChordDiagram key={`${chord}-${index}`} chord={chord} />
                                 ))}
                               </div>
                             </div>
@@ -518,10 +451,7 @@ export default function Home() {
         </main>
 
         {errorMessage ? (
-          <ErrorToast
-            message={errorMessage}
-            onDismiss={() => setErrorMessage(null)}
-          />
+          <ErrorToast message={errorMessage} onDismiss={() => setErrorMessage(null)} />
         ) : null}
       </>
     </ErrorBoundary>
