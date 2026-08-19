@@ -8,6 +8,7 @@ import { ChordDiagram } from "../components/chord-diagram";
 import ErrorBoundary from "../components/error-boundary";
 import { ErrorToast } from "../components/error-toast";
 import { UploadButton, type UploadSuccessPayload } from "../components/upload-button";
+import { getPublicBackendApiUrl } from "./lib/backendUrl";
 import { requestJson } from "./lib/request";
 import { useSessionStore } from "./lib/session-store";
 import { uploadFile } from "./lib/upload";
@@ -84,15 +85,21 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
+// Uploaded audio can exceed Vercel's ~4.5MB serverless function body limit,
+// so this goes straight to the backend instead of through the Next.js
+// /api/transcribe proxy route (same reasoning as uploadFile in lib/upload.ts).
 async function transcribeFile(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  return requestJson<Omit<AnalysisResult, "sourceName" | "uploadedFilename">>("/api/transcribe", {
-    method: "POST",
-    body: formData,
-    expectedContentType: "application/json",
-  });
+  return requestJson<Omit<AnalysisResult, "sourceName" | "uploadedFilename">>(
+    getPublicBackendApiUrl("/transcribe"),
+    {
+      method: "POST",
+      body: formData,
+      expectedContentType: "application/json",
+    },
+  );
 }
 
 function AnalysisAnimation() {

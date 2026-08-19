@@ -131,7 +131,7 @@ Missing or mismatched keys raise HTTP 503 with a specific error message. The `cf
 
 ### Frontend (`frontend/app/`)
 
-Next.js App Router. Most backend communication is proxied through Next.js API routes in `frontend/app/api/` via `_lib/backend.ts`. The one exception is audio upload: the browser calls the FastAPI backend directly for `POST /api/upload` (see below) because Vercel's serverless functions have a hard, non-configurable ~4.5MB request body limit that large audio files can exceed.
+Next.js App Router. Most backend communication is proxied through Next.js API routes in `frontend/app/api/` via `_lib/backend.ts`. The exceptions are the two calls that carry the full audio file — upload and transcribe — which the browser sends directly to the FastAPI backend (see below), because Vercel's serverless functions have a hard, non-configurable ~4.5MB request body limit that large audio files can exceed. Any other route that ends up carrying a full file body (not just an `id`/`filename` reference) needs the same treatment, or it will hit the same limit.
 
 | Route | Purpose |
 | --- | --- |
@@ -140,11 +140,15 @@ Next.js App Router. Most backend communication is proxied through Next.js API ro
 | `/generate-variants` | Generate melody variants |
 | `/listen-progressions` | Playback and analysis |
 
-**Direct-to-backend upload** (bypasses the Next.js proxy, see above): `frontend/app/lib/upload.ts` posts the audio file straight to `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` (URL built by `frontend/app/lib/backendUrl.ts`), returning `{id, filename}`. There is no `frontend/app/api/upload/route.ts` — it was removed when this fix was made.
+**Direct-to-backend calls** (bypass the Next.js proxy, see above), both built via `frontend/app/lib/backendUrl.ts`'s `getPublicBackendApiUrl`:
+
+- `frontend/app/lib/upload.ts` posts the audio file straight to `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload`, returning `{id, filename}`.
+- `frontend/app/page.tsx`'s `transcribeFile` posts the audio file straight to `POST {NEXT_PUBLIC_BACKEND_URL}/api/transcribe`, returning the analysis result.
+
+There are no `frontend/app/api/upload/route.ts` or `frontend/app/api/transcribe/route.ts` — both were removed when these fixes were made.
 
 **API route proxies** (each forwards to FastAPI):
 
-- `POST /api/transcribe` — analyze uploaded audio
 - `POST /api/generate` — generate melody
 - `POST /api/generate-progression` — generate chord progressions
 - `POST /api/generate-variants` — create melody variants
@@ -165,7 +169,7 @@ All backend routes are canonicalized under `/api/*` (served by `inference.router
 Browser → Next.js page → Next.js API route → FastAPI backend → inference.py → model → response
 ```
 
-Upload flow: browser → `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` directly (not proxied) → stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed through the normal Next.js proxy to `/api/generate` to reference the stored file.
+Upload flow: browser → `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` directly (not proxied) → stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed through the normal Next.js proxy to `/api/generate` to reference the stored file. The homepage also immediately transcribes the same file via `POST {NEXT_PUBLIC_BACKEND_URL}/api/transcribe` directly (not proxied, for the same file-size reason) to show analysis results.
 
 ---
 
