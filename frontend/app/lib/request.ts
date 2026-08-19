@@ -24,17 +24,27 @@ export async function requestJson<T>(input: RequestInfo | URL, options: RequestJ
 
   if (!response.ok) {
     const detail =
-      (parsedBody && typeof parsedBody === "object" && "detail" in parsedBody
+      parsedBody && typeof parsedBody === "object" && "detail" in parsedBody
         ? parsedBody.detail
-        : null) ??
-      rawBody ??
-      response.statusText;
-    throw new Error(detail || "Request failed");
+        : null;
+    if (!detail) {
+      console.error("[request] non-JSON error response", {
+        status: response.status,
+        contentType,
+        rawBody,
+      });
+    }
+    throw new Error(detail || `Request failed (${response.status})`);
   }
 
   if (parsedBody === null) {
     const fallback = options.expectedContentType ?? "application/json";
-    throw new Error(`Expected ${fallback} response but received: ${rawBody}`);
+    console.error("[request] unexpected response content type", {
+      expected: fallback,
+      contentType,
+      rawBody,
+    });
+    throw new Error(`Expected ${fallback} response but received content-type "${contentType}"`);
   }
 
   return parsedBody as T;
