@@ -120,9 +120,9 @@ frontend, and `pytest` for the backend, on every push and pull request.
 | `backend/.env` (optional) | `GENERATION_TIMEOUT_SECONDS` | Wall-clock timeout for a single generation request (default `120`) |
 | `backend/.env` (optional) | `DATA_RETENTION_HOURS` | How long uploaded/generated files are kept before periodic cleanup deletes them (default `24`; `0` disables cleanup) |
 | `backend/.env` (optional) | `DATA_CLEANUP_INTERVAL_SECONDS` | How often the background cleanup pass runs (default `3600`) |
-| `backend/.env` (optional) | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (default `http://localhost:3000`) |
+| `backend/.env` (optional) | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (default `http://localhost:3000`) — must include the deployed frontend origin, since the browser calls the backend directly for uploads |
 | `frontend/.env.local` | `BACKEND_BASE_URL` | Server-side backend URL used by Next.js API routes |
-| `frontend/.env.local` | `NEXT_PUBLIC_BACKEND_URL` | Fallback backend URL if `BACKEND_BASE_URL` is unset |
+| `frontend/.env.local` | `NEXT_PUBLIC_BACKEND_URL` | Backend URL inlined into the client bundle; the browser posts audio uploads straight to this URL, bypassing the Next.js proxy, to avoid Vercel's ~4.5MB serverless function body limit. Also used as a fallback if `BACKEND_BASE_URL` is unset. Must be a publicly reachable backend URL in production |
 
 `.env.example` / `.env.local.example` in each package show the expected shape — copy and fill in
 real values rather than committing the real files.

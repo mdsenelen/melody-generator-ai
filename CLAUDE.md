@@ -129,7 +129,7 @@ Missing or mismatched keys raise HTTP 503 with a specific error message. The `cf
 
 ### Frontend (`frontend/app/`)
 
-Next.js App Router. All backend communication is proxied through Next.js API routes in `frontend/app/api/` via `_lib/backend.ts` — the browser never calls the FastAPI server directly.
+Next.js App Router. Most backend communication is proxied through Next.js API routes in `frontend/app/api/` via `_lib/backend.ts`. The one exception is audio upload: the browser calls the FastAPI backend directly for `POST /api/upload` (see below) because Vercel's serverless functions have a hard, non-configurable ~4.5MB request body limit that large audio files can exceed.
 
 | Route | Purpose |
 | --- | --- |
@@ -138,9 +138,10 @@ Next.js App Router. All backend communication is proxied through Next.js API rou
 | `/generate-variants` | Generate melody variants |
 | `/listen-progressions` | Playback and analysis |
 
+**Direct-to-backend upload** (bypasses the Next.js proxy, see above): `frontend/app/lib/upload.ts` posts the audio file straight to `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` (URL built by `frontend/app/lib/backendUrl.ts`), returning `{id, filename}`. There is no `frontend/app/api/upload/route.ts` — it was removed when this fix was made.
+
 **API route proxies** (each forwards to FastAPI):
 
-- `POST /api/upload` — store uploaded audio, returns `{id, filename}`
 - `POST /api/transcribe` — analyze uploaded audio
 - `POST /api/generate` — generate melody
 - `POST /api/generate-progression` — generate chord progressions
@@ -162,17 +163,17 @@ All backend routes are canonicalized under `/api/*` (served by `inference.router
 Browser → Next.js page → Next.js API route → FastAPI backend → inference.py → model → response
 ```
 
-Upload flow: `POST /api/upload` stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed to `/api/generate` to reference the stored file.
+Upload flow: browser → `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` directly (not proxied) → stores `upload_{uuid}{ext}` → returns `{id, filename}` → `id` is passed through the normal Next.js proxy to `/api/generate` to reference the stored file.
 
 ---
 
 ## Key Configuration
 
-- **Frontend env:** `frontend/.env.local` — set `NEXT_PUBLIC_BACKEND_URL` (or `BACKEND_BASE_URL` for server-only) to backend URL
+- **Frontend env:** `frontend/.env.local` — set `NEXT_PUBLIC_BACKEND_URL` (or `BACKEND_BASE_URL` for server-only) to backend URL. `NEXT_PUBLIC_BACKEND_URL` is inlined into the client bundle at build time and must be a publicly reachable backend URL in production, since the browser calls it directly for audio upload
 - **Backend env:** `backend/.env` — `PYTHONPATH=.`
 - **Audio params override:** `model/weights/audio_params.json` — if present, overrides `DEFAULT_AUDIO_CFG` for mel spectrogram processing
 - **Soundfont:** `app/soundfonts/GeneralUser-GS.sf2` or `SOUNDFONT_PATH` env var — used by FluidSynth for WAV synthesis
-- **CORS:** `main.py` reads `CORS_ALLOWED_ORIGINS` (comma-separated, defaults to `http://localhost:3000`) — set it for deployment
+- **CORS:** `main.py` reads `CORS_ALLOWED_ORIGINS` (comma-separated, defaults to `http://localhost:3000`) — must include the deployed frontend origin in production, since the browser calls the backend directly for uploads
 - **PyTorch:** CPU wheels only, sourced from `https://download.pytorch.org/whl/cpu`
 - **ffmpeg:** Required at runtime as fallback decoder for WebM/Opus browser recordings that librosa cannot decode natively
 - **FluidSynth:** Optional system package; without it, MIDI synthesis falls back to a sine-wave synthesizer
