@@ -164,6 +164,12 @@ MINOR_PROFILE = np.asarray(
 _AUDIO_CFG: Optional[dict[str, Any]] = None
 _CVAE_IDDM_BUNDLE: Optional[dict[str, Any]] = None
 _CVAE_IDDM_LOAD_LOCK = threading.Lock()
+# Serializes Basic Pitch invocations so the startup warm-up task and a real
+# request never cold-load the model concurrently: on Render's free-tier CPU,
+# two simultaneous first-loads compete for the same limited cycles and can
+# together take long enough to blow through GENERATION_TIMEOUT_SECONDS with
+# no response at all, instead of either one finishing on its own.
+_BASIC_PITCH_LOAD_LOCK = threading.Lock()
 
 
 def _load_audio_cfg() -> dict[str, Any]:
@@ -1021,19 +1027,20 @@ def _run_basic_pitch_predict(audio_path: str) -> tuple[Optional[bytes], list[dic
     ]
 
     last_error: Optional[Exception] = None
-    for attempt in invocation_attempts:
-        try:
-            result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
-            if isinstance(result, tuple) and len(result) >= 3:
-                _, midi_data, note_events = result[:3]
-            else:
-                midi_data, note_events = None, []
-            return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
-        except TypeError as exc:
-            last_error = exc
-        except Exception as exc:  # pragma: no cover
-            last_error = exc
-            break
+    with _BASIC_PITCH_LOAD_LOCK:
+        for attempt in invocation_attempts:
+            try:
+                result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
+                if isinstance(result, tuple) and len(result) >= 3:
+                    _, midi_data, note_events = result[:3]
+                else:
+                    midi_data, note_events = None, []
+                return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
+            except TypeError as exc:
+                last_error = exc
+            except Exception as exc:  # pragma: no cover
+                last_error = exc
+                break
 
     if last_error is not None:
         raise last_error

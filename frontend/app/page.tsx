@@ -175,6 +175,17 @@ export default function Home() {
     setIsAnalyzing(true);
     setStatusMessage(`Analysing ${file.name}...`);
 
+    // The backend can be waking up from Render's free-tier idle sleep, in
+    // which case the first analysis after a while can take a lot longer
+    // than usual — let the user know rather than leaving a bare spinner.
+    const slowAnalysisTimer = window.setTimeout(() => {
+      if (requestId === requestIdRef.current) {
+        setStatusMessage(
+          `Still analysing ${file.name}... this can take a minute or two if the server was idle.`,
+        );
+      }
+    }, 8000);
+
     try {
       let stored = uploaded;
 
@@ -185,6 +196,7 @@ export default function Home() {
       }
 
       const result = await transcribeFile(file);
+      window.clearTimeout(slowAnalysisTimer);
 
       if (requestId !== requestIdRef.current) {
         return;
@@ -211,6 +223,7 @@ export default function Home() {
       setStatusMessage(`Analysis ready for ${file.name}.`);
       setPendingSourceName(null);
     } catch (analysisError) {
+      window.clearTimeout(slowAnalysisTimer);
       console.error("[analysis] failed", { file: file.name, error: analysisError });
       if (requestId === requestIdRef.current) {
         setErrorMessage(analysisError instanceof Error ? analysisError.message : "Analysis failed");
