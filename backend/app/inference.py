@@ -80,7 +80,7 @@ IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
-GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "100"))
+GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "60"))
 # Basic Pitch inference runs roughly at realtime speed on Render's free-tier
 # CPU, so an uncapped clip can blow through GENERATION_TIMEOUT_SECONDS and
 # Render's own ~150s gateway timeout. Cap analyzed audio to leave headroom.

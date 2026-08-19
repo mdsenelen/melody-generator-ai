@@ -186,7 +186,7 @@ Upload flow: browser → `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` directly (n
 - **Supported audio formats:** `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a`, `.webm`
 - **Default sample rate:** 22,050 Hz
 - **Max analyzed audio duration:** `MAX_ANALYSIS_DURATION_SEC` env var, defaults to 60s — clips longer than this are truncated before analysis; see `_read_audio_bytes` in Architecture above
-- **Generation timeout:** `GENERATION_TIMEOUT_SECONDS` env var, defaults to 100s — must stay under Render's ~150s gateway timeout
+- **Generation timeout:** `GENERATION_TIMEOUT_SECONDS` env var, defaults to 60s. Measured in production, Render's own platform-level request timeout sits close to 100s, and CPU starvation on the free tier can add ~20-30s of lag before our own timeout error is actually delivered — so this needs real margin below Render's limit, not just to be lower than it, or Render's raw CORS-header-less 502 wins the race instead of our clean JSON error. The frontend retries a failed `/transcribe` call once, since Basic Pitch keeps loading server-side in the background even after we give up waiting on it, so a retry right after a failure is effectively always fast.
 
 ---
 

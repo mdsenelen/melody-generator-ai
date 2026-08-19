@@ -195,7 +195,23 @@ export default function Home() {
         setSelectedUploadFilename(uploadResult.filename);
       }
 
-      const result = await transcribeFile(file);
+      // A cold backend can fail the first /transcribe call outright (Render's
+      // free-tier gateway can time out before our own analysis finishes) even
+      // though the model finishes loading server-side moments later — so a
+      // retry right after a failure is effectively always fast. Retry once
+      // before surfacing an error to the user.
+      const result = await transcribeFile(file).catch(async (firstError) => {
+        if (requestId !== requestIdRef.current) {
+          throw firstError;
+        }
+        console.warn("[analysis] first transcribe attempt failed, retrying once", {
+          file: file.name,
+          error: firstError,
+        });
+        setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        return transcribeFile(file);
+      });
       window.clearTimeout(slowAnalysisTimer);
 
       if (requestId !== requestIdRef.current) {
