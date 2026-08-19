@@ -17,6 +17,8 @@ type TabKey = "upload" | "record";
 type AnalysisResult = {
   n_notes: number;
   duration_sec: number;
+  source_duration_sec: number;
+  truncated: boolean;
   midi_b64: string;
   wav_b64: string | null;
   midi_filename: string;
@@ -51,6 +53,13 @@ const moodMeta = {
     classes: "border-gray-600 bg-gray-800 text-gray-100",
   },
 } as const;
+
+function formatDuration(seconds: number) {
+  const totalSeconds = Math.round(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
 
 function groupChordsByRoot(chords: string[]) {
   return chords.reduce<Record<string, string[]>>((groups, chord) => {
@@ -367,6 +376,13 @@ export default function Home() {
                           {analysisResult.duration_sec.toFixed(2)} s
                         </span>
                       </div>
+
+                      {analysisResult.truncated ? (
+                        <p className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-900/20 px-4 py-2 text-sm text-amber-100">
+                          This clip is {formatDuration(analysisResult.source_duration_sec)} long —
+                          only the first {formatDuration(analysisResult.duration_sec)} was analysed.
+                        </p>
+                      ) : null}
 
                       <div className="mt-5 grid grid-cols-12 gap-2">
                         {PITCH_CLASS_LABELS.map((label, index) => {

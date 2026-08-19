@@ -80,7 +80,11 @@ IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
-GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "240"))
+GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "100"))
+# Basic Pitch inference runs roughly at realtime speed on Render's free-tier
+# CPU, so an uncapped clip can blow through GENERATION_TIMEOUT_SECONDS and
+# Render's own ~150s gateway timeout. Cap analyzed audio to leave headroom.
+MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
@@ -475,7 +479,16 @@ def _waveform_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
     return out.read()
 
 
-def _read_audio_bytes(raw: bytes, target_sr: int) -> np.ndarray:
+def _read_audio_bytes(
+    raw: bytes,
+    target_sr: int,
+    max_duration_sec: Optional[float] = MAX_ANALYSIS_DURATION_SEC,
+) -> tuple[np.ndarray, float, bool]:
+    """Decode audio and cap it to max_duration_sec.
+
+    Returns (audio, source_duration_sec, truncated), where source_duration_sec
+    is the full decoded clip's duration before any truncation.
+    """
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio payload")
     buf = io.BytesIO(raw)
@@ -513,7 +526,16 @@ def _read_audio_bytes(raw: bytes, target_sr: int) -> np.ndarray:
                         pass
     if audio.size == 0:
         raise HTTPException(status_code=400, detail="Could not decode audio")
-    return librosa.util.normalize(audio).astype(np.float32)
+
+    source_duration_sec = float(audio.size / target_sr)
+    truncated = False
+    if max_duration_sec is not None:
+        max_samples = int(max_duration_sec * target_sr)
+        if audio.size > max_samples:
+            audio = audio[:max_samples]
+            truncated = True
+
+    return librosa.util.normalize(audio).astype(np.float32), source_duration_sec, truncated
 
 
 def _ensure_supported_audio_filename(filename: Optional[str]) -> str:
@@ -534,7 +556,8 @@ async def _read_upload_bytes(file: UploadFile) -> bytes:
 def _read_audio_from_upload(file: UploadFile, target_sr: int) -> np.ndarray:
     _ensure_supported_audio_filename(file.filename)
     raw = file.file.read()
-    return _read_audio_bytes(raw, target_sr)
+    audio, _source_duration_sec, _truncated = _read_audio_bytes(raw, target_sr)
+    return audio
 
 
 def cleanup_stale_files(max_age_hours: Optional[float] = None) -> int:
@@ -1235,7 +1258,7 @@ def _audio_to_iddm_mel(audio_bytes: bytes, cfg: dict[str, Any]) -> torch.Tensor:
         cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
     t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
 
-    audio = _read_audio_bytes(audio_bytes, sample_rate)
+    audio, _source_duration_sec, _truncated = _read_audio_bytes(audio_bytes, sample_rate)
     mel = librosa.feature.melspectrogram(
         y=audio,
         sr=sample_rate,
@@ -1266,7 +1289,7 @@ def _token_ids_to_midi_bytes(token_ids: list[int], bpm: float) -> bytes:
 
 def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    audio = _read_audio_bytes(audio_bytes, sample_rate)
+    audio, source_duration_sec, truncated = _read_audio_bytes(audio_bytes, sample_rate)
     duration_sec = float(len(audio) / sample_rate)
 
     temp_audio_path: Optional[Path] = None
@@ -1312,6 +1335,8 @@ def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
         "note_events": note_events,
         "n_notes": len(note_events),
         "duration_sec": duration_sec,
+        "source_duration_sec": source_duration_sec,
+        "truncated": truncated,
         "tempo_bpm": tempo_bpm,
         "avg_pitch": avg_pitch,
         "mood_idx": mood_idx,
@@ -1345,7 +1370,7 @@ def generate_from_audio(
 ) -> tuple[list[list[float]], bytes, list[str]]:
     cfg = _load_audio_cfg()
     sample_rate = int(cfg["audio"]["sample_rate"])
-    audio = _read_audio_bytes(audio_bytes_input, sample_rate)
+    audio, _source_duration_sec, _truncated = _read_audio_bytes(audio_bytes_input, sample_rate)
     detected_chords = _detect_chords_from_audio(audio, sample_rate)
     mel_input = _waveform_to_mel(audio, cfg)
 
@@ -1580,6 +1605,8 @@ def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]
     return {
         "n_notes": int(transcription["n_notes"]),
         "duration_sec": round(float(transcription["duration_sec"]), 2),
+        "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
+        "truncated": bool(transcription["truncated"]),
         "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
         "wav_b64": wav_b64,
         "midi_filename": midi_filename,

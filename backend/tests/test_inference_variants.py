@@ -344,7 +344,10 @@ def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
     ]
 
     monkeypatch.setattr(inference, "basic_pitch_predict", object())
-    monkeypatch.setattr(inference, "_read_audio_bytes", lambda raw, sr: waveform)
+    monkeypatch.setattr(
+        inference, "_read_audio_bytes",
+        lambda raw, sr, max_duration_sec=None: (waveform, len(waveform) / sr, False),
+    )
     monkeypatch.setattr(inference, "_run_basic_pitch_predict", lambda path: (b"MThd\x00\x00", note_events))
     monkeypatch.setattr(inference, "_estimate_tempo", lambda events, midi_bytes=None: 128.0)
     monkeypatch.setattr(inference, "_extract_key_label", lambda midi_bytes, histogram: "C major")
@@ -396,6 +399,7 @@ def test_generate_variants_route_accepts_formdata(monkeypatch):
             file=UploadFile(filename="clip.wav", file=io.BytesIO(b"audio-bytes")),
             n_variants=2,
             temperatures="[0.7, 0.9]",
+            seed=None,
         )
     )
 
@@ -763,10 +767,12 @@ def _sine_wav_bytes(frequency: float, duration: float, sample_rate: int) -> byte
 def test_read_audio_bytes_decodes_real_wav_without_needing_fallback():
     raw = _sine_wav_bytes(440.0, 0.5, 22050)
 
-    audio = inference._read_audio_bytes(raw, target_sr=22050)
+    audio, source_duration_sec, truncated = inference._read_audio_bytes(raw, target_sr=22050)
 
     assert audio.dtype == np.float32
     assert audio.size > 0
+    assert source_duration_sec == pytest.approx(0.5, abs=0.05)
+    assert truncated is False
 
 
 @pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="ffmpeg not installed")
@@ -781,7 +787,8 @@ def test_read_audio_bytes_falls_back_to_real_ffmpeg_for_webm(tmp_path):
     )
     assert result.returncode == 0, result.stderr.decode(errors="replace")
 
-    audio = inference._read_audio_bytes(webm_path.read_bytes(), target_sr=22050)
+    audio, _source_duration_sec, _truncated = inference._read_audio_bytes(
+        webm_path.read_bytes(), target_sr=22050)
 
     assert audio.dtype == np.float32
     assert audio.size > 0
@@ -796,6 +803,27 @@ def test_read_audio_bytes_raises_when_ffmpeg_also_cannot_decode():
 
     assert exc.value.status_code == 400
     assert "ffmpeg" in exc.value.detail.lower()
+
+
+def test_read_audio_bytes_truncates_clips_longer_than_max_duration():
+    raw = _sine_wav_bytes(440.0, 2.0, 22050)
+
+    audio, source_duration_sec, truncated = inference._read_audio_bytes(
+        raw, target_sr=22050, max_duration_sec=1.0)
+
+    assert truncated is True
+    assert source_duration_sec == pytest.approx(2.0, abs=0.05)
+    assert audio.size == 22050
+
+
+def test_read_audio_bytes_does_not_truncate_clips_within_max_duration():
+    raw = _sine_wav_bytes(440.0, 0.5, 22050)
+
+    audio, source_duration_sec, truncated = inference._read_audio_bytes(
+        raw, target_sr=22050, max_duration_sec=1.0)
+
+    assert truncated is False
+    assert audio.size == pytest.approx(source_duration_sec * 22050, abs=1)
 
 
 def test_transcribe_falls_back_to_real_pyin_when_basic_pitch_unavailable(monkeypatch):

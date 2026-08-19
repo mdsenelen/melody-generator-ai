@@ -70,6 +70,8 @@ music-generator-ai/
 **Audio pipeline in `inference.py`:**
 librosa (load) → ffmpeg fallback for WebM/Opus → Basic Pitch (pitch detection) → librosa pyin fallback → music21 (chord/key) → CVAE encode/decode melody → pretty_midi + FluidSynth (optional WAV synthesis) → fallback sine-wave synthesizer
 
+`_read_audio_bytes` (the shared decoder used by every audio-processing entry point) truncates decoded audio to `MAX_ANALYSIS_DURATION_SEC` (default 60s, env-overridable) before any analysis runs. Basic Pitch inference runs at roughly realtime speed on Render's free-tier CPU, so an uncapped clip can exceed `GENERATION_TIMEOUT_SECONDS` and Render's own ~150s gateway timeout — the cap keeps worst-case processing time bounded regardless of upload length. `_transcribe_and_mood`'s result (and the `/api/transcribe` response) includes `source_duration_sec` (the full uploaded clip's duration) and `truncated: bool` alongside `duration_sec` (the duration actually analyzed), so the frontend can tell the user when their clip was cut short.
+
 **Key directories at runtime:**
 
 - `data/recordings/` — uploaded audio files (named `upload_{uuid}{ext}`)
@@ -179,6 +181,8 @@ Upload flow: browser → `POST {NEXT_PUBLIC_BACKEND_URL}/api/upload` directly (n
 - **FluidSynth:** Optional system package; without it, MIDI synthesis falls back to a sine-wave synthesizer
 - **Supported audio formats:** `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a`, `.webm`
 - **Default sample rate:** 22,050 Hz
+- **Max analyzed audio duration:** `MAX_ANALYSIS_DURATION_SEC` env var, defaults to 60s — clips longer than this are truncated before analysis; see `_read_audio_bytes` in Architecture above
+- **Generation timeout:** `GENERATION_TIMEOUT_SECONDS` env var, defaults to 100s — must stay under Render's ~150s gateway timeout
 
 ---
 
