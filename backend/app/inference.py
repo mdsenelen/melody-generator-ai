@@ -80,7 +80,7 @@ IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
-GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "120"))
+GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "240"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
@@ -575,6 +575,35 @@ async def run_periodic_cleanup() -> None:
         except Exception:
             logger.exception("Periodic cleanup failed")
         await asyncio.sleep(DATA_CLEANUP_INTERVAL_SECONDS)
+
+
+def _warm_up_basic_pitch_sync() -> None:
+    sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+    silence = np.zeros(sample_rate, dtype=np.float32)  # 1s, same path real requests take
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+        temp_path = Path(handle.name)
+    try:
+        sf.write(str(temp_path), silence, sample_rate)
+        _run_basic_pitch_predict(str(temp_path))
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+async def warm_up_basic_pitch() -> None:
+    """Load Basic Pitch's model at server startup instead of on the first
+    real /transcribe request. Started from main.py's lifespan as a
+    fire-and-forget task, so it runs in parallel with the app becoming
+    ready to serve traffic. On a cold host, first-load can take long enough
+    to blow through GENERATION_TIMEOUT_SECONDS on its own; a failed or slow
+    warm-up here just means the first real request pays that cost instead,
+    same as before this existed."""
+    if basic_pitch_predict is None:
+        return
+    try:
+        await run_in_threadpool(_warm_up_basic_pitch_sync)
+        logger.info("Basic Pitch model warm-up complete")
+    except Exception:
+        logger.exception("Basic Pitch model warm-up failed; first request will load it instead")
 
 
 def _save_bytes(raw: bytes, prefix: str, extension: str) -> tuple[str, Path]:

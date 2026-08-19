@@ -107,6 +107,10 @@ function AnalysisAnimation() {
       <p className="animate-pulse text-sm font-semibold tracking-wide text-white/75">
         Analysing your audio…
       </p>
+      <p className="max-w-xs text-center text-xs text-white/45">
+        The first analysis after a period of inactivity can take up to a couple of minutes while
+        the backend wakes up — later ones are much faster.
+      </p>
     </div>
   );
 }
@@ -191,6 +195,7 @@ export default function Home() {
       setStatusMessage(`Analysis ready for ${file.name}.`);
       setPendingSourceName(null);
     } catch (analysisError) {
+      console.error("[analysis] failed", { file: file.name, error: analysisError });
       if (requestId === requestIdRef.current) {
         setErrorMessage(analysisError instanceof Error ? analysisError.message : "Analysis failed");
         setStatusMessage("We couldn't analyse that audio clip.");

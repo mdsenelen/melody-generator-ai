@@ -32,12 +32,16 @@ for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     inference.cleanup_stale_files()
     cleanup_task = asyncio.create_task(inference.run_periodic_cleanup())
+    warm_up_task = asyncio.create_task(inference.warm_up_basic_pitch())
     try:
         yield
     finally:
         cleanup_task.cancel()
+        warm_up_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await warm_up_task
 
 
 app = FastAPI(

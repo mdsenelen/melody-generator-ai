@@ -4,7 +4,9 @@ import { useEffect } from "react";
 
 export function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 5000);
+    // Long enough to actually read an error (vs. a success toast, which
+    // can disappear quickly) — dismissing is still available via the ×.
+    const timer = setTimeout(onDismiss, 20000);
     return () => clearTimeout(timer);
   }, [onDismiss]);
 
