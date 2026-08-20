@@ -23,7 +23,7 @@ import soundfile as sf
 import torch
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .model.colab_parity import (
     ActorCritic,
@@ -83,15 +83,23 @@ JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
 GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "60"))
-# Basic Pitch inference runs roughly at realtime speed on Render's free-tier
-# CPU, so an uncapped clip can blow through GENERATION_TIMEOUT_SECONDS and
-# Render's own ~150s gateway timeout. Cap analyzed audio to leave headroom --
-# this was previously 60s, equal to GENERATION_TIMEOUT_SECONDS itself, which
-# left zero room for decode/resample/chord-and-key analysis or Basic-Pitch
-# lock queueing on top of a "roughly realtime" ~60s of inference; a
-# full-length upload reliably timed out in production as a result. 30s keeps
-# real inference time to roughly half the timeout budget.
-MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "30"))
+# Historically this was kept close to GENERATION_TIMEOUT_SECONDS (first 60s,
+# then 30s) because transcription ran synchronously inside the HTTP request
+# that GENERATION_TIMEOUT_SECONDS bounds -- Basic Pitch runs roughly at
+# realtime speed on Render's free-tier CPU, so an uncapped clip reliably blew
+# through both that timeout and Render's own ~100s gateway timeout.
+#
+# Transcription now runs on the async job worker (see app/jobs/), which
+# isn't bound by GENERATION_TIMEOUT_SECONDS or any HTTP request lifetime at
+# all -- GENERATION_TIMEOUT_SECONDS still applies to the *other* synchronous
+# routes (e.g. /generate-variants), just not this one anymore. This cap is
+# no longer a timeout workaround; it exists purely to bound worst-case
+# per-job memory (decode is bounded to this many seconds via the header-probe
+# path in _read_audio_bytes below) and worst-case worker occupancy. 240s
+# (4 minutes) comfortably covers a full song while staying finite -- see
+# jobs/worker.py's DEFAULT_LEASE_SECONDS, which is sized with margin above
+# this value so a legitimately slow job is never mistaken for a dead one.
+MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "240"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
@@ -1812,15 +1820,32 @@ def _rerender_midi_bytes(midi_bytes: bytes, instrument: int, bpm: float) -> byte
             temp_out.unlink(missing_ok=True)
 
 
-def download_generated_file(filename: str) -> FileResponse:
+def download_generated_file(filename: str) -> FileResponse | Response:
     safe_name = Path(filename).name
     file_path = OUTPUT_DIR / safe_name
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Generated file not found")
-    media_type = "audio/wav"
-    if file_path.suffix.lower() == ".mid":
-        media_type = "audio/midi"
-    return FileResponse(file_path, filename=safe_name, media_type=media_type)
+    media_type = "audio/midi" if file_path.suffix.lower() == ".mid" else "audio/wav"
+
+    if file_path.exists():
+        return FileResponse(file_path, filename=safe_name, media_type=media_type)
+
+    # Not on this process's local disk -- e.g. this file was produced by a
+    # worker running as a separate Render service from the one serving this
+    # request (see jobs/worker.py's _upload_generated_files, which mirrors
+    # generated files into the same object storage used for job input).
+    # Lazy import: inference.py otherwise has no dependency on jobs/.
+    from app.jobs.service import get_object_storage
+
+    storage = get_object_storage()
+    if getattr(storage, "is_shared", False):
+        key = f"generated/{safe_name}"
+        if storage.exists(key):
+            return Response(
+                content=storage.read_bytes(key),
+                media_type=media_type,
+                headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+            )
+
+    raise HTTPException(status_code=404, detail="Generated file not found")
 
 
 @router.get("/model-status")
@@ -1841,8 +1866,8 @@ def progressions(genre: Optional[str] = None) -> dict[str, Any]:
     return {"progressions": result}
 
 
-@router.get("/download/{filename}")
-def download(filename: str) -> FileResponse:
+@router.get("/download/{filename}", response_model=None)
+def download(filename: str) -> FileResponse | Response:
     return download_generated_file(filename)
 
 
@@ -1858,12 +1883,6 @@ async def generate_audio_route(payload: GenerateRequest) -> dict[str, Any]:
         instrument=payload.instrument,
         seed=payload.seed,
     )
-
-
-@router.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)) -> dict[str, Any]:
-    raw = await _read_upload_bytes(file)
-    return await _run_generation(run_basic_pitch, raw, file.filename or "audio.wav")
 
 
 @router.post("/generate-progression")

@@ -13,10 +13,12 @@ const nextConfig = {
   // serverless output, and "standalone"'s output-file-tracing step there
   // fails to produce next-server.js.nft.json, breaking the build.
   output: process.env.VERCEL ? undefined : "standalone",
-  // pitchy ships as pure ESM; without this, next/jest's default
-  // node_modules transform-ignore blocks it during component tests that
-  // import hooks/use-audio-analyzer.ts (e.g. via AudioRecorder).
-  transpilePackages: ["pitchy"],
+  // pitchy and react-error-boundary both ship pure ESM; without this,
+  // next/jest's default node_modules transform-ignore blocks them during
+  // component tests -- pitchy via hooks/use-audio-analyzer.ts (e.g.
+  // AudioRecorder), react-error-boundary via components/error-boundary.tsx
+  // (pulled in by any test that renders app/analyse/page.tsx).
+  transpilePackages: ["pitchy", "react-error-boundary"],
 };
 
 module.exports = nextConfig;

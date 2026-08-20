@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 import os
+import threading
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -15,7 +16,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import inference
+from app.jobs import routes as job_routes
+from app.jobs.service import get_job_queue, get_job_store, get_object_storage
+from app.jobs.worker import run_worker_loop
 from app.schemas import ProcessRequest
+
+# Dev/single-service default: run the transcription worker on a background
+# thread inside the web process, so `uvicorn app.main:app --reload` alone
+# is enough locally. Production must set this to "false" on the WEB
+# service and run `python -m app.worker_main` as its own Render Background
+# Worker service instead -- otherwise Basic Pitch inference is right back
+# to running on a thread the web process spun up as a fire-and-forget
+# workaround, which is the exact thing this job architecture replaces. See
+# CLAUDE.md.
+RUN_WORKER_IN_PROCESS = os.environ.get("RUN_WORKER_IN_PROCESS", "true").strip().lower() not in (
+    "false", "0", "",
+)
+# Best-effort wait for the current job to reach a checkpoint on shutdown;
+# the worker loop itself isn't forcibly interruptible mid-job (same
+# fundamental limitation as GENERATION_TIMEOUT_SECONDS -- see
+# inference.py's _run_generation), so this just bounds how long shutdown
+# waits before moving on regardless.
+DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -32,16 +54,50 @@ for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     inference.cleanup_stale_files()
     cleanup_task = asyncio.create_task(inference.run_periodic_cleanup())
-    warm_up_task = asyncio.create_task(inference.warm_up_basic_pitch())
+
+    # Only warm up (load) Basic Pitch in a process that will actually run
+    # transcription work. In production with RUN_WORKER_IN_PROCESS=false,
+    # the web process never runs the pipeline via the job workflow, so
+    # eagerly loading the model here would be pure waste on an instance
+    # that's supposed to stay light. (The legacy synchronous
+    # /api/transcribe route is a separate, narrower caveat: if that route
+    # is actually called, the web process will still lazy-load the model
+    # on demand regardless of this flag -- gating the eager warm-up here
+    # doesn't change that, only the startup-time cost.)
+    warm_up_task = (
+        asyncio.create_task(inference.warm_up_basic_pitch()) if RUN_WORKER_IN_PROCESS else None
+    )
+
+    worker_stop_event = threading.Event()
+    worker_thread: Optional[threading.Thread] = None
+    if RUN_WORKER_IN_PROCESS:
+        worker_thread = threading.Thread(
+            target=run_worker_loop,
+            kwargs=dict(
+                store=get_job_store(),
+                queue=get_job_queue(),
+                storage=get_object_storage(),
+                stop_event=worker_stop_event,
+            ),
+            name="transcription-worker",
+            daemon=True,
+        )
+        worker_thread.start()
+
     try:
         yield
     finally:
         cleanup_task.cancel()
-        warm_up_task.cancel()
+        if warm_up_task is not None:
+            warm_up_task.cancel()
+        worker_stop_event.set()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
-        with contextlib.suppress(asyncio.CancelledError):
-            await warm_up_task
+        if warm_up_task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await warm_up_task
+        if worker_thread is not None:
+            worker_thread.join(timeout=DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
 
 
 app = FastAPI(
@@ -71,10 +127,14 @@ app.add_middleware(
 # /api/download/{filename} endpoint instead.
 #
 # All routes are canonicalized under /api/*, served by inference.router
-# below (chords, download, generate, generate-variants, generate-progression,
-# transcribe). /api/upload, /model-info, /process/, and /health are the only
-# routes registered directly on `app`.
+# below (chords, download, generate, generate-variants, generate-progression)
+# and job_routes.router (the async transcription endpoints: POST /transcribe,
+# GET /transcribe/{job_id} -- inference.router used to also serve a
+# synchronous POST /transcribe; that route is retired, so job_routes.router
+# is now the sole owner of that path). /api/upload, /model-info, /process/,
+# and /health are the only routes registered directly on `app`.
 app.include_router(inference.router, prefix="/api")
+app.include_router(job_routes.router, prefix="/api")
 
 
 def log_event(event_id: str, data: dict[str, Any]) -> None:

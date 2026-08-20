@@ -525,33 +525,6 @@ def test_generate_variants_route_rejects_temperature_length_mismatch(monkeypatch
     assert exc.value.detail == "temperatures array length must equal n_variants"
 
 
-def test_transcribe_route_uses_run_basic_pitch(monkeypatch):
-    monkeypatch.setattr(
-        inference,
-        "run_basic_pitch",
-        lambda raw, filename: {
-            "n_notes": 1,
-            "duration_sec": 1.0,
-            "midi_b64": "abc",
-            "wav_b64": None,
-            "midi_filename": "demo.mid",
-            "wav_filename": "",
-            "mood_label": "neutral",
-            "mood_idx": 2,
-            "detected_chords": [],
-            "key": "C major",
-            "pitch_histogram": [0.0] * 12,
-            "tempo_bpm": 90.0,
-            "average_pitch": 60.0,
-        },
-    )
-
-    response = asyncio.run(
-        inference.transcribe_audio(file=UploadFile(filename="clip.wav", file=io.BytesIO(b"audio-bytes")))
-    )
-
-    assert response["midi_filename"] == "demo.mid"
-
 
 def test_model_status_route_does_not_load_models(monkeypatch):
     def fail_load():

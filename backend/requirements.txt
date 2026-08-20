@@ -11,3 +11,12 @@ tqdm>=4.62.0
 basic-pitch==0.4.0
 pretty_midi
 music21
+
+# Async transcription job workflow (backend/app/jobs/) -- see CLAUDE.md's
+# "Async Transcription Job Workflow" section. Each is only actually imported/used
+# when the corresponding env var is set (DATABASE_URL, REDIS_URL,
+# JOB_STORAGE_BUCKET); local dev and tests use SQLite + an in-process queue
+# + local disk instead and never touch these three.
+psycopg[binary]
+redis
+boto3

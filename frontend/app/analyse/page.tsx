@@ -240,7 +240,7 @@ export default function AnalysePage() {
           } else if (status.status === "processing") {
             setStatusMessage(
               stillWaking
-                ? `Still analysing ${file.name}... this can take a minute or two if the server was idle.`
+                ? `Still analysing ${file.name}... longer clips take longer to transcribe, and a cold server can add a minute or two on top.`
                 : `Analysing ${file.name}...`,
             );
           }

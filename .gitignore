@@ -25,6 +25,15 @@ backend/data/recordings/
 backend/data/generated/
 backend/data/logs/
 
+# Async transcription job workflow local dev state (SQLite job store, local
+# object-storage fallback) -- see CLAUDE.md's "Async Transcription Job
+# Workflow" section. Not used at all when DATABASE_URL/JOB_STORAGE_BUCKET
+# are set (production).
+backend/data/jobs.db
+backend/data/jobs.db-wal
+backend/data/jobs.db-shm
+backend/data/job_storage/
+
 # Model checkpoints — large binaries, not source-controlled (see CLAUDE.md
 # for the expected checkpoint schema)
 backend/app/model/weights/*.pth
