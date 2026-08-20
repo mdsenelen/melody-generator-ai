@@ -124,8 +124,8 @@ function AnalysisAnimation() {
         Analysing your audio…
       </p>
       <p className="max-w-xs text-center text-xs text-white/45">
-        The first analysis after a period of inactivity can take up to a couple of minutes while
-        the backend wakes up — later ones are much faster.
+        The first analysis after a period of inactivity can take up to a couple of minutes while the
+        backend wakes up — later ones are much faster.
       </p>
     </div>
   );
