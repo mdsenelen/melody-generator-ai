@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Next 16's `next dev` auto-generates AGENTS.md/CLAUDE.md in this
+  // directory unless disabled; the project already has its own CLAUDE.md
+  // convention at the repo root.
+  agentRules: false,
   // Produces a self-contained .next/standalone build (minimal node_modules
   // subset + a server.js entrypoint) so the production Docker image doesn't
   // need to ship the full node_modules tree or run `next dev`/`next build`
