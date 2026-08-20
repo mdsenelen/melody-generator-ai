@@ -166,14 +166,17 @@ MINOR_PROFILE = np.asarray(
 _AUDIO_CFG: Optional[dict[str, Any]] = None
 _CVAE_IDDM_BUNDLE: Optional[dict[str, Any]] = None
 _CVAE_IDDM_LOAD_LOCK = threading.Lock()
-# Serializes only the one-time Basic Pitch model load (see
-# _get_basic_pitch_model) so the startup warm-up task and a real request
-# never cold-load the model concurrently: on Render's free-tier CPU, two
-# simultaneous first-loads compete for the same limited cycles and can
-# together take long enough to blow through GENERATION_TIMEOUT_SECONDS with
-# no response at all, instead of either one finishing on its own. Inference
-# calls against the already-loaded model run outside this lock so one slow
-# transcription doesn't queue up every other concurrent request behind it.
+# Serializes every Basic Pitch invocation — both the one-time model load
+# (see _get_basic_pitch_model) and every actual inference call. The load
+# needs this so the startup warm-up task and a real request never cold-load
+# the model concurrently (on Render's free-tier CPU, two simultaneous
+# first-loads compete for the same limited cycles and can together take
+# long enough to blow through GENERATION_TIMEOUT_SECONDS with no response at
+# all). Inference needs it too, separately: Render's instance is memory-
+# constrained, and two concurrent Basic Pitch inferences together are enough
+# to exceed the instance's memory limit and get the whole service
+# force-restarted — this caps Basic Pitch concurrency at 1 to bound peak
+# memory, at the cost of one slow transcription queuing up others behind it.
 _BASIC_PITCH_LOAD_LOCK = threading.Lock()
 _BASIC_PITCH_MODEL: Optional[Any] = None
 
@@ -1055,20 +1058,28 @@ def _run_basic_pitch_predict(audio_path: str) -> tuple[Optional[bytes], list[dic
         {"args": (audio_path, ICASSP_2022_MODEL_PATH), "kwargs": {}},
     ]
 
+    # Basic Pitch inference itself (not just the model load) is serialized
+    # under the same lock: Render's free-tier instance is memory-constrained,
+    # and two concurrent inferences (each holding a loaded TF model's
+    # activations/buffers) is enough to exceed the instance's memory limit
+    # and trigger a Render-forced restart. Caching the loaded model above
+    # already removes the per-call disk/graph-load cost that used to eat
+    # most of the timeout budget; this lock just caps concurrency at 1.
     last_error: Optional[Exception] = None
-    for attempt in invocation_attempts:
-        try:
-            result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
-            if isinstance(result, tuple) and len(result) >= 3:
-                _, midi_data, note_events = result[:3]
-            else:
-                midi_data, note_events = None, []
-            return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
-        except TypeError as exc:
-            last_error = exc
-        except Exception as exc:  # pragma: no cover
-            last_error = exc
-            break
+    with _BASIC_PITCH_LOAD_LOCK:
+        for attempt in invocation_attempts:
+            try:
+                result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
+                if isinstance(result, tuple) and len(result) >= 3:
+                    _, midi_data, note_events = result[:3]
+                else:
+                    midi_data, note_events = None, []
+                return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
+            except TypeError as exc:
+                last_error = exc
+            except Exception as exc:  # pragma: no cover
+                last_error = exc
+                break
 
     if last_error is not None:
         raise last_error
