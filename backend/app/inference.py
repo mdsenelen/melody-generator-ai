@@ -54,9 +54,11 @@ except Exception:  # pragma: no cover - optional dependency
 
 try:  # pragma: no cover - optional dependency
     from basic_pitch import ICASSP_2022_MODEL_PATH
+    from basic_pitch.inference import Model as BasicPitchModel
     from basic_pitch.inference import predict as basic_pitch_predict
 except Exception:  # pragma: no cover - optional dependency
     ICASSP_2022_MODEL_PATH = None
+    BasicPitchModel = None
     basic_pitch_predict = None
 
 
@@ -164,12 +166,16 @@ MINOR_PROFILE = np.asarray(
 _AUDIO_CFG: Optional[dict[str, Any]] = None
 _CVAE_IDDM_BUNDLE: Optional[dict[str, Any]] = None
 _CVAE_IDDM_LOAD_LOCK = threading.Lock()
-# Serializes Basic Pitch invocations so the startup warm-up task and a real
-# request never cold-load the model concurrently: on Render's free-tier CPU,
-# two simultaneous first-loads compete for the same limited cycles and can
+# Serializes only the one-time Basic Pitch model load (see
+# _get_basic_pitch_model) so the startup warm-up task and a real request
+# never cold-load the model concurrently: on Render's free-tier CPU, two
+# simultaneous first-loads compete for the same limited cycles and can
 # together take long enough to blow through GENERATION_TIMEOUT_SECONDS with
-# no response at all, instead of either one finishing on its own.
+# no response at all, instead of either one finishing on its own. Inference
+# calls against the already-loaded model run outside this lock so one slow
+# transcription doesn't queue up every other concurrent request behind it.
 _BASIC_PITCH_LOAD_LOCK = threading.Lock()
+_BASIC_PITCH_MODEL: Optional[Any] = None
 
 
 def _load_audio_cfg() -> dict[str, Any]:
@@ -1015,11 +1021,34 @@ def _coerce_note_events(raw_note_events: Any) -> list[dict[str, float | int]]:
     return events
 
 
+def _get_basic_pitch_model() -> Optional[Any]:
+    """Load and cache Basic Pitch's model once. Callers pass the cached
+    instance into predict() so only this one-time load needs the disk I/O
+    and TF graph load that used to happen on every single request."""
+    global _BASIC_PITCH_MODEL
+    if _BASIC_PITCH_MODEL is None and BasicPitchModel is not None:
+        with _BASIC_PITCH_LOAD_LOCK:
+            if _BASIC_PITCH_MODEL is None:
+                _BASIC_PITCH_MODEL = BasicPitchModel(ICASSP_2022_MODEL_PATH)
+    return _BASIC_PITCH_MODEL
+
+
 def _run_basic_pitch_predict(audio_path: str) -> tuple[Optional[bytes], list[dict[str, float | int]]]:
     if basic_pitch_predict is None:
         return None, []
 
-    invocation_attempts = [
+    try:
+        cached_model = _get_basic_pitch_model()
+    except Exception:
+        logger.exception("Basic Pitch model load failed; falling back to per-call load")
+        cached_model = None
+
+    invocation_attempts = []
+    if cached_model is not None:
+        invocation_attempts.append(
+            {"args": (audio_path,), "kwargs": {"model_or_model_path": cached_model}}
+        )
+    invocation_attempts += [
         {"args": (audio_path,), "kwargs": {}},
         {"args": (audio_path,), "kwargs": {
             "model_or_model_path": ICASSP_2022_MODEL_PATH}},
@@ -1027,20 +1056,19 @@ def _run_basic_pitch_predict(audio_path: str) -> tuple[Optional[bytes], list[dic
     ]
 
     last_error: Optional[Exception] = None
-    with _BASIC_PITCH_LOAD_LOCK:
-        for attempt in invocation_attempts:
-            try:
-                result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
-                if isinstance(result, tuple) and len(result) >= 3:
-                    _, midi_data, note_events = result[:3]
-                else:
-                    midi_data, note_events = None, []
-                return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
-            except TypeError as exc:
-                last_error = exc
-            except Exception as exc:  # pragma: no cover
-                last_error = exc
-                break
+    for attempt in invocation_attempts:
+        try:
+            result = basic_pitch_predict(*attempt["args"], **attempt["kwargs"])
+            if isinstance(result, tuple) and len(result) >= 3:
+                _, midi_data, note_events = result[:3]
+            else:
+                midi_data, note_events = None, []
+            return _extract_midi_bytes(midi_data), _coerce_note_events(note_events)
+        except TypeError as exc:
+            last_error = exc
+        except Exception as exc:  # pragma: no cover
+            last_error = exc
+            break
 
     if last_error is not None:
         raise last_error

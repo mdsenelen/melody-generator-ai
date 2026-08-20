@@ -34,7 +34,11 @@ export async function requestJson<T>(input: RequestInfo | URL, options: RequestJ
         rawBody,
       });
     }
-    throw new Error(detail || `Request failed (${response.status})`);
+    const error = new Error(detail || `Request failed (${response.status})`) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
 
   if (parsedBody === null) {

@@ -215,9 +215,17 @@ export default function Home() {
       // free-tier gateway can time out before our own analysis finishes) even
       // though the model finishes loading server-side moments later — so a
       // retry right after a failure is effectively always fast. Retry once
-      // before surfacing an error to the user.
+      // before surfacing an error to the user. Exception: a 504 means our
+      // own GENERATION_TIMEOUT_SECONDS fired after the backend already spent
+      // a full timeout budget analysing this exact file — that request keeps
+      // running server-side regardless (the timeout can't cancel it), so an
+      // immediate retry would just queue identical work behind it instead of
+      // recovering. Only retry cold-start-style failures here.
       const result = await transcribeFile(file).catch(async (firstError) => {
         if (requestId !== requestIdRef.current) {
+          throw firstError;
+        }
+        if ((firstError as { status?: number })?.status === 504) {
           throw firstError;
         }
         console.warn("[analysis] first transcribe attempt failed, retrying once", {
