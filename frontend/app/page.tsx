@@ -190,7 +190,23 @@ export default function Home() {
       let stored = uploaded;
 
       if (!stored) {
-        const uploadResult = await uploadFile(file);
+        // Same cold-start issue as the /transcribe retry below: a sleeping
+        // Render free-tier backend can 502 on the very first request it
+        // receives (no CORS headers on that response either, since it never
+        // reaches our app), even though a request moments later succeeds
+        // once the container has finished waking up.
+        const uploadResult = await uploadFile(file).catch(async (firstError) => {
+          if (requestId !== requestIdRef.current) {
+            throw firstError;
+          }
+          console.warn("[analysis] first upload attempt failed, retrying once", {
+            file: file.name,
+            error: firstError,
+          });
+          setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          return uploadFile(file);
+        });
         stored = { id: uploadResult.id, filename: uploadResult.filename };
         setSelectedUploadFilename(uploadResult.filename);
       }
