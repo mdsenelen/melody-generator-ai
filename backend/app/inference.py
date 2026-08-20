@@ -85,8 +85,13 @@ SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
 GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "60"))
 # Basic Pitch inference runs roughly at realtime speed on Render's free-tier
 # CPU, so an uncapped clip can blow through GENERATION_TIMEOUT_SECONDS and
-# Render's own ~150s gateway timeout. Cap analyzed audio to leave headroom.
-MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
+# Render's own ~150s gateway timeout. Cap analyzed audio to leave headroom --
+# this was previously 60s, equal to GENERATION_TIMEOUT_SECONDS itself, which
+# left zero room for decode/resample/chord-and-key analysis or Basic-Pitch
+# lock queueing on top of a "roughly realtime" ~60s of inference; a
+# full-length upload reliably timed out in production as a result. 30s keeps
+# real inference time to roughly half the timeout budget.
+MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "30"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
