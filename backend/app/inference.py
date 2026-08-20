@@ -494,6 +494,20 @@ def _waveform_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
     return out.read()
 
 
+def _probe_source_duration_sec(raw: bytes) -> Optional[float]:
+    """Best-effort duration of the raw upload from its header/frame count,
+    without decoding any audio samples. Lets _read_audio_bytes below cap the
+    actual decode to max_duration_sec while still reporting the true source
+    clip length -- decoding a long upload in full before truncating it made
+    peak memory scale with upload length instead of the analysis window,
+    which is what MAX_ANALYSIS_DURATION_SEC was meant to bound."""
+    try:
+        with sf.SoundFile(io.BytesIO(raw)) as f:
+            return float(len(f)) / float(f.samplerate)
+    except Exception:
+        return None
+
+
 def _read_audio_bytes(
     raw: bytes,
     target_sr: int,
@@ -502,15 +516,27 @@ def _read_audio_bytes(
     """Decode audio and cap it to max_duration_sec.
 
     Returns (audio, source_duration_sec, truncated), where source_duration_sec
-    is the full decoded clip's duration before any truncation.
+    is the full source clip's duration before any truncation.
     """
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio payload")
+
+    probed_duration_sec = _probe_source_duration_sec(raw)
+    # Only pass a duration cap to librosa when we know the true source
+    # duration from the header probe above -- otherwise we'd have no way
+    # to tell afterward whether the file was actually longer than the cap.
+    decode_duration_cap = max_duration_sec if probed_duration_sec is not None else None
+
     buf = io.BytesIO(raw)
+    decoded_bounded = False
     try:
-        audio, _ = librosa.load(buf, sr=target_sr, mono=True)
+        audio, _ = librosa.load(buf, sr=target_sr, mono=True, duration=decode_duration_cap)
+        decoded_bounded = decode_duration_cap is not None
     except Exception:
-        # Fallback: convert via ffmpeg (handles WebM/Opus from browser recordings)
+        # Fallback: convert via ffmpeg (handles WebM/Opus from browser
+        # recordings). These are short mic recordings in practice, not the
+        # long-upload memory risk above, so this path keeps decoding in
+        # full rather than adding an ffprobe-based duration cap too.
         tmp_in = tmp_out = None
         try:
             with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -542,13 +568,19 @@ def _read_audio_bytes(
     if audio.size == 0:
         raise HTTPException(status_code=400, detail="Could not decode audio")
 
-    source_duration_sec = float(audio.size / target_sr)
-    truncated = False
-    if max_duration_sec is not None:
+    source_duration_sec = (
+        probed_duration_sec if probed_duration_sec is not None else float(audio.size / target_sr)
+    )
+    truncated = max_duration_sec is not None and source_duration_sec > max_duration_sec
+    if truncated and not decoded_bounded:
+        # Decode wasn't capped above (probe failed, or this went through
+        # the ffmpeg fallback) -- fall back to the old post-hoc slice. Copy
+        # rather than a bare view so the full-length decode buffer this
+        # branch produced can actually be freed instead of staying
+        # reachable through the slice's .base for the rest of the request.
         max_samples = int(max_duration_sec * target_sr)
         if audio.size > max_samples:
-            audio = audio[:max_samples]
-            truncated = True
+            audio = audio[:max_samples].copy()
 
     return librosa.util.normalize(audio).astype(np.float32), source_duration_sec, truncated
 
@@ -1296,7 +1328,11 @@ def _parse_variant_temperatures(raw_temperatures: Optional[str], n_variants: int
     return temperatures
 
 
-def _audio_to_iddm_mel(audio_bytes: bytes, cfg: dict[str, Any]) -> torch.Tensor:
+def _audio_to_iddm_mel(
+    audio_bytes: bytes,
+    cfg: dict[str, Any],
+    audio: Optional[np.ndarray] = None,
+) -> torch.Tensor:
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
     n_fft = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["n_fft"]
     hop_length = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["hop_length"]
@@ -1304,7 +1340,8 @@ def _audio_to_iddm_mel(audio_bytes: bytes, cfg: dict[str, Any]) -> torch.Tensor:
         cfg.get("mel_bins", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["mel_bins"]))
     t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
 
-    audio, _source_duration_sec, _truncated = _read_audio_bytes(audio_bytes, sample_rate)
+    if audio is None:
+        audio, _source_duration_sec, _truncated = _read_audio_bytes(audio_bytes, sample_rate)
     mel = librosa.feature.melspectrogram(
         y=audio,
         sr=sample_rate,
@@ -1333,9 +1370,14 @@ def _token_ids_to_midi_bytes(token_ids: list[int], bpm: float) -> bytes:
             temp_midi_path.unlink(missing_ok=True)
 
 
-def _transcribe_and_mood(audio_bytes: bytes) -> dict[str, Any]:
+def _transcribe_and_mood(
+    audio_bytes: bytes,
+    decoded: Optional[tuple[np.ndarray, float, bool]] = None,
+) -> dict[str, Any]:
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    audio, source_duration_sec, truncated = _read_audio_bytes(audio_bytes, sample_rate)
+    audio, source_duration_sec, truncated = (
+        decoded if decoded is not None else _read_audio_bytes(audio_bytes, sample_rate)
+    )
     duration_sec = float(len(audio) / sample_rate)
 
     temp_audio_path: Optional[Path] = None
@@ -1492,8 +1534,14 @@ def generate_iddm_variants(
     try:
         generator = _seed_generator(seed)
         bundle = _load_cvae_iddm()
-        transcription = _transcribe_and_mood(audio_bytes)
-        mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"])
+        # Decode once and share it: _transcribe_and_mood and
+        # _audio_to_iddm_mel both decode at the same
+        # NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"], so decoding twice
+        # meant two full copies of the same clip (plus a Basic Pitch
+        # inference) resident at once on a memory-constrained instance.
+        decoded = _read_audio_bytes(audio_bytes, NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"])
+        transcription = _transcribe_and_mood(audio_bytes, decoded=decoded)
+        mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"], audio=decoded[0])
         cfg = bundle["cfg"]
         latent_dim = int(cfg.get("latent_dim", 32))
         n_moods = int(cfg.get("n_moods", 3))
