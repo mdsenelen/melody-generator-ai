@@ -8,5 +8,10 @@
       "Bash(python)",
       "Bash(python -m pytest tests/test_inference_variants.py -v)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "playwright",
+    "context7",
+    "github"
+  ]
 }
