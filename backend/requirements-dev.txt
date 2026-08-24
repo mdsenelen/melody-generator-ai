@@ -1,2 +1,3 @@
 -r requirements.txt
 pytest
+httpx2  # fastapi.testclient.TestClient's runtime dependency on this starlette version

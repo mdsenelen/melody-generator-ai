@@ -1,17 +1,28 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
+
+from app.rate_limit import rate_limiter
 
 from .service import create_transcription_job, get_job_store
 
 router = APIRouter()
 
+# Both trigger real Basic Pitch inference cost with no auth in front of
+# them -- see CLAUDE.md's Production Readiness/Security notes.
+TRANSCRIBE_RATE_LIMIT = int(os.environ.get("TRANSCRIBE_RATE_LIMIT", "5"))
+TRANSCRIBE_RATE_WINDOW_SECONDS = float(os.environ.get("TRANSCRIBE_RATE_WINDOW_SECONDS", "300"))
 
-@router.post("/transcribe")
+
+@router.post(
+    "/transcribe",
+    dependencies=[Depends(rate_limiter("transcribe", TRANSCRIBE_RATE_LIMIT, TRANSCRIBE_RATE_WINDOW_SECONDS))],
+)
 async def create_transcribe_job(
     file: Optional[UploadFile] = File(None),
     upload_id: Optional[str] = Form(None),

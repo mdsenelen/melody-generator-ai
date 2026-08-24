@@ -21,9 +21,11 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
+
+from app.rate_limit import rate_limiter
 
 from .model.colab_parity import (
     ActorCritic,
@@ -102,6 +104,12 @@ GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", 
 MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "240"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
+# /generate-variants also runs Basic Pitch internally (see
+# _run_basic_pitch_predict below), so its cost profile matches /transcribe,
+# not lighter -- same default limit.
+GENERATE_VARIANTS_RATE_LIMIT = int(os.environ.get("GENERATE_VARIANTS_RATE_LIMIT", "5"))
+GENERATE_VARIANTS_RATE_WINDOW_SECONDS = float(
+    os.environ.get("GENERATE_VARIANTS_RATE_WINDOW_SECONDS", "300"))
 NOTEBOOK_VARIANT_DEFAULT_TEMPERATURES = [0.7, 0.9, 1.0, 1.3]
 NOTEBOOK_VARIANT_AUDIO_DEFAULTS = {
     "sample_rate": 16000,
@@ -1904,7 +1912,13 @@ async def generate_progression_route(payload: GenerateProgressionRequest) -> dic
     )
 
 
-@router.post("/generate-variants")
+@router.post(
+    "/generate-variants",
+    dependencies=[
+        Depends(rate_limiter(
+            "generate-variants", GENERATE_VARIANTS_RATE_LIMIT, GENERATE_VARIANTS_RATE_WINDOW_SECONDS))
+    ],
+)
 async def generate_variants_route(
     file: Optional[UploadFile] = File(None),
     upload_id: Optional[str] = Form(None),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import threading
 import uuid
@@ -19,7 +20,10 @@ from app import inference
 from app.jobs import routes as job_routes
 from app.jobs.service import get_job_queue, get_job_store, get_object_storage
 from app.jobs.worker import run_worker_loop
+from app.request_limits import MaxBodySizeMiddleware, RequestBodyTooLarge
 from app.schemas import ProcessRequest
+
+logger = logging.getLogger(__name__)
 
 # Dev/single-service default: run the transcription worker on a background
 # thread inside the web process, so `uvicorn app.main:app --reload` alone
@@ -38,6 +42,13 @@ RUN_WORKER_IN_PROCESS = os.environ.get("RUN_WORKER_IN_PROCESS", "true").strip().
 # inference.py's _run_generation), so this just bounds how long shutdown
 # waits before moving on regardless.
 DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS = 5.0
+
+# /api/upload used to read the whole request body into memory before any
+# size check ran; a large-enough upload could exhaust memory or (now that
+# B2 storage is billed) storage cost before any cap applied. Also covers
+# the raw-file-upload fallback on /api/transcribe and /api/generate-variants,
+# which had the same unbounded-read shape -- see MaxBodySizeMiddleware.
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -119,6 +130,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added after CORSMiddleware so it ends up outermost (Starlette's
+# add_middleware inserts each new middleware ahead of the previous ones) --
+# a body over the cap should be rejected before any other request handling,
+# not just before the route body reads it.
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_UPLOAD_BYTES)
+
+
+@app.exception_handler(RequestBodyTooLarge)
+async def handle_request_body_too_large(request: Any, exc: RequestBodyTooLarge) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"detail": f"Request body exceeds the {exc.max_bytes // (1024 * 1024)}MB upload limit"},
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request: Any, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again."},
+    )
 
 # No public static mount: data/recordings, data/generated, and data/logs all
 # hold user-uploaded/generated content and were previously exposed under
