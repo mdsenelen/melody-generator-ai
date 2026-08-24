@@ -158,7 +158,18 @@ def run_worker_loop(
         queue.enqueue(job_id)
 
     while not stop_event.is_set():
-        job_id = queue.dequeue(timeout=poll_timeout)
+        try:
+            job_id = queue.dequeue(timeout=poll_timeout)
+        except Exception:
+            # dequeue() itself isn't guarded by process_one_job's try/except
+            # below -- a transient queue-backend hiccup (e.g. RedisJobQueue's
+            # BRPOP hitting a socket read timeout) would otherwise propagate
+            # straight out of this loop and silently kill the whole worker
+            # thread (it's a daemon thread in-process, so nothing restarts
+            # it). Treat it like an empty poll: log and fall through to the
+            # idle tick, then retry on the next iteration instead of dying.
+            logger.exception("Error dequeuing from job queue; will retry next poll")
+            job_id = None
         if job_id:
             try:
                 process_one_job(job_id, store, storage, queue, lease_seconds=lease_seconds)

@@ -494,6 +494,60 @@ def test_run_worker_loop_automatically_retries_a_transient_failure(store, storag
         thread.join(timeout=5.0)
 
 
+def test_run_worker_loop_survives_a_dequeue_error(store, storage, queue, monkeypatch):
+    """Regression test for a production bug: RedisJobQueue.dequeue() can
+    raise (e.g. a BRPOP socket read timeout) rather than returning None on
+    an empty poll, and run_worker_loop's dequeue call wasn't wrapped in a
+    try/except -- unlike process_one_job's call a few lines below it. Since
+    the loop runs as a daemon thread with nothing supervising it, one
+    dequeue() exception silently killed the whole worker permanently: jobs
+    kept getting created and enqueued, but nothing ever claimed them again.
+    Verified against production: a real job sat in 'queued' indefinitely
+    after the in-process worker thread's first BRPOP raised
+    redis.exceptions.TimeoutError."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+
+    real_dequeue = queue.dequeue
+    calls = []
+
+    def flaky_dequeue(timeout):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("simulated transient queue backend error")
+        return real_dequeue(timeout)
+
+    monkeypatch.setattr(queue, "dequeue", flaky_dequeue)
+    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name: _fake_transcription_result())
+
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=run_worker_loop,
+        kwargs=dict(
+            store=store, queue=queue, storage=storage, stop_event=stop_event,
+            poll_timeout=0.2,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    try:
+        # The job is only enqueued after the loop's first (failing) dequeue
+        # attempt, so it can't be picked up by that doomed first call --
+        # this proves the loop is still alive and polling afterward, not
+        # just that a pre-enqueued job survived one bad poll.
+        assert _run_loop_until(stop_event, lambda: bool(calls), timeout=5.0), \
+            "loop never called dequeue"
+        queue.enqueue(job.id)
+        completed = _run_loop_until(
+            stop_event, lambda: (store.get_job(job.id).status == COMPLETED), timeout=10.0
+        )
+        assert completed, f"job never completed; loop likely died on the dequeue error"
+        assert len(calls) >= 2
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
 def test_run_worker_loop_reclaims_stale_job_and_old_attempt_cannot_overwrite(
     store, storage, queue, monkeypatch
 ):
