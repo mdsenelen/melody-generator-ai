@@ -440,6 +440,36 @@ def test_process_one_job_is_a_noop_for_already_claimed_job(store, storage, queue
     assert store.get_job(job.id).status == PROCESSING
 
 
+# --- RedisJobQueue configuration --------------------------------------------
+
+
+def test_redis_job_queue_disables_socket_timeout_for_blocking_reads(monkeypatch):
+    """Regression test for the production bug behind the dequeue()-error
+    tests below: redis-py's own default socket_timeout is 5s (see
+    redis._defaults.DEFAULT_SOCKET_TIMEOUT), which exactly matched
+    worker.DEFAULT_POLL_TIMEOUT_SECONDS (also 5s) -- the client's own read
+    deadline raced BRPOP's server-side blocking timeout on every empty
+    poll, intermittently raising redis.exceptions.TimeoutError instead of
+    returning None. RedisJobQueue must construct its client with
+    socket_timeout=None so BRPOP's own timeout argument is what bounds the
+    wait, not an independent (and here, equal) client-side deadline."""
+    import redis as redis_module
+
+    from app.jobs.queue import RedisJobQueue
+
+    captured = {}
+    real_from_url = redis_module.Redis.from_url
+
+    def fake_from_url(url, **kwargs):
+        captured.update(kwargs)
+        return real_from_url(url, **kwargs)
+
+    monkeypatch.setattr(redis_module.Redis, "from_url", staticmethod(fake_from_url))
+    RedisJobQueue("redis://localhost:6379")
+    assert captured.get("socket_timeout") is None
+    assert "socket_timeout" in captured, "socket_timeout must be passed explicitly, not omitted"
+
+
 # --- worker: run_worker_loop (the real retry-delivery path) -----------------
 
 
