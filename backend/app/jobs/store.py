@@ -173,6 +173,14 @@ class SQLJobStore:
         try:
             cur = conn.cursor()
             cur.execute(_SCHEMA)
+            # Commit before the migration loop below: on Postgres, an
+            # ADD COLUMN failure (e.g. the column already exists on a
+            # freshly created table, since _SCHEMA already defines it)
+            # aborts the whole open transaction, and the except branch's
+            # rollback() would otherwise discard this still-uncommitted
+            # CREATE TABLE along with it. SQLite doesn't have this failure
+            # mode, but committing here is harmless for it too.
+            conn.commit()
             for column, coltype in _MIGRATION_COLUMNS:
                 try:
                     cur.execute(f"ALTER TABLE transcription_jobs ADD COLUMN {column} {coltype}")
