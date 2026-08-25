@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start",
     "test": "jest",
+    "test:e2e": "echo 'No Playwright test runner configured yet -- see roadmap Phase 3 (/e2e). Nothing to run.' && exit 1",
     "typecheck": "tsc --noEmit",
+    "lint": "echo 'No ESLint config yet -- see roadmap Phase 12 (/ci) and CLAUDE.md Open Questions.' && exit 1",
+    "analyze": "echo 'No bundle analyzer configured yet -- install @next/bundle-analyzer to enable.' && exit 1",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

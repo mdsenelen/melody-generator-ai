@@ -46,8 +46,12 @@ frontend/tsconfig.tsbuildinfo
 *.log
 *.err
 
-# Large media assets — serve from CDN/object storage instead
+# Large media assets — serve from CDN/object storage instead.
+# Note: frontend/public/background.mp4 and backend/app/soundfonts/GeneralUser-GS.sf2
+# are still tracked despite matching these patterns (ignore rules don't retroactively
+# untrack) because both are live production assets — see docs/BASELINE.md.
 frontend/public/*.mp4
+*.sf2
 
 
 .DS_Store
