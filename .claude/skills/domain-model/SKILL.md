@@ -16,6 +16,7 @@ Requirements:
 - Do not change UI behaviour in this phase. This is a type and state refactor. The app must behave identically when you finish.
 - `pnpm typecheck` must pass with zero errors and zero new `any`.
 
-Before writing code, show me the union and the transition table, and wait for confirmation.
+Write the union and the transition table into `docs/adr/` as part of this phase, then
+implement against it. State any impossible state the old code allowed.
 
 Start with: $ARGUMENTS

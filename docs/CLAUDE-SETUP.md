@@ -10,14 +10,37 @@ CLAUDE.additions.md           rules to fold into your existing CLAUDE.md
 PHASE-PROMPTS.md              copy-paste prompts, one per phase
 SETUP-GUIDE.md                this file, installs to docs/CLAUDE-SETUP.md
 docs/ROADMAP.md               the roadmap in the form Claude reads
+docs/GUIDED-PASS.md           GP1-GP5 product fixes, grounded in your codebase
 docs/PROGRESS.md              phase log, appended by /phase-commit
 .claude/settings.json         permissions + auto-format hook
-.claude/hooks/format-changed.sh
+.claude/hooks/format-changed.sh   auto-format after every edit
+.claude/hooks/verify-gate.sh      Stop hook, blocks "done" while gates are red
+scripts/run-phase.sh              branch setup + plan mode launch
+scripts/audit.sh                  headless read-only audits
+docs/AUTOMATION.md                what to automate and what not to
 .claude/agents/               11 subagents
-.claude/skills/               19 slash commands
+.claude/skills/               24 slash commands
 ```
 
-## Install
+## Already installed an earlier version?
+
+Run the upgrade instead. It recovers a `CLAUDE.md` or `README.md` that the first version
+overwrote, replaces the files that were broken, and adds the new ones. It deletes nothing.
+
+```bash
+cd ~/path/to/melody-generator-ai
+bash /path/to/this/package/upgrade.sh .
+git status
+```
+
+What was broken in the first version, and is fixed here:
+- both hooks parsed their input with `jq`, which macOS does not ship, so they were silent
+  no-ops rather than failing loudly
+- both hooks assumed the working directory was the repo root, so launching `claude` from
+  `frontend/` skipped the typecheck without saying so
+- `CLAUDE.md` and `README.md` shipped under those names and overwrote yours
+
+## Install (first time)
 
 The installer never overwrites an existing file. Anything that would collide is written
 alongside as `<file>.claude-setup-new` and reported, so you merge it deliberately.
@@ -25,7 +48,7 @@ alongside as `<file>.claude-setup-new` and reported, so you merge it deliberatel
 ```bash
 cd ~/path/to/melody-generator-ai
 git checkout -b chore/claude-setup          # so the whole thing is one revertable diff
-/path/to/this/package/install.sh .
+bash bash /path/to/this/package/install.sh .
 ```
 
 Do not `cp -r` this package into the repo root. Four files here share a name with something
@@ -182,6 +205,29 @@ One per phase, plus three utilities. All the phase commands set
 `/senior-audit` uses `context: fork` with `agent: release-gatekeeper`, so the whole audit
 runs in its own context and only the verdict comes back. The nested audits it spawns never
 touch your main window.
+
+## Two tracks, and which one runs first
+
+There are two work programmes in this package and they use overlapping numbers, so they are
+labelled differently on purpose:
+
+- **GP1 to GP5** in `docs/GUIDED-PASS.md`: product fixes to the app as it exists today.
+  Grounded in verified facts about the codebase.
+- **Phase 0 to 15** in `docs/ROADMAP.md`: raising the engineering bar around it.
+
+Run the guided pass first. GP2 builds the async job flow that roadmap Phase 8 describes,
+so doing them the other way around means building it twice. Roadmap Phase 0 is the one
+exception worth running before anything: it is a read-only audit and it takes ten minutes.
+
+```
+/baseline          roadmap Phase 0, audit only
+/gp-split          GP1
+/gp-async-jobs     GP2
+/gp-download-page  GP3
+/gp-notebook       GP4   (independent, parallel branch is fine)
+/gp-spinner        GP5
+then roadmap Phase 1 onward
+```
 
 ## How to actually run this
 

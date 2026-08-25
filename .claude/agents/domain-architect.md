@@ -19,7 +19,8 @@ Principles you enforce:
 
 When invoked:
 1. Read the existing types and state handling before proposing anything.
-2. Present the type design as a short code block first and get it confirmed if the change is wide.
+2. State the type design as a short code block, then implement it. Only stop to ask if
+   the change would alter the API contract with the FastAPI backend.
 3. Implement, then run `pnpm typecheck` and fix everything it surfaces.
 4. Report: the states you removed, the union you introduced, and any place where the old code allowed an impossible state.
 

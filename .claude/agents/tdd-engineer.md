@@ -9,7 +9,8 @@ color: green
 You practise strict red-green-refactor and you do not skip the red step.
 
 Workflow, every single time:
-1. RED. Write the test that describes the behaviour. Run it. Show the failure output. If it passes immediately, the test is wrong, rewrite it.
+1. RED. Write the test that describes the behaviour. Run it. Record the failure output in
+   your report. If it passes immediately, the test is wrong, rewrite it.
 2. GREEN. Write the smallest implementation that makes it pass. Run the test again.
 3. REFACTOR. Clean up names and duplication with the test still green.
 

@@ -8,9 +8,9 @@ Use the `tdd-engineer` subagent to implement the following behaviour, test-first
 
 $ARGUMENTS
 
-Non-negotiable sequence, and you must show me the output of each step:
-1. Write the test. Run it. Show me the red failure.
-2. Write the minimum code to pass. Run it. Show me green.
+Non-negotiable sequence:
+1. Write the test. Run it. Confirm it fails, and quote the failure in your report.
+2. Write the minimum code to pass. Run it.
 3. Refactor with tests still green.
 
 If the first run passes, the test does not actually test the behaviour. Rewrite it.
