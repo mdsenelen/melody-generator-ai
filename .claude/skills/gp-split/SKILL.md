@@ -19,7 +19,7 @@ Implement GP1. Do not touch GP2 through GP5.
 5. Extract shared pieces into components only where both routes actually use them. Do
    not speculatively componentise.
 
-Verify: `npx prettier --check .`, backend pytest, dev server up, both routes load, and the
+Verify: `cd frontend && npm run format:check`, backend pytest, dev server up, both routes load, and the
 full analyse flow completes from `/analyse`. Commit GP1 alone. No push, no PR.
 
 Report at the end: files moved, links changed, anything that surprised you.

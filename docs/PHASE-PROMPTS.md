@@ -214,7 +214,7 @@ Session: `/clear`, then `/harden`
 > bundle and every NEXT_PUBLIC_ variable is justified; every panel has its own error
 > boundary with a real recovery action; every caught error maps to a DomainError with a safe
 > user-facing message so no stack trace, internal endpoint, or model detail reaches the UI;
-> and pnpm audit at high level is clean or every exception is documented. Write a test for
+> and npm audit at high level is clean or every exception is documented. Write a test for
 > each Critical fix, and prove the boundary works by deliberately throwing inside the player.
 
 Done when: no Critical or High findings, a thrown error in the player leaves the app usable.
@@ -228,8 +228,8 @@ Session: `/clear`, then `/ci`
 > push to main: quality running lint and typecheck after a frozen-lockfile install; test
 > running the unit suite with coverage uploaded as an artifact; e2e installing Chromium and
 > running Playwright against fixtures only, uploading the trace and HTML report on failure;
-> and build running pnpm build and failing if the workspace route exceeds its 250 kB gzipped
-> first-load budget. Cache the pnpm store and the Playwright browsers so a cold run stays
+> and build running npm run build and failing if the workspace route exceeds its 250 kB gzipped
+> first-load budget. Cache the npm cache and the Playwright browsers so a cold run stays
 > under six minutes. No job may reach the real model, the real backend, or any secret. Add a
 > concurrency group per branch that cancels in-progress runs. Then validate the YAML and
 > dry-run each command locally so CI does not fail on something we could have caught here.

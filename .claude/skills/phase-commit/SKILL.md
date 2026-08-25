@@ -2,13 +2,13 @@
 description: Close out the current phase, verify the gates, update the progress log, and commit.
 argument-hint: "<phase number and name>"
 disable-model-invocation: true
-allowed-tools: Bash(pnpm *) Bash(git add*) Bash(git commit*) Bash(git status*) Bash(git diff*) Read Edit Write
+allowed-tools: Bash(npm *) Bash(npx *) Bash(git add*) Bash(git commit*) Bash(git status*) Bash(git diff*) Read Edit Write
 ---
 
 ## Gates
-- typecheck: !`pnpm typecheck 2>&1 | tail -5 || true`
-- lint: !`pnpm lint 2>&1 | tail -5 || true`
-- tests: !`pnpm test --silent 2>&1 | tail -8 || true`
+- typecheck: !`npm run typecheck 2>&1 | tail -5 || true`
+- lint: !`npm run format:check 2>&1 | tail -5 || true`
+- tests: !`npm test --silent 2>&1 | tail -8 || true`
 - staged: !`git status --short || true`
 
 ## Task

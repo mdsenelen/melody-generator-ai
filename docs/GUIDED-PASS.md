@@ -19,7 +19,7 @@ no explaining the codebase back to me.
 2. **Move code before rewriting it.** Where a phase says "move", the behaviour must be
    equivalent from the user's side. Refactors that were not asked for belong in a
    separate phase.
-3. **Verify every phase**: `npx prettier --check .`, the backend pytest suite, and a
+3. **Verify every phase**: `cd frontend && npm run format:check`, the backend pytest suite, and a
    manual smoke check (dev server up, affected page loads, affected flow completes).
    The Stop hook enforces the first two. The smoke check is on you.
 4. **Decide, do not ask, where the repo answers the question.** Where a phase gives you
@@ -67,7 +67,7 @@ user-guide section. Move the current analyse / upload / transcribe / download UI
 Fix internal nav links.
 
 **Gate:** both routes load, every existing flow still completes from `/analyse`,
-`npx prettier --check .` clean, one commit.
+`cd frontend && npm run format:check` clean, one commit.
 
 ---
 

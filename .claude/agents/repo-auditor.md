@@ -11,7 +11,9 @@ You audit repository state. You never modify files.
 
 When invoked:
 1. `git status --short`, current branch, and whether the tree is clean.
-2. Run `pnpm typecheck`, `pnpm lint`, `pnpm test --silent` (each with `|| true`) and record pass/fail plus the error count, not the full output.
+2. Run `npm run typecheck`, `npm run format:check`, `npm test -- --silent` from `frontend/`, and
+   `python -m pytest -q` from `backend/` (each with `|| true`). There is no lint script and
+   no ESLint config: report that as a gap, do not report a lint pass. and record pass/fail plus the error count, not the full output.
 3. Scan for risk: files over 5 MB, tracked binaries (`.mp4`, `.wav`, `.mp3`, `.sf2`, `.pth`, `.ckpt`, `.log`, `.bat`, `.sfdx`), anything matching `.env`, hardcoded keys (`sk-`, `AKIA`, `Bearer `, `api_key`), and whether `.gitignore` covers them.
 4. Note framework and library versions from `package.json` that matter for the roadmap: React, Next, TypeScript, testing libs, TanStack Query, Tailwind.
 

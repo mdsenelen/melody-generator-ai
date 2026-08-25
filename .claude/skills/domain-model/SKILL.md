@@ -14,7 +14,7 @@ Requirements:
 - Put the domain in `src/domain/`, framework-free, no React import anywhere in it.
 - Write the transition function as pure code with an exhaustive `switch`, so an unhandled state is a compile error.
 - Do not change UI behaviour in this phase. This is a type and state refactor. The app must behave identically when you finish.
-- `pnpm typecheck` must pass with zero errors and zero new `any`.
+- `npm run typecheck` must pass with zero errors and zero new `any`.
 
 Write the union and the transition table into `docs/adr/` as part of this phase, then
 implement against it. State any impossible state the old code allowed.

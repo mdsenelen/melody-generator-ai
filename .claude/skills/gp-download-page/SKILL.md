@@ -18,5 +18,5 @@ Implement GP3.
    code paths, do not leave both.
 
 Verify: a job-id URL opens cold in a new tab and serves the result. A fabricated id shows
-the empty state, not a crash or a blank page. `npx prettier --check .` and pytest green.
+the empty state, not a crash or a blank page. `cd frontend && npm run format:check` and pytest green.
 Commit GP3 alone.

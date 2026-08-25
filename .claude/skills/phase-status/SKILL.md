@@ -1,6 +1,6 @@
 ---
 description: Show roadmap progress, which phase is current, what the last phase delivered, and what the next concrete step is.
-allowed-tools: Read Grep Glob Bash(git log*) Bash(pnpm *)
+allowed-tools: Read Grep Glob Bash(git log*) Bash(npm *) Bash(npx *)
 ---
 
 ## Repo signal

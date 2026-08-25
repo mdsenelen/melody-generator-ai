@@ -11,7 +11,7 @@ Use the `domain-architect` subagent.
 3. Every request carries an `AbortSignal`. Cancelling a job actually aborts the request, and the UI returns to `idle`.
 4. Query keys are structured and typed, not string concatenation.
 5. Retry policy is explicit: retry transient failures with backoff, never retry a validation error. The free-tier backend cold-starts, so the first request needs a longer timeout and a "waking up the server" message rather than a failure.
-6. Kill every remaining `any`. Run `pnpm exec tsc --noEmit` and fix what it finds.
+6. Kill every remaining `any`. Run `npx tsc --noEmit` and fix what it finds.
 
 Do not change visual behaviour. Report the before and after `any` count.
 

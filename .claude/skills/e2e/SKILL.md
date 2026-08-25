@@ -2,7 +2,7 @@
 description: Phase 3. Write or repair Playwright end-to-end journeys with mocked API responses so tests never call the real model.
 argument-hint: "[journey name, or 'all']"
 disable-model-invocation: true
-allowed-tools: Bash(pnpm test:e2e*) Bash(pnpm exec playwright*)
+allowed-tools: Bash(npm run test:e2e*) Bash(npx playwright*)
 ---
 
 Use the `e2e-runner` subagent.

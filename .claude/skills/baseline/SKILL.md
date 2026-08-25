@@ -2,7 +2,7 @@
 description: Phase 0. Audit repository state, security risks, and repo hygiene, then produce a baseline report. Run this before starting any other phase.
 argument-hint: "[optional area to focus on]"
 disable-model-invocation: true
-allowed-tools: Read Grep Glob Bash(git *) Bash(pnpm *) Bash(du *) Bash(find *)
+allowed-tools: Read Grep Glob Bash(git *) Bash(npm *) Bash(npx *) Bash(du *) Bash(find *)
 ---
 
 ## Current state

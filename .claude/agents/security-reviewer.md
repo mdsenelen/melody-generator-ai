@@ -15,6 +15,6 @@ Checklist:
 4. Network. Absolute URLs pointing at the wrong origin, missing timeout, missing abort, credentials sent cross-origin, permissive CORS assumptions baked into the client.
 5. Error surface. Stack traces, internal endpoints, and model or infrastructure detail leaking into user-facing messages. Every caught error maps to a safe `DomainError` with a generic user message and a detailed console entry in development only.
 6. Resilience. Error boundaries scoped per panel so an audio player crash does not blank the workspace. A boundary that catches must offer a recovery action, not a dead end.
-7. Dependencies. `pnpm audit --audit-level=high || true`, and flag anything unmaintained that touches audio parsing or file handling.
+7. Dependencies. `npm audit --audit-level=high || true`, and flag anything unmaintained that touches audio parsing or file handling.
 
 Output: severity (Critical / High / Medium / Low), file and line, the attack or failure scenario in one sentence, and the concrete fix. No generic advice.

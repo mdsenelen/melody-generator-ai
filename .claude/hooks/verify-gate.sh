@@ -1,40 +1,31 @@
 #!/usr/bin/env bash
-# Stop hook. Fires when Claude thinks it is done, and refuses to let the turn end
-# while the verification gates are red. Claude sees the failure on stderr and has to
-# fix it before it can stop.
-#
-# This turns "don't break what already works" from a request into a mechanical rule.
-# A prompt instruction decays over a long session. A hook does not.
-#
-# No jq dependency: macOS does not ship it, and a hook that silently no-ops is worse
-# than no hook.
-#
-# Escape hatch:  touch .claude/skip-gate     (delete it to re-arm)
-# Backend tests: GATE_PYTEST=1 claude        (opt in, they are slow)
+# Stop hook. Refuses to let a turn end while the verification gates are red.
+# Escape hatch:  touch .claude/skip-gate
+# Backend tests: GATE_PYTEST=1 claude
 
 set -uo pipefail
 INPUT=$(cat)
 
 command -v git >/dev/null 2>&1 || exit 0   # fail open, never closed
 
-# Anchor to the repo root. Claude Code may be launched from frontend/ or backend/, and
-# every path below is root-relative. Without this the gate silently checks nothing.
 ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -n "$ROOT" ] && cd "$ROOT" 2>/dev/null || exit 0
+
+# macOS has no GNU `timeout`. Use it when present, gtimeout if coreutils is installed,
+# otherwise run without a timeout rather than failing the command outright.
+TO=""
+command -v timeout  >/dev/null 2>&1 && TO="timeout"
+[ -z "$TO" ] && command -v gtimeout >/dev/null 2>&1 && TO="gtimeout"
+tmo() { s="$1"; shift; if [ -n "$TO" ]; then "$TO" "$s" "$@"; else "$@"; fi; }
+XPRE=""; [ -n "$TO" ] && XPRE="$TO 30"
 
 jstr()  { printf '%s' "$INPUT" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1; }
 jtrue() { printf '%s' "$INPUT" | grep -Eq "\"$1\"[[:space:]]*:[[:space:]]*true"; }
 
-# 1. Never loop. If we already blocked once this turn, let Claude stop.
 jtrue stop_hook_active && exit 0
-
-# 2. Planning turns write no code, so there is nothing to verify.
 [ "$(jstr permission_mode)" = "plan" ] && exit 0
-
-# 3. Manual override.
 [ -f .claude/skip-gate ] && exit 0
 
-# 4. Only gate when something actually changed. A conversation turn is not a build.
 CHANGED=$( { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | sort -u )
 [ -z "$CHANGED" ] && exit 0
 
@@ -44,27 +35,46 @@ PY=$(printf '%s\n' "$CHANGED" | grep -E '\.py$'            || true)
 
 FAIL=""
 
-# A missing tool is not a failing check. Skip what is not installed.
-have() { timeout 20 npx --no-install "$1" --version >/dev/null 2>&1; }
-
-if [ -n "$TS" ] && have prettier; then
-  if ! printf '%s\n' "$TS" | xargs -r timeout 30 npx --no-install prettier --check >/tmp/gate-fmt.txt 2>&1; then
-    FAIL="${FAIL}
-FORMAT: prettier --check failed on:
-$(head -15 /tmp/gate-fmt.txt)"
-  fi
+PKG=""
+for d in frontend web app .; do
+  [ -x "$d/node_modules/.bin/prettier" ] && { PKG="$d"; break; }
+done
+if [ -z "$PKG" ]; then
+  for d in frontend web app .; do
+    [ -f "$d/package.json" ] && { PKG="$d"; break; }
+  done
 fi
 
-if [ -n "$TS" ] && [ -f frontend/tsconfig.json ] && (cd frontend && have tsc); then
-  if ! (cd frontend && timeout 90 npx --no-install tsc --noEmit) >/tmp/gate-tsc.txt 2>&1; then
+if [ -n "$TS" ] && [ -n "$PKG" ]; then
+  if [ "$PKG" = "." ]; then
+    REL="$TS"
+  else
+    REL=$(printf '%s\n' "$TS" | grep "^$PKG/" | sed "s|^$PKG/||" || true)
+  fi
+
+  if [ -n "$REL" ] && [ -x "$PKG/node_modules/.bin/prettier" ]; then
+    if ! printf '%s\n' "$REL" | ( cd "$PKG" && xargs $XPRE ./node_modules/.bin/prettier --check ) >/tmp/gate-fmt.txt 2>&1; then
+      FAIL="${FAIL}
+FORMAT: prettier --check failed. Run: cd $PKG && npm run format
+$(grep -v '^Checking formatting' /tmp/gate-fmt.txt | head -12)"
+    fi
+  elif [ -n "$REL" ]; then
     FAIL="${FAIL}
-TYPECHECK: tsc --noEmit failed:
+TOOLING: prettier is not installed in $PKG. The format gate cannot run.
+Fix with: cd $PKG && npm install"
+  fi
+
+  if [ -f "$PKG/tsconfig.json" ] && [ -x "$PKG/node_modules/.bin/tsc" ]; then
+    if ! ( cd "$PKG" && tmo 120 ./node_modules/.bin/tsc --noEmit ) >/tmp/gate-tsc.txt 2>&1; then
+      FAIL="${FAIL}
+TYPECHECK: tsc --noEmit failed. Run: cd $PKG && npm run typecheck
 $(grep -E 'error TS' /tmp/gate-tsc.txt | head -10)"
+    fi
   fi
 fi
 
 if [ -n "$PY" ] && [ "${GATE_PYTEST:-0}" = "1" ] && command -v python3 >/dev/null 2>&1; then
-  if ! (cd backend && timeout 150 python3 -m pytest -q) >/tmp/gate-pytest.txt 2>&1; then
+  if ! (cd backend && tmo 150 python3 -m pytest -q) >/tmp/gate-pytest.txt 2>&1; then
     FAIL="${FAIL}
 PYTEST: backend suite failed:
 $(tail -15 /tmp/gate-pytest.txt)"

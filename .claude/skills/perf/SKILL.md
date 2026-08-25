@@ -2,7 +2,7 @@
 description: Phase 9. Measure and fix frontend performance, bundle size, main-thread blocking, and Worker offloading.
 argument-hint: "[optional: bundle | render | audio]"
 disable-model-invocation: true
-allowed-tools: Bash(pnpm build*) Bash(pnpm analyze*)
+allowed-tools: Bash(npm run build*) Bash(npm run analyze*)
 ---
 
 Use the `perf-analyst` subagent to measure first, then use `audio-viz-dev` to fix what it finds.

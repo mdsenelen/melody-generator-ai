@@ -18,7 +18,7 @@ Merge the setup files into what already exists. You are adding, not replacing.
 The existing file states **facts about this repository**. The additions state **standards
 to hold the work to**. Facts win over standards every time.
 
-- If `CLAUDE.additions.md` says `pnpm test` and the existing CLAUDE.md or `package.json`
+- If `CLAUDE.additions.md` says `npm test` and the existing CLAUDE.md or `package.json`
   says `npm test`, the existing one is right. Fix the additions, not the repo.
 - Same for directory paths, the Python environment, deploy targets, and env var names.
   I wrote the additions without reading the repo, so every concrete detail in them is a

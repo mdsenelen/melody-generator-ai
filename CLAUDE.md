@@ -84,9 +84,29 @@ Load-bearing facts worth keeping inline because nearly every task touches them:
 - No console errors or React warnings in the browser.
 - One logical commit with a conventional-commits message.
 
+## Release gate (phases touching the API contract, persistence, or object storage)
+
+Applies to GP2, GP3, and roadmap Phase 8. Not to every commit. The per-change
+Definition of Done above still applies on top of this.
+
+- Frontend and backend deploy separately, so a contract change ships either
+  backward-compatible or in two ordered steps. State which, in the commit body.
+- Migrations run forward against both a fresh database and the current
+  production schema.
+- No change to an artifact path or bucket key format without a fallback that
+  reads the old format. Existing jobs must keep resolving.
+- Verify against the deployed app, not just localhost, before closing the phase.
+
 ## Phase discipline
 
-Work is organised as phases 0–15 in `docs/ROADMAP.md`, each with a slash command in `.claude/skills/` and a prompt in `docs/PHASE-PROMPTS.md`. One phase per session: plan first, get approval, then build. At the end of a phase, append what changed to `docs/PROGRESS.md` via `/phase-commit`.
+Two programmes, run in this order:
+
+1. **`docs/GUIDED-PASS.md`** — GP1–GP5, product fixes to the app as it exists (commands `/gp-*`). Run first: GP2 delivers what roadmap Phase 8 describes, so doing the roadmap first means building that async UX twice.
+2. **`docs/ROADMAP.md`** — Phase 0–15, the engineering bar, each with a slash command in `.claude/skills/` and a prompt in `docs/PHASE-PROMPTS.md`.
+
+One phase per session. Build, verify, commit, report — no diff narration, no explaining the codebase back. Where a phase gives a decision rule, apply it and state which branch you took; stop and ask only when the repo genuinely doesn't settle the question and the choice is expensive to reverse. At the end of a phase, append what changed to `docs/PROGRESS.md` via `/phase-commit`.
+
+A Stop hook (`.claude/hooks/verify-gate.sh`) mechanically blocks ending a turn while `prettier --check` or `tsc --noEmit` are red on changed files (pytest only runs under `GATE_PYTEST=1`, since it's slow). Escape hatch: `touch .claude/skip-gate` — delete it to re-arm.
 
 ## House style
 

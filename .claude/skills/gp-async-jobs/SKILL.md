@@ -43,4 +43,4 @@ stale `running` rows on startup or mark them failed with a retry affordance. Say
 you chose and why in the commit body.
 
 Verify: a clip over 60 seconds completes end to end, a page reload mid-job recovers,
-`npx prettier --check .` and pytest green. Commit GP2 alone.
+`cd frontend && npm run format:check` and pytest green. Commit GP2 alone.

@@ -17,4 +17,4 @@ Implement GP5.
 3. Swap every call site. Delete the text-only states, do not leave both.
 4. One test covering the accessible name and the reduced-motion branch.
 
-Verify: no text-only loading state remains, `npx prettier --check .` green. Commit GP5 alone.
+Verify: no text-only loading state remains, `cd frontend && npm run format:check` green. Commit GP5 alone.

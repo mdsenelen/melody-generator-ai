@@ -13,7 +13,10 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh run:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [
       "Read(./.env)",
