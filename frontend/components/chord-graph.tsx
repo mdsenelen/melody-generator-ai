@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ChordDiagram } from "./chord-diagram";
+import { Spinner } from "./spinner";
 import { requestJson } from "../app/lib/request";
 
 export const INSTRUMENT_OPTIONS = [
@@ -152,7 +153,7 @@ export function ChordGraph({
             disabled={loading}
             className="h-fit rounded-2xl border border-purple-400/40 bg-purple-500/15 px-4 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Rendering..." : "Play progression"}
+            {loading ? <Spinner size="sm" label="Rendering" /> : "Play progression"}
           </button>
         </div>
 

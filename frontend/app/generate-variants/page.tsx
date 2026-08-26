@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
+import { Spinner } from "../../components/spinner";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { requestJson } from "../lib/request";
 import { useSessionStore } from "../lib/session-store";
@@ -214,7 +215,7 @@ export default function GenerateVariantsPage() {
               disabled={loading || (!selectedFile && !useStoredUpload)}
               className="rounded-2xl border border-purple-400/40 bg-purple-500/15 px-5 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Generating..." : "Generate variants"}
+              {loading ? <Spinner size="sm" label="Generating variants" /> : "Generate variants"}
             </button>
           </div>
 

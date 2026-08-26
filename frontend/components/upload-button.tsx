@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { uploadFile } from "../app/lib/upload";
+import { Spinner } from "./spinner";
 
 export type UploadSuccessPayload = {
   id: string;
@@ -32,7 +33,6 @@ export function UploadButton({
     }
 
     setIsLoading(true);
-    setStatus("Uploading...");
 
     try {
       const { id, filename } = await uploadFile(file);
@@ -50,7 +50,7 @@ export function UploadButton({
   return (
     <div className="flex flex-col items-start gap-3">
       <label className="relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-purple-400/40 bg-purple-600/20 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:border-purple-300 hover:bg-purple-500/25">
-        <span>{isLoading ? "Uploading..." : label}</span>
+        {isLoading ? <Spinner size="sm" label="Uploading" /> : <span>{label}</span>}
         <input
           type="file"
           accept=".wav,.mp3,.flac,.ogg,.m4a,.webm,audio/*"

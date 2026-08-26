@@ -6,6 +6,7 @@ import { AudioRecorder } from "../../components/audio-recorder";
 import { ChordDiagram } from "../../components/chord-diagram";
 import ErrorBoundary from "../../components/error-boundary";
 import { ErrorToast } from "../../components/error-toast";
+import { Spinner } from "../../components/spinner";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { useSessionStore } from "../lib/session-store";
 import {
@@ -73,27 +74,10 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
-function AnalysisAnimation() {
-  const heights = [40, 65, 50, 80, 45, 70, 35];
-  const durations = ["0.7s", "0.85s", "0.65s", "0.9s", "0.75s", "0.8s", "0.6s"];
+function AnalysisAnimation({ statusMessage }: { statusMessage: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-14">
-      <div className="flex h-20 items-end gap-[6px]">
-        {heights.map((h, i) => (
-          <div
-            key={i}
-            className="w-3 animate-bounce rounded-full bg-gradient-to-t from-purple-500 to-sky-400"
-            style={{
-              height: `${h}px`,
-              animationDelay: `${i * 0.11}s`,
-              animationDuration: durations[i],
-            }}
-          />
-        ))}
-      </div>
-      <p className="animate-pulse text-sm font-semibold tracking-wide text-white/75">
-        Analysing your audio…
-      </p>
+      <Spinner size="lg" label={statusMessage} />
       <p className="max-w-xs text-center text-xs text-white/45">
         The first analysis after a period of inactivity can take up to a couple of minutes while the
         backend wakes up — later ones are much faster.
@@ -361,7 +345,7 @@ export default function AnalysePage() {
             <div className="space-y-6">
               {isAnalyzing ? (
                 <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                  <AnalysisAnimation />
+                  <AnalysisAnimation statusMessage={statusMessage} />
                 </section>
               ) : null}
 

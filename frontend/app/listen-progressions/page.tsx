@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ChordGraph } from "../../components/chord-graph";
+import { Spinner } from "../../components/spinner";
 import { requestJson } from "../lib/request";
 
 type Progression = {
@@ -87,7 +88,7 @@ export default function ListenProgressionsPage() {
     <div className="space-y-6">
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+          <Spinner size="lg" label="Loading chord progressions" />
         </div>
       ) : error ? (
         <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
