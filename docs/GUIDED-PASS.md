@@ -35,29 +35,42 @@ no explaining the codebase back to me.
 
 ## Context already confirmed
 
-Treat this section as fact. It was verified against the codebase, so do not re-derive it,
-and if you find something here that is no longer true, say so before acting on it.
+Verified against the repo on 26 Aug 2026. Treat as fact. If you find something here that
+is no longer true, say so before acting on it.
 
-- `frontend/app/page.tsx` (559 lines) is currently BOTH the landing page and the
-  analyse / transcribe / download experience.
-- There is no database wired into the codebase today. Persistence is plain files on disk
-  with a time-based cleanup loop (`DATA_RETENTION_HOURS`, default 24h), unrelated to the
-  30s analysis cap.
-- The real "30 second" limit is `MAX_ANALYSIS_DURATION_SEC` in `backend/app/inference.py`,
-  set to half of `GENERATION_TIMEOUT_SECONDS` (60s) to leave headroom under Render's
-  platform gateway timeout (~100s, not controlled by our env vars). `_run_generation`
-  already runs work in a thread pool and only wraps it with `asyncio.wait_for`, so the
-  thread keeps running past that timeout regardless.
-- Mood detection is a hardcoded heuristic (`heuristic_mood_from_metrics` in
-  `backend/app/model/colab_parity.py`) using only tempo, key, and average pitch. Likely
-  why neutral songs get labelled sad or happy.
-- Text-only "Uploading..." loading states exist in `upload-button.tsx` and
-  `generate-variants/page.tsx`. There is no shared spinner component yet.
+- **GP1 is complete.** `frontend/app/page.tsx` (111 lines) is the landing page.
+  `frontend/app/analyse/page.tsx` (573 lines) holds the analyse flow. Both routes build,
+  both have tests (`__tests__/pages/landing.test.tsx`, `__tests__/pages/analyse.test.tsx`).
+- **GP2 is complete, and larger than this brief originally described.** There is a real
+  async job system, not FastAPI `BackgroundTasks`:
+  - `backend/app/jobs/{queue,store,worker,service}.py` plus a separate worker process
+    entrypoint at `backend/app/worker_main.py`
+  - `SQLJobStore` selects Postgres when `DATABASE_URL` is set, and falls back to SQLite
+    for local dev with a logged warning (`store.py:594-598`)
+  - stale `processing` jobs are reclaimed, and `queued` jobs are re-enqueued at startup
+  - object storage is integrated via `get_object_storage`
+  - frontend polls through `frontend/app/lib/transcribeJob.ts`
+    (`getTranscribeJob`, `pollTranscribeJob`), consumed at `analyse/page.tsx:227`
+  Do not re-implement any of this.
+- Frontend library code lives at `frontend/app/lib/`, not `frontend/lib/`.
+- Downloads are currently addressed by filename via `/api/download/[filename]`.
+  There is no job-id result route. This is what GP3 changes.
+- No `<Spinner />` component exists. Text-only loading states confirmed at
+  `components/upload-button.tsx:35` and `:53`, and `app/analyse/page.tsx:95`, `:157`, `:244`.
 - Training notebook: `backend/melody_generation_ORDERED_FINAL_(1).ipynb`.
-- The frontend already has cold-start retry logic around transcription that deliberately
-  skips retrying on a 504. Any new async flow must respect that, not duplicate it.
+- Commands are npm, run from `frontend/`: `npm run typecheck`, `npm run format:check`,
+  `npm test`, `npm run build`. There is no lint script and no ESLint config.
+- Test suite baseline: 10 suites, 59 tests, all passing.
 
----
+## Status
+
+| Phase | State |
+|---|---|
+| GP1 split pages | complete |
+| GP2 async jobs | complete |
+| GP3 download page | open, next |
+| GP4 notebook | open, independent |
+| GP5 spinner | open |
 
 ## GP1 — Split the landing page from the analyse page
 Command: `/gp-split`
