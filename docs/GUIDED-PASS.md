@@ -70,7 +70,7 @@ is no longer true, say so before acting on it.
 | GP2 async jobs | complete |
 | GP3 download page | open, next |
 | GP4 notebook | open, independent |
-| GP5 spinner | open |
+| GP5 spinner | complete |
 
 ## GP1 — Split the landing page from the analyse page
 Command: `/gp-split`
