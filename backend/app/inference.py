@@ -1903,13 +1903,21 @@ async def generate_progression_route(payload: GenerateProgressionRequest) -> dic
     if not cleaned_progression:
         raise HTTPException(
             status_code=400, detail="Progression must include at least one chord")
-    return await _run_generation(
+    result = await _run_generation(
         _generate_progression_payload,
         cleaned_progression,
         bpm=float(payload.bpm),
         instrument=int(payload.instrument),
         prefix="progression",
     )
+    # Gives this result a shareable job_id on the same result page as
+    # transcription jobs, without re-uploading anything to get there -- see
+    # jobs/service.create_completed_job (GP3).
+    from app.jobs.service import create_completed_job
+
+    job = await run_in_threadpool(create_completed_job, "progression", result)
+    result["job_id"] = job.id
+    return result
 
 
 @router.post(
@@ -1931,6 +1939,7 @@ async def generate_variants_route(
 
     if file is not None:
         raw = await _read_upload_bytes(file)
+        source_name = file.filename or "audio"
     else:
         input_path = _resolve_upload_path(filename, upload_id)
         if input_path is None:
@@ -1939,17 +1948,25 @@ async def generate_variants_route(
                 detail="No file uploaded and no matching prior upload found",
             )
         raw = input_path.read_bytes()
+        source_name = input_path.name
 
     if not isinstance(seed, int):
         seed = None
 
-    return await _run_generation(
+    result = await _run_generation(
         generate_iddm_variants,
         audio_bytes=raw,
         n_variants=count,
         temperatures=_parse_variant_temperatures(temperatures, count),
         seed=seed,
     )
+    # See generate_progression_route above -- same job-id-for-a-result-page
+    # mechanism (GP3).
+    from app.jobs.service import create_completed_job
+
+    job = await run_in_threadpool(create_completed_job, source_name, result)
+    result["job_id"] = job.id
+    return result
 
 
 @router.post("/generate-accompaniment")

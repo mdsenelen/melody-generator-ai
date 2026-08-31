@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ChordDiagram } from "./chord-diagram";
@@ -22,6 +23,7 @@ type ProgressionResponse = {
   wav_download_path: string;
   bpm: number;
   instrument: number;
+  job_id: string;
 };
 
 type ChordGraphProps = {
@@ -169,20 +171,12 @@ export function ChordGraph({
               Your browser does not support the audio element.
             </audio>
             <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                href={result.midi_download_path ?? `data:audio/midi;base64,${result.midi_b64}`}
-                download={result.midi_filename}
+              <Link
+                href={`/result/${result.job_id}`}
                 className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
               >
-                Download MIDI
-              </a>
-              <a
-                href={result.wav_download_path}
-                download={result.wav_filename}
-                className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-              >
-                Download WAV
-              </a>
+                View &amp; download result
+              </Link>
             </div>
           </div>
         ) : null}

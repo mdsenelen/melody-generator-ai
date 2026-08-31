@@ -5,6 +5,7 @@ import io
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -869,6 +870,90 @@ def test_create_transcribe_job_route_404_for_unknown_upload_reference(store, mon
         )
 
     assert exc.value.status_code == 404
+
+
+# --- service.create_completed_job (GP3: job id for synchronous results) ----
+
+
+def test_create_completed_job_is_immediately_completed_with_the_given_result(store, monkeypatch):
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+
+    result = {"variants": [{"index": 0}], "job_kind": "variants"}
+    job = service.create_completed_job("clip.wav", result)
+
+    assert job.status == COMPLETED
+    assert job.result == result
+    assert store.get_job(job.id).status == COMPLETED
+
+
+def test_create_completed_job_ids_are_unique_per_call(store, monkeypatch):
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+
+    job1 = service.create_completed_job("clip.wav", {"a": 1})
+    job2 = service.create_completed_job("clip.wav", {"a": 1})
+
+    assert job1.id != job2.id
+
+
+# --- routes.get_transcribe_job: expiry (GP3) --------------------------------
+
+
+def _backdate_job(store, job_id: str, hours_ago: float) -> None:
+    stamp = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+    conn = store._connect()
+    conn.execute(
+        "UPDATE transcription_jobs SET completed_at = ?, updated_at = ? WHERE id = ?",
+        (stamp, stamp, job_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_get_transcribe_job_route_reports_old_completed_job_as_expired(store, monkeypatch):
+    monkeypatch.setattr(job_routes, "get_job_store", lambda: store)
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(inference, "DATA_RETENTION_HOURS", 24.0)
+
+    job = service.create_completed_job("clip.wav", {"midi_filename": "gone.mid"})
+    _backdate_job(store, job.id, hours_ago=25.0)
+
+    payload = asyncio.run(job_routes.get_transcribe_job(job.id))
+
+    assert payload == {
+        "job_id": job.id,
+        "status": "expired",
+        "progress": 100,
+        "result": None,
+        "error": None,
+    }
+
+
+def test_get_transcribe_job_route_recent_completed_job_is_not_expired(store, monkeypatch):
+    monkeypatch.setattr(job_routes, "get_job_store", lambda: store)
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(inference, "DATA_RETENTION_HOURS", 24.0)
+
+    job = service.create_completed_job("clip.wav", {"midi_filename": "fresh.mid"})
+
+    payload = asyncio.run(job_routes.get_transcribe_job(job.id))
+
+    assert payload["status"] == "completed"
+    assert payload["result"] == {"midi_filename": "fresh.mid"}
+
+
+def test_get_transcribe_job_route_does_not_expire_a_queued_job(store, monkeypatch):
+    """A job stuck in 'queued' or 'processing' well past DATA_RETENTION_HOURS
+    is unusual, but it isn't a retention problem -- it never had generated
+    files to lose. Only terminal jobs are ever reported as expired."""
+    monkeypatch.setattr(job_routes, "get_job_store", lambda: store)
+    monkeypatch.setattr(inference, "DATA_RETENTION_HOURS", 0.001)
+
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    _backdate_job(store, job.id, hours_ago=1.0)  # completed_at is unset; updated_at moves instead
+
+    payload = asyncio.run(job_routes.get_transcribe_job(job.id))
+
+    assert payload["status"] == "queued"
 
 
 # --- main.py: RUN_WORKER_IN_PROCESS gating warm-up --------------------------

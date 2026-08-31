@@ -19,15 +19,21 @@ export type TranscriptionResult = {
   average_pitch: number;
 };
 
-export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed";
+export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed" | "expired";
 
-export type TranscribeJobStatusResponse = {
+// Generic over the result shape because GET /transcribe/{job_id} (see
+// getTranscribeJob below) also serves generate-variants and
+// generate-progression results now (see jobs/service.create_completed_job,
+// GP3) -- the store doesn't discriminate by job kind, only by id.
+export type JobStatusResponse<TResult> = {
   job_id: string;
   status: TranscribeJobStatus;
   progress: number;
-  result: TranscriptionResult | null;
+  result: TResult | null;
   error: string | null;
 };
+
+export type TranscribeJobStatusResponse = JobStatusResponse<TranscriptionResult>;
 
 // Bypasses the Next.js /api proxy (same reasoning as uploadFile in
 // lib/upload.ts): the file-upload fallback path below carries the full
@@ -58,8 +64,10 @@ export async function createTranscribeJob(
   });
 }
 
-export async function getTranscribeJob(jobId: string): Promise<TranscribeJobStatusResponse> {
-  return requestJson<TranscribeJobStatusResponse>(
+export async function getTranscribeJob<TResult = TranscriptionResult>(
+  jobId: string,
+): Promise<JobStatusResponse<TResult>> {
+  return requestJson<JobStatusResponse<TResult>>(
     getPublicBackendApiUrl(`/transcribe/${encodeURIComponent(jobId)}`),
     { method: "GET", expectedContentType: "application/json" },
   );
