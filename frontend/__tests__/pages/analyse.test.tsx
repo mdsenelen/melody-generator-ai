@@ -79,6 +79,13 @@ describe("Analyse page transcription flow", () => {
       expect(screen.getByRole("heading", { name: "my-riff.wav" })).toBeInTheDocument(),
     );
     expect(screen.getByText(/C major/)).toBeInTheDocument();
+    // GP3: the inline download buttons are gone in favour of a link to the
+    // job-id-addressed result page.
+    expect(screen.getByRole("link", { name: /view & download result/i })).toHaveAttribute(
+      "href",
+      "/result/job-1",
+    );
+    expect(screen.queryByRole("button", { name: /download midi/i })).not.toBeInTheDocument();
     // The file was already uploaded (mockedUploadFile above) -- job
     // creation must reference that upload instead of re-sending the file.
     expect(mockedCreateJob).toHaveBeenCalledWith(expect.any(File), {

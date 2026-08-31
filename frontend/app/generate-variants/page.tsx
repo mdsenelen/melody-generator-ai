@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
@@ -32,6 +33,7 @@ type VariantsResponse = {
     fluidsynth_available: boolean;
   };
   variants: Variant[];
+  job_id: string;
 };
 
 const moodMeta = {
@@ -49,13 +51,6 @@ function buildDefaultTemperatures(count: number) {
     return [0.7, 0.9, 1.0, 1.3];
   }
   return Array.from({ length: count }, (_, index) => Number((0.7 + index * 0.2).toFixed(2)));
-}
-
-function triggerBase64Download(filename: string, data: string, mimeType: string) {
-  const anchor = document.createElement("a");
-  anchor.href = `data:${mimeType};base64,${data}`;
-  anchor.download = filename;
-  anchor.click();
 }
 
 export default function GenerateVariantsPage() {
@@ -341,34 +336,12 @@ export default function GenerateVariantsPage() {
                 </p>
               )}
               <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    triggerBase64Download(
-                      result.variants[activeVariant].midi_filename,
-                      result.variants[activeVariant].midi_b64,
-                      "audio/midi",
-                    )
-                  }
+                <Link
+                  href={`/result/${result.job_id}`}
                   className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
                 >
-                  Download MIDI
-                </button>
-                {result.variants[activeVariant].wav_b64 ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      triggerBase64Download(
-                        result.variants[activeVariant].wav_filename,
-                        result.variants[activeVariant].wav_b64!,
-                        "audio/wav",
-                      )
-                    }
-                    className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-                  >
-                    Download WAV
-                  </button>
-                ) : null}
+                  View &amp; download result
+                </Link>
               </div>
             </div>
           ) : null}

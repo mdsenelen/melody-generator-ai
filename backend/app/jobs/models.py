@@ -12,6 +12,11 @@ QUEUED = "queued"
 PROCESSING = "processing"
 COMPLETED = "completed"
 FAILED = "failed"
+# Never stored -- computed at read time (see jobs/routes.py) once a
+# terminal job's generated files are old enough that DATA_RETENTION_HOURS
+# has almost certainly already deleted them from disk. Reported instead of
+# "completed"/"failed" so a stale link reads as gone, not as a fresh error.
+EXPIRED = "expired"
 
 # Statuses a job never leaves once reached.
 TERMINAL_STATUSES = {COMPLETED, FAILED}

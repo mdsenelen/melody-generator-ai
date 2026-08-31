@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
@@ -22,6 +23,7 @@ type TabKey = "upload" | "record";
 type AnalysisResult = TranscriptionResult & {
   sourceName: string;
   uploadedFilename: string;
+  jobId: string;
 };
 
 const PITCH_CLASS_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -60,13 +62,6 @@ function groupChordsByRoot(chords: string[]) {
     groups[root].push(chord);
     return groups;
   }, {});
-}
-
-function triggerBase64Download(filename: string, data: string, mimeType: string) {
-  const anchor = document.createElement("a");
-  anchor.href = `data:${mimeType};base64,${data}`;
-  anchor.download = filename;
-  anchor.click();
 }
 
 function createAudioObjectUrl(base64Audio: string, mimeType: string) {
@@ -239,6 +234,7 @@ export default function AnalysePage() {
         ...result,
         sourceName: file.name,
         uploadedFilename: stored.filename,
+        jobId: created.job_id,
       });
 
       useSessionStore.getState().setLastUpload({
@@ -466,35 +462,12 @@ export default function AnalysePage() {
                     <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
                       <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
                         <div className="flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              triggerBase64Download(
-                                analysisResult.midi_filename,
-                                analysisResult.midi_b64,
-                                "audio/midi",
-                              )
-                            }
+                          <Link
+                            href={`/result/${analysisResult.jobId}`}
                             className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
                           >
-                            Download MIDI
-                          </button>
-
-                          {analysisResult.wav_b64 ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                triggerBase64Download(
-                                  analysisResult.wav_filename || "transcription.wav",
-                                  analysisResult.wav_b64!,
-                                  "audio/wav",
-                                )
-                              }
-                              className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-                            >
-                              Download WAV
-                            </button>
-                          ) : null}
+                            View &amp; download result
+                          </Link>
                         </div>
 
                         {analysisAudioUrl ? (

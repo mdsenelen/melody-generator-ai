@@ -21,6 +21,8 @@ from fastapi import UploadFile
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app import inference  # noqa: E402
+from app.jobs import service as job_service  # noqa: E402
+from app.jobs.store import create_sqlite_job_store  # noqa: E402
 from app.model.colab_parity import ActorCritic, heuristic_mood_from_metrics
 
 
@@ -47,6 +49,15 @@ class _DummyCVAE(_DummyModule):
 @pytest.fixture(autouse=True)
 def reset_variant_bundle(monkeypatch):
     monkeypatch.setattr(inference, "_CVAE_IDDM_BUNDLE", None)
+
+
+@pytest.fixture(autouse=True)
+def isolated_job_store(tmp_path, monkeypatch):
+    """generate_variants_route/generate_progression_route now persist a
+    completed job on every call (see jobs/service.create_completed_job,
+    GP3) -- without this, every test in this file would write into the
+    real default backend/data/jobs.db instead of an isolated one."""
+    monkeypatch.setattr(job_service, "_JOB_STORE", create_sqlite_job_store(str(tmp_path / "jobs.db")))
 
 
 _NEW_CFG = {
@@ -524,6 +535,73 @@ def test_generate_variants_route_rejects_temperature_length_mismatch(monkeypatch
     assert exc.value.status_code == 400
     assert exc.value.detail == "temperatures array length must equal n_variants"
 
+
+def test_generate_variants_route_attaches_a_downloadable_result_job_id(monkeypatch):
+    """GP3: the inline download buttons on the variants page are replaced by
+    a link to a job-id result page, so this response must carry a job_id
+    that resolves to a completed job holding this exact result."""
+
+    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None):
+        return {
+            "n_variants": n_variants,
+            "temperatures": temperatures,
+            "mood_idx": 1,
+            "mood_label": "sad",
+            "model_status": {
+                "cvae": {"path": "cvae", "exists": True, "size_mb": 1.0, "loaded": True},
+                "iddm_ppo": {"path": "iddm", "exists": True, "size_mb": 1.0, "loaded": True},
+                "device": "cpu",
+                "load_error": None,
+                "fluidsynth_available": False,
+            },
+            "variants": [{"index": 0, "temperature": 0.7, "midi_filename": "variant_1.mid"}],
+        }
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+
+    response = asyncio.run(
+        inference.generate_variants_route(
+            file=UploadFile(filename="clip.wav", file=io.BytesIO(b"audio-bytes")),
+            n_variants=1,
+            temperatures="[0.7]",
+        )
+    )
+
+    assert "job_id" in response
+    stored = job_service.get_job_store().get_job(response["job_id"])
+    assert stored is not None
+    assert stored.status == "completed"
+    assert stored.result["variants"] == response["variants"]
+
+
+def test_generate_progression_route_attaches_a_downloadable_result_job_id(monkeypatch):
+    def fake_generate_progression_payload(progression, bpm, instrument, prefix):
+        return {
+            "progression": progression,
+            "bpm": bpm,
+            "instrument": instrument,
+            "midi_filename": "progression.mid",
+            "midi_download_path": "/api/download/progression.mid",
+            "wav_filename": "progression.wav",
+            "wav_download_path": "/api/download/progression.wav",
+            "detected_chords": progression,
+        }
+
+    monkeypatch.setattr(inference, "_generate_progression_payload", fake_generate_progression_payload)
+
+    from app.schemas import GenerateProgressionRequest
+
+    response = asyncio.run(
+        inference.generate_progression_route(
+            GenerateProgressionRequest(progression=["C", "G"], bpm=120.0, instrument=0)
+        )
+    )
+
+    assert "job_id" in response
+    stored = job_service.get_job_store().get_job(response["job_id"])
+    assert stored is not None
+    assert stored.status == "completed"
+    assert stored.result["midi_filename"] == "progression.mid"
 
 
 def test_model_status_route_does_not_load_models(monkeypatch):

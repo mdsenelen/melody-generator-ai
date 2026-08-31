@@ -108,3 +108,26 @@ def create_transcription_job(
     get_job_queue().enqueue(job.id)
     job.status = QUEUED
     return job
+
+
+def create_completed_job(source_filename: str, result: dict[str, Any]) -> Job:
+    """Persist an already-computed result -- from a synchronous generation
+    endpoint (generate-variants, generate-progression) that has no timeout
+    problem to fix and no async work left to do -- as a completed job, so it
+    gets a shareable job_id backed by the same jobs table and result page as
+    transcription jobs (see GP3 in docs/GUIDED-PASS.md). No queue or object
+    storage involvement: this drives the store straight through its normal
+    create -> ready -> claim -> complete sequence so the row ends up
+    indistinguishable from one a real worker processed, without adding any
+    new store method."""
+    store = get_job_store()
+    job, _ = store.create_job(
+        job_id=uuid.uuid4().hex, source_filename=source_filename, storage_key=""
+    )
+    store.mark_creation_ready(job.id)
+    claimed = store.claim_job(job.id, lease_seconds=60.0)
+    assert claimed is not None and claimed.lease_token is not None
+    store.mark_completed(job.id, result, lease_token=claimed.lease_token)
+    completed = store.get_job(job.id)
+    assert completed is not None
+    return completed
