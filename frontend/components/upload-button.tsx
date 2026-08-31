@@ -59,7 +59,9 @@ export function UploadButton({
           disabled={isLoading}
         />
       </label>
-      {status ? <p className="text-sm text-gray-300">{status}</p> : null}
+      <p className="min-h-[1.25rem] text-sm text-gray-300" aria-live="polite">
+        {status}
+      </p>
     </div>
   );
 }
