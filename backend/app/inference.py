@@ -15,30 +15,80 @@ import traceback
 import uuid
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:  # annotations only -- these pull in torch, deferred at runtime
+    from .model.colab_parity import MelodyCVAE
 
 import librosa
 import numpy as np
 import soundfile as sf
-import torch
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.rate_limit import rate_limiter
 
-from .model.colab_parity import (
-    ActorCritic,
-    MINENetwork,
-    MelStateEncoder,
-    MelodyCVAE,
-    MelodyPPOActorCritic,
-    TransitionDiscriminator,
-    build_mood_onehot,
+# torch costs ~150-250 MB RSS to import and is only needed by the generation
+# paths (CVAE / IDDM-PPO), never by module import or the transcription path.
+# On the 512 MiB deploy that gap is the difference between fitting and getting
+# OOM-killed. This proxy defers `import torch` to the first attribute access;
+# see docs/PROGRESS.md and the OOM investigation. The torch-free token/MIDI
+# helpers and mood heuristic come from `.model.tokens` directly.
+class _LazyModule:
+    def __init__(self, name: str) -> None:
+        self._lazy_name = name
+        self._lazy_mod: Any = None
+
+    def __getattr__(self, attr: str) -> Any:
+        if self._lazy_mod is None:
+            import importlib
+
+            self._lazy_mod = importlib.import_module(self._lazy_name)
+        return getattr(self._lazy_mod, attr)
+
+
+torch = _LazyModule("torch")
+
+# The CVAE / IDDM-PPO model classes and build_mood_onehot live in
+# colab_parity, which imports torch. They're resolved on demand (generation
+# paths only) instead of at module load. _lazy_model also lets tests keep
+# monkeypatching `inference.<Name>`; __getattr__ keeps `getattr(inference,
+# <Name>)` (and `from app.inference import <Name>`) working for the same.
+_LAZY_COLAB_NAMES = frozenset(
+    {
+        "ActorCritic",
+        "MINENetwork",
+        "MelStateEncoder",
+        "MelodyCVAE",
+        "TransitionDiscriminator",
+        "build_mood_onehot",
+    }
+)
+
+
+def _lazy_model(name: str) -> Any:
+    patched = globals().get(name)
+    if patched is not None:
+        return patched
+    from .model import colab_parity
+
+    return getattr(colab_parity, name)
+
+
+def __getattr__(name: str) -> Any:  # PEP 562
+    if name in _LAZY_COLAB_NAMES:
+        from .model import colab_parity
+
+        return getattr(colab_parity, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+from .model.tokens import (
     heuristic_mood_from_metrics,
     midi_to_tokens,
-    tokens_to_chord_idx,
     tokens_to_bar_idx,
+    tokens_to_chord_idx,
     tokens_to_midi,
 )
 from .chord_utils import get_all_chord_labels
@@ -82,7 +132,19 @@ AUDIO_CONFIG_PATH = WEIGHTS_DIR / "audio_params.json"
 CVAE_WEIGHTS_PATH = WEIGHTS_DIR / "cvae_weights.pth"
 IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def _resolve_device() -> str:
+    """Torch device string. Every supported deployment runs the pinned CPU
+    torch wheel, so this is "cpu" unless MELODY_DEVICE says otherwise. Kept a
+    plain string (torch accepts one anywhere a device is expected) so neither
+    device resolution nor the status payload ever forces the torch import.
+    """
+    return os.environ.get("MELODY_DEVICE", "cpu")
+
+
+def _device_label() -> str:
+    return _resolve_device()
+
+
 SUPPORTED_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".webm")
 GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", "60"))
 # Historically this was kept close to GENERATION_TIMEOUT_SECONDS (first 60s,
@@ -244,7 +306,7 @@ def _variant_model_status() -> dict[str, Any]:
             "size_mb": _checkpoint_size_mb(iddm_path),
             "loaded": bool(bundle.get("iddm_loaded", False)),
         },
-        "device": str(DEVICE),
+        "device": _device_label(),
         "load_error": bundle.get("load_error"),
         "fluidsynth_available": _fluidsynth_available(),
     }
@@ -299,6 +361,15 @@ def _load_cvae_iddm() -> dict[str, Any]:
 def _load_cvae_iddm_locked() -> dict[str, Any]:
     global _CVAE_IDDM_BUNDLE
 
+    # Resolved here rather than imported at module load: these pull in torch
+    # (via colab_parity) and only the generation paths reach this function.
+    # _lazy_model also honours a test monkeypatch on inference.<name>.
+    ActorCritic = _lazy_model("ActorCritic")
+    MINENetwork = _lazy_model("MINENetwork")
+    MelStateEncoder = _lazy_model("MelStateEncoder")
+    MelodyCVAE = _lazy_model("MelodyCVAE")
+    TransitionDiscriminator = _lazy_model("TransitionDiscriminator")
+
     def _err(detail: str) -> None:
         global _CVAE_IDDM_BUNDLE
         _CVAE_IDDM_BUNDLE = {
@@ -320,7 +391,7 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
                 _err("Model weights file is corrupted or incomplete")
             logger.info("Found joint checkpoint at %s (%.2f MB)", path, file_size / (1024 * 1024))
 
-            ckpt = torch.load(path, map_location=DEVICE)
+            ckpt = torch.load(path, map_location=_resolve_device())
             logger.info("CVAE checkpoint keys: %s", sorted(ckpt.keys()) if isinstance(ckpt, dict) else type(ckpt).__name__)
             logger.info("IDDM-PPO checkpoint keys: %s", sorted(ckpt.keys()) if isinstance(ckpt, dict) else type(ckpt).__name__)
 
@@ -329,7 +400,7 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
 
             cfg = dict(ckpt.get("cfg") or {})
             raw_alpha = ckpt.get("alpha", 0.1)
-            alpha = torch.tensor(float(raw_alpha), device=DEVICE)
+            alpha = torch.tensor(float(raw_alpha), device=_resolve_device())
 
             cvae_sd = ckpt["cvae"]
             state_enc_sd = ckpt.get("state_enc")
@@ -346,8 +417,8 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
                     _err("Model weights file is corrupted or incomplete")
                 logger.info("Found %s checkpoint at %s (%.2f MB)", label, path, file_size / (1024 * 1024))
 
-            cvae_ckpt = torch.load(CVAE_WEIGHTS_PATH, map_location=DEVICE)
-            iddm_ckpt = torch.load(IDDM_WEIGHTS_PATH, map_location=DEVICE)
+            cvae_ckpt = torch.load(CVAE_WEIGHTS_PATH, map_location=_resolve_device())
+            iddm_ckpt = torch.load(IDDM_WEIGHTS_PATH, map_location=_resolve_device())
             logger.info("CVAE checkpoint keys: %s", sorted(cvae_ckpt.keys()) if isinstance(cvae_ckpt, dict) else type(cvae_ckpt).__name__)
             logger.info("IDDM-PPO checkpoint keys: %s", sorted(iddm_ckpt.keys()) if isinstance(iddm_ckpt, dict) else type(iddm_ckpt).__name__)
 
@@ -357,7 +428,7 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
                 _err("IDDM-PPO checkpoint has an unexpected format")
 
             cfg = dict(cvae_ckpt.get("cfg") or {})
-            alpha = torch.tensor(0.1, device=DEVICE)
+            alpha = torch.tensor(0.1, device=_resolve_device())
 
             # Support both old key "model" and new key "cvae"
             cvae_sd = cvae_ckpt.get("cvae") or cvae_ckpt.get("model")
@@ -383,26 +454,26 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
         t_win = int(cfg.get("T_win", NOTEBOOK_VARIANT_AUDIO_DEFAULTS["T_win"]))
         n_moods = int(cfg.get("n_moods", 3))
 
-        cvae_model = MelodyCVAE(cfg).to(DEVICE)
+        cvae_model = MelodyCVAE(cfg).to(_resolve_device())
         cvae_model.load_state_dict(cvae_sd, strict=strict)
         cvae_model.eval()
 
-        state_encoder = MelStateEncoder(mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(DEVICE)
+        state_encoder = MelStateEncoder(mel_bins=mel_bins, T_win=t_win, enc_dim=enc_dim).to(_resolve_device())
         if state_enc_sd is not None:
             state_encoder.load_state_dict(state_enc_sd, strict=strict)
         state_encoder.eval()
 
-        discriminator = TransitionDiscriminator(enc_dim=enc_dim).to(DEVICE)
+        discriminator = TransitionDiscriminator(enc_dim=enc_dim).to(_resolve_device())
         if disc_sd is not None:
             discriminator.load_state_dict(disc_sd, strict=strict)
         discriminator.eval()
 
-        actor_critic = ActorCritic(enc_dim=enc_dim, latent_dim=latent_dim).to(DEVICE)
+        actor_critic = ActorCritic(enc_dim=enc_dim, latent_dim=latent_dim).to(_resolve_device())
         if ac_sd is not None:
             actor_critic.load_state_dict(ac_sd, strict=strict)
         actor_critic.eval()
 
-        mine = MINENetwork(sa_dim=enc_dim + latent_dim, sp_dim=enc_dim).to(DEVICE)
+        mine = MINENetwork(sa_dim=enc_dim + latent_dim, sp_dim=enc_dim).to(_resolve_device())
         if mine_sd is not None:
             mine.load_state_dict(mine_sd, strict=strict)
         mine.eval()
@@ -438,7 +509,7 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
 
 def get_runtime_status() -> dict[str, Any]:
     return {
-        "device": str(DEVICE),
+        "device": _device_label(),
         "vae_status": "cvae_iddm",
         "weights_dir": str(WEIGHTS_DIR),
         "basic_pitch_available": basic_pitch_predict is not None,
@@ -454,7 +525,7 @@ def get_model_info() -> dict[str, Any]:
         "model": "MelodyCVAE+IDDM-PPO",
         "latent_dim": 16,
         "audio_config": cfg["audio"],
-        "device": str(DEVICE),
+        "device": _device_label(),
         "status": "cvae_iddm",
         "weights_dir": str(WEIGHTS_DIR),
     }
@@ -729,7 +800,7 @@ def _resolve_upload_path(filename: Optional[str], upload_id: Optional[str]) -> O
 
 def _encode(audio: np.ndarray, cfg: dict[str, Any]) -> torch.Tensor:
     mel = _waveform_to_mel(audio, cfg)
-    return torch.tensor(mel, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(DEVICE)
+    return torch.tensor(mel, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(_resolve_device())
 
 
 def _decode_from_latent(model: MelodyCVAE, z: torch.Tensor) -> np.ndarray:
@@ -1376,7 +1447,7 @@ def _audio_to_iddm_mel(
     if mel_window.shape[1] < t_win:
         mel_window = np.pad(
             mel_window, ((0, 0), (0, t_win - mel_window.shape[1])))
-    return torch.tensor(mel_window[np.newaxis, ...], dtype=torch.float32, device=DEVICE)
+    return torch.tensor(mel_window[np.newaxis, ...], dtype=torch.float32, device=_resolve_device())
 
 
 def _token_ids_to_midi_bytes(token_ids: list[int], bpm: float) -> bytes:
@@ -1468,7 +1539,7 @@ def _randn_like(tensor: torch.Tensor, generator: Optional[torch.Generator]) -> t
 def _seed_generator(seed: Optional[int]) -> Optional[torch.Generator]:
     if seed is None:
         return None
-    return torch.Generator(device=DEVICE).manual_seed(seed)
+    return torch.Generator(device=_resolve_device()).manual_seed(seed)
 
 
 def generate_from_audio(
@@ -1552,6 +1623,8 @@ def generate_iddm_variants(
     temperatures: list[float],
     seed: Optional[int] = None,
 ) -> dict[str, Any]:
+    build_mood_onehot = _lazy_model("build_mood_onehot")  # torch-backed, gen path only
+
     try:
         generator = _seed_generator(seed)
         bundle = _load_cvae_iddm()
@@ -1585,12 +1658,12 @@ def generate_iddm_variants(
 
         # Pad or truncate seed tokens to seq_len
         if len(seed_tokens) < seq_len:
-            from .model.colab_parity import PAD_TOKEN
+            from .model.tokens import PAD_TOKEN
             seed_tokens = seed_tokens + [PAD_TOKEN] * (seq_len - len(seed_tokens))
         else:
             seed_tokens = seed_tokens[:seq_len]
 
-        seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=DEVICE).unsqueeze(0)
+        seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=_resolve_device()).unsqueeze(0)
         mood_idx = int(transcription["mood_idx"])
         chord_idx_val = tokens_to_chord_idx(seed_tokens)
         bar_idx_val = tokens_to_bar_idx(seed_tokens, n_bins=n_bar_bins)
@@ -1599,9 +1672,9 @@ def generate_iddm_variants(
             s_enc = bundle["state_enc"](mel_window)
             dist, _ = bundle["ac"].dist_and_value(s_enc)
             base_mu = bundle["cvae_model"].encode_mu(seed_t)
-            mood_oh = build_mood_onehot([mood_idx], n_moods=n_moods, device=DEVICE)
-            chord_t = torch.tensor([chord_idx_val], dtype=torch.long, device=DEVICE)
-            bar_t = torch.tensor([bar_idx_val], dtype=torch.long, device=DEVICE)
+            mood_oh = build_mood_onehot([mood_idx], n_moods=n_moods, device=_resolve_device())
+            chord_t = torch.tensor([chord_idx_val], dtype=torch.long, device=_resolve_device())
+            bar_t = torch.tensor([bar_idx_val], dtype=torch.long, device=_resolve_device())
             cond = bundle["cvae_model"].build_cond(mood_oh, chord_t, bar_t)
             alpha = bundle["alpha"].clamp(0.0, 1.0)
 
