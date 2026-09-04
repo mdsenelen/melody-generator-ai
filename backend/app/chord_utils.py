@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
-
 
 DEFAULT_CHORDS = [
     # Major (all 12 roots, both spellings where conventional)
@@ -44,6 +42,8 @@ def _load_chord_vocab() -> list[str]:
         return DEFAULT_CHORDS
 
     try:  # pragma: no cover
+        import torch  # local: only needed if a weights file is actually present
+
         model_data = torch.load(str(MODEL_PATH), map_location="cpu")
         chord_vocab = model_data.get("chord_vocab", [])
         if isinstance(chord_vocab, list) and chord_vocab:
