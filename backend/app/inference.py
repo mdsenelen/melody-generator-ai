@@ -159,11 +159,17 @@ GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", 
 # routes (e.g. /generate-variants), just not this one anymore. This cap is
 # no longer a timeout workaround; it exists purely to bound worst-case
 # per-job memory (decode is bounded to this many seconds via the header-probe
-# path in _read_audio_bytes below) and worst-case worker occupancy. 240s
-# (4 minutes) comfortably covers a full song while staying finite -- see
-# jobs/worker.py's DEFAULT_LEASE_SECONDS, which is sized with margin above
-# this value so a legitimately slow job is never mistaken for a dead one.
-MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "240"))
+# path in _read_audio_bytes below) and worst-case worker occupancy. Cut from
+# 240s to 60s as part of the OOM investigation (docs/PROGRESS.md): on the
+# 512MiB deploy, most of a transcription's memory turned out to be a fixed,
+# one-time librosa/numba/tflite load cost rather than audio-length-
+# proportional -- so this mainly bounds the worst case (a long real upload)
+# rather than the everyday one, but every MB of margin matters at this
+# ceiling, and a portfolio demo clip has no real reason to need more than a
+# minute. See jobs/worker.py's DEFAULT_LEASE_SECONDS, which is sized with
+# margin above this value so a legitimately slow job is never mistaken for
+# a dead one.
+MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 # /generate-variants also runs Basic Pitch internally (see
@@ -263,6 +269,42 @@ _CVAE_IDDM_LOAD_LOCK = threading.Lock()
 _BASIC_PITCH_LOAD_LOCK = threading.Lock()
 _BASIC_PITCH_MODEL: Optional[Any] = None
 
+# Serializes every heavy pipeline process-wide: the transcribe worker
+# (run_basic_pitch) and every generation route (via _run_generation) both
+# acquire this before doing real work. _BASIC_PITCH_LOAD_LOCK above only
+# serializes Basic Pitch against itself -- it does nothing to stop a
+# /generate-variants request (which separately loads torch, ~200-250MB) from
+# running concurrently with an in-flight transcribe job on this single
+# 512MiB instance. Found during the OOM investigation (docs/PROGRESS.md):
+# the two pipelines had no shared lock at all. Costs one request queuing
+# behind another; on this instance that's a better trade than a second
+# OOM-triggered restart.
+HEAVY_WORK_LOCK = threading.Lock()
+
+
+def _release_memory_to_os() -> None:
+    """Best-effort: ask glibc to hand freed heap pages back to the OS.
+
+    CPython (and glibc's malloc under it) doesn't do this on its own --
+    memory a job's large numpy/scipy/tflite buffers touched stays resident
+    as the process's new floor even after gc'd, for the rest of the
+    process's life. On the 512MiB deploy that's what turns a job that would
+    fit fine on a fresh process into an OOM kill a few jobs later (observed
+    directly: idle RSS ratcheted from ~94MB to ~500MB+ over a handful of
+    real transcriptions). Not a full guarantee -- glibc can only return
+    whole pages with no live objects on them -- but it costs nothing and
+    directly targets the ratchet. Safe no-op anywhere malloc_trim isn't
+    available (non-glibc, sandboxed, etc.).
+    """
+    try:
+        import ctypes
+        import gc
+
+        gc.collect()
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
 
 def _load_audio_cfg() -> dict[str, Any]:
     global _AUDIO_CFG
@@ -326,10 +368,23 @@ async def _run_generation(func, *args, **kwargs) -> Any:
     after this raises. What it does guarantee is that a single pathological
     request can no longer hang the client, or a caller awaiting it,
     indefinitely.
+
+    The actual call is serialized against every other heavy pipeline
+    (including the transcribe worker) via HEAVY_WORK_LOCK, and releases
+    memory back to the OS afterward — see both for why. The lock is
+    acquired inside the threadpool-run callable, not here, so a blocking
+    acquire never stalls the asyncio event loop.
     """
+    def _locked_call():
+        with HEAVY_WORK_LOCK:
+            try:
+                return func(*args, **kwargs)
+            finally:
+                _release_memory_to_os()
+
     try:
         return await asyncio.wait_for(
-            run_in_threadpool(func, *args, **kwargs),
+            run_in_threadpool(_locked_call),
             timeout=GENERATION_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError as exc:
@@ -1775,38 +1830,45 @@ def _generate_lanes_payload(
 
 def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]:
     _ = original_filename
-    transcription = _transcribe_and_mood(file_bytes)
-    sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    midi_filename, _ = _save_bytes(
-        transcription["midi_bytes"], "transcription", ".mid")
-    wav_b64 = _midi_bytes_to_wav_b64(
-        transcription["midi_bytes"],
-        sample_rate=sample_rate,
-        note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
-        prefer_fluidsynth_only=False,
-    )
-    wav_filename = ""
-    if wav_b64 is not None:
-        wav_bytes = base64.b64decode(wav_b64)
-        wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
+    # Serialized against every generation route too (HEAVY_WORK_LOCK, see its
+    # definition) -- this is the only entry point the async job worker calls,
+    # so this is also where the worker-side lock acquisition lives.
+    with HEAVY_WORK_LOCK:
+        try:
+            transcription = _transcribe_and_mood(file_bytes)
+            sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+            midi_filename, _ = _save_bytes(
+                transcription["midi_bytes"], "transcription", ".mid")
+            wav_b64 = _midi_bytes_to_wav_b64(
+                transcription["midi_bytes"],
+                sample_rate=sample_rate,
+                note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
+                prefer_fluidsynth_only=False,
+            )
+            wav_filename = ""
+            if wav_b64 is not None:
+                wav_bytes = base64.b64decode(wav_b64)
+                wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
 
-    return {
-        "n_notes": int(transcription["n_notes"]),
-        "duration_sec": round(float(transcription["duration_sec"]), 2),
-        "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
-        "truncated": bool(transcription["truncated"]),
-        "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
-        "wav_b64": wav_b64,
-        "midi_filename": midi_filename,
-        "wav_filename": wav_filename,
-        "mood_label": transcription["mood_label"],
-        "mood_idx": int(transcription["mood_idx"]),
-        "detected_chords": transcription["detected_chords"],
-        "key": transcription["key"],
-        "pitch_histogram": transcription["pitch_histogram"],
-        "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
-        "average_pitch": round(float(transcription["avg_pitch"]), 2),
-    }
+            return {
+                "n_notes": int(transcription["n_notes"]),
+                "duration_sec": round(float(transcription["duration_sec"]), 2),
+                "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
+                "truncated": bool(transcription["truncated"]),
+                "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
+                "wav_b64": wav_b64,
+                "midi_filename": midi_filename,
+                "wav_filename": wav_filename,
+                "mood_label": transcription["mood_label"],
+                "mood_idx": int(transcription["mood_idx"]),
+                "detected_chords": transcription["detected_chords"],
+                "key": transcription["key"],
+                "pitch_histogram": transcription["pitch_histogram"],
+                "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
+                "average_pitch": round(float(transcription["avg_pitch"]), 2),
+            }
+        finally:
+            _release_memory_to_os()
 
 
 async def handle_generate_request(
