@@ -6,11 +6,12 @@ name: Keep backend warm
 # the browser reports as a CORS error. Pinging any route resets the idle
 # timer, so this hits /health on a schedule to keep the instance up.
 #
-# GitHub's scheduled runs are best-effort and often land several minutes
-# late, so the interval is set well under the 15-minute suspend window. If
-# cold starts still show up in Render metrics, drop to "*/5" or move this to
-# a dedicated uptime monitor (e.g. UptimeRobot / cron-job.org), which also
-# gives you alerting.
+# NOT the primary mechanism -- a dedicated external uptime monitor is (set
+# up outside this repo, see docs/PROGRESS.md). GitHub's scheduled runs
+# turned out to be far more than "several minutes late": measured runs
+# landing 1h44m to 4h43m apart against a "*/10" schedule, over a 26-hour
+# window with only 7 actual firings. Kept as a free, zero-effort secondary
+# ping -- it does still fire, just not reliably enough to depend on alone.
 
 on:
   schedule:
