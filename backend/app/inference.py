@@ -154,23 +154,17 @@ GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", 
 # realtime speed on Render's free-tier CPU, so an uncapped clip reliably blew
 # through both that timeout and Render's own ~100s gateway timeout.
 #
-# Transcription now runs on the async job worker (see app/jobs/), which
-# isn't bound by GENERATION_TIMEOUT_SECONDS or any HTTP request lifetime at
-# all -- GENERATION_TIMEOUT_SECONDS still applies to the *other* synchronous
-# routes (e.g. /generate-variants), just not this one anymore. This cap is
-# no longer a timeout workaround; it exists purely to bound worst-case
-# per-job memory (decode is bounded to this many seconds via the header-probe
-# path in _read_audio_bytes below) and worst-case worker occupancy. Cut from
-# 240s to 60s as part of the OOM investigation (docs/PROGRESS.md): on the
-# 512MiB deploy, most of a transcription's memory turned out to be a fixed,
-# one-time librosa/numba/tflite load cost rather than audio-length-
-# proportional -- so this mainly bounds the worst case (a long real upload)
-# rather than the everyday one, but every MB of margin matters at this
-# ceiling, and a portfolio demo clip has no real reason to need more than a
-# minute. See jobs/worker.py's DEFAULT_LEASE_SECONDS, which is sized with
-# margin above this value so a legitimately slow job is never mistaken for
-# a dead one.
-MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
+# With chunked transcription (TRANSCRIBE_CHUNKED, prod default) this no
+# longer truncates the transcription -- the whole upload is transcribed --
+# it's the window the mood / key / BPM / chord analysis runs on
+# (_transcribe_and_mood_chunked). In the legacy single-pass path it still
+# truncates decode via the header-probe path in _read_audio_bytes.
+# History: 240s -> 60s during the 512MiB OOM investigation, then -> 120s
+# once the Standard (2GB) move removed the memory pressure -- 60s was too
+# short to characterise a song. docs/PLAN-full-transcription-split.md
+# steps 2-3 rename this to a "default analysis clip" constant and let the
+# frontend pass explicit clip bounds.
+MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "120"))
 # Hard ceiling on the uploaded audio the chunked transcription path will
 # process. Full /api/upload-time enforcement lands in step 2 of
 # docs/PLAN-full-transcription-split.md; for now the chunked path rejects

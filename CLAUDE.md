@@ -32,7 +32,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Environment required: `PYTHONPATH=.` (set in `backend/.env`).
 
-This alone is enough locally: the dev server also runs the transcription worker on a background thread (see the `architecture-reference` skill's "Async Transcription Job Workflow"), so no second process is needed. Only run the worker separately if you've deliberately set `RUN_WORKER_IN_PROCESS=false` to mirror production:
+This alone is enough locally: the dev server also runs the transcription worker on a background thread (see the `architecture-reference` skill's "Async Transcription Job Workflow"), so no second process is needed. Production runs the same in-process arrangement. Only run the worker separately if you've deliberately set `RUN_WORKER_IN_PROCESS=false`:
 
 ```bash
 python -m app.worker_main
@@ -56,9 +56,9 @@ Load-bearing facts worth keeping inline because nearly every task touches them:
 
 - Two model stacks exist; only `model/colab_parity.py` (MelodyCVAE + IDDM-PPO) is active. `model/vae.py` and `model/utils.py` are legacy, not used at inference time.
 - Transcription is async and job-based (`backend/app/jobs/`), not synchronous — `POST /api/transcribe` returns 202 + a job id immediately; there is no synchronous transcribe route anymore.
-- `RUN_WORKER_IN_PROCESS` defaults to `true` for local dev; production sets it `false` and runs `python -m app.worker_main` as a separate service.
+- `RUN_WORKER_IN_PROCESS` defaults to `true`. Production runs it `true` too — the worker loop and Basic Pitch warm-up run in-process on the single web service. Splitting a dedicated worker out is possible (`python -m app.worker_main`) but not currently done; the 2GB Standard instance has the headroom for the in-process arrangement.
 - The production job stack (Neon Postgres, Render Redis, Backblaze B2) is live; per-IP rate limiting (`app/rate_limit.py`) and a request body size cap (`app/request_limits.py`) are both live too, on `/api/transcribe`, `/api/generate-variants`, and (for the body cap) every route.
-- Free-tier constraints are real, not theoretical: the web service's 512MB memory ceiling means it currently can't reliably serve two transcriptions back-to-back without an OOM restart — see the skill's "Cost constraints" section before assuming concurrency is safe.
+- The Render web service is on the **Standard plan** (2GB RAM, 1 CPU, no idle-suspend) as of 2026-09-07 — after three rounds of OOM firefighting on the old 512MB free tier (see `docs/PROGRESS.md` "Prod OOM incident" + "chunked transcription"). Transcription is chunked (`TRANSCRIBE_CHUNKED=true`) so its memory is length-independent (~400MB flat, measured), and the ~2GB ceiling now has comfortable margin for concurrent work. The free-tier constraints the skill's "Cost constraints" section still describes are **historical** — read them as the reason the current architecture looks the way it does, not as live limits.
 
 ## Scope rules
 

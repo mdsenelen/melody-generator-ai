@@ -1,6 +1,11 @@
 # Plan: split full-audio transcription from short-clip analysis
 
-Status: **APPROVED 2026-09-06.** Sub-decisions resolved (below). Step 1 in progress.
+Status: **Step 1 done (2026-09-06)** — chunked transcription shipped behind
+`TRANSCRIBE_CHUNKED`, flipped on in prod, measured. Peak RSS on a 5-min clip:
+**~400–430 MB, flat across chunks** (chunking works — memory is length-
+independent). That sat right at the free tier's line, so the project moved to
+**Render Standard (2GB)** on 2026-09-07. Steps 2–5 proceed with comfortable
+headroom. Sub-decisions resolved (below).
 
 ## Why
 
@@ -27,8 +32,9 @@ We want:
 |---|---|
 | 1 | **Separate endpoints.** Transcription is one async job. Clip analysis is its own endpoint, callable repeatedly against different clips of the same upload without re-transcribing. |
 | 2 | **Hard upload-duration cap: 10 minutes.** `MAX_UPLOAD_DURATION_SEC` env var, default `600`. Uploads longer than this are rejected at `/api/upload` (or at job creation) with a clear 400. |
-| 3 | **Staged rollout, 7 steps, feature-flagged** (`TRANSCRIBE_CHUNKED`), chunked path off by default until proven in prod. |
-| 4 | This doc is written and approved before step 1. |
+| 3 | **Staged rollout, feature-flagged** (`TRANSCRIBE_CHUNKED`), chunked path proven in prod before the frontend switch. (Originally 7 steps; consolidated to 5 — see the table below. Step 1 also folded in the memory measurement that decided the Standard move.) |
+| 4 | **Render Standard (2GB)** as of 2026-09-07 — step 1's measurement (~400–430 MB peak on 512 MiB) sat too close to the line. |
+| 5 | `/api/analyze` is **librosa-only and synchronous**; the analysis clip default is `MAX_ANALYSIS_DURATION_SEC` (**120s**); the full-MIDI tempo reuses that clip's tempo; the clip selector is a **range control** (no waveform — deferred to roadmap Phase 7). |
 
 ---
 
@@ -240,7 +246,15 @@ in the job result.
 
 ---
 
-## Memory — does it fit 512 MiB?
+## Memory — measured
+
+> **Resolved (step 1, 2026-09-06):** a chunked 5-minute transcription peaked at
+> **~400–430 MB, flat across all 12 chunks** — memory does not scale with
+> length, which was the whole point. On the 512 MiB free tier that was ~80% of
+> the cap with ~100 MB headroom (fine for transcription alone, not for anything
+> concurrent), so the project moved to **Render Standard (2GB)** — ~1.6 GB
+> headroom now. The estimate below held up; the "fixed library floor" landed at
+> the high end (~360 MB idle).
 
 ```
 fixed library floor   ~250–350 MB   numba×2 (librosa + resampy), scipy,
@@ -310,7 +324,7 @@ selector**:
 
 1. Upload → auto-start `/api/transcribe` (full MIDI, background). Progress bar
    driven by real `progress` (`n/n_chunks`).
-2. Clip selector, default `0 → min(60, duration)`: **dual-thumb range control**
+2. Clip selector, default `0 → min(120, duration)`: **dual-thumb range control**
    (`components/clip-range.tsx`) over a plain duration bar. No dependency.
    Controlled, emits `{startSec, endSec}`. **This is the permanent UI**
    (decided) — a canvas waveform is deferred to roadmap Phase 7 (`/audio-viz`)
@@ -339,7 +353,7 @@ separately — release gate):
 
 1. **Backend first:** add `/api/analyze`; add optional `clip_start_sec` /
    `clip_end_sec` to `/api/generate-variants` and `/api/generate-progression`
-   (default to `0`..`min(60, dur)` when absent — old frontend keeps working);
+   (default to `0`..`min(120, dur)` when absent — old frontend keeps working);
    `/api/transcribe` result **still includes** the analysis fields for now
    (computed on the default clip) so the old frontend's result page doesn't
    break.
@@ -361,7 +375,7 @@ exists.
 
 | # | Step | Gate |
 |---|---|---|
-| **1** | **Chunked transcription behind `TRANSCRIBE_CHUNKED=false` + `JobStore.heartbeat` + measure real prod peak.** `_transcribe_and_mood_chunked` (chunk-window decode via `librosa.load(offset=, duration=)`, per-chunk `_run_basic_pitch_predict`, `_merge_chunk_notes` weld/dedup, `_tokens_to_midi_bytes` assembly, default-clip analysis reusing the merged notes + one `librosa.load(duration=60)` for chords, no WAV render). `heartbeat` on the store (protocol + `SQLJobStore` SQLite **and** Postgres), called per chunk from the worker. Unit tests: `_merge_chunk_notes` (pure fn, synthetic boundary-crossing inputs) + `heartbeat` (extend / stale-token / past-original-lease). Deploy flag-on, transcribe a synthetic 5-min clip in prod, **report the measured peak RSS**. | merge + heartbeat unit tests green; synthetic 5-min clip → full-length MIDI in prod; **peak RSS number reported** → go / revisit Standard |
+| ~~1~~ | ✅ **DONE 2026-09-06.** Chunked transcription behind `TRANSCRIBE_CHUNKED` + `JobStore.heartbeat` + merge algo + 8 unit tests. Shipped in PR #14, flag flipped on in prod. 5-min synthetic clip → full-length MIDI (788 notes, 12 chunks, `truncated: false`), **peak RSS ~400–430 MB flat**. Verdict: → moved to Render Standard (2026-09-07). One tuning note carried to step 2: `_merge_chunk_notes` `edge_eps` (0.15s) was ~50 ms too tight to catch one boundary — bump to ~0.5s during the mir_eval validation. | *(met)* |
 | 2 | **`/api/analyze` (librosa-only, sync) + `clip_*` params on generate endpoints + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** librosa paths for `tempo`/`key`/`pitch_histogram`/`avg_pitch`. Contract step 1 (additive — `/api/transcribe` result unchanged for now). Shared TS types. | `/api/analyze` returns sane mood/key/BPM/chords on fixture clips; `/api/transcribe` result byte-identical; 400 on a >10-min upload |
 | 3 | **Frontend: `clip-range.tsx` + two-result `/analyse` + slim transcription result.** wire `/api/analyze` (re-runnable), update `jobResult.ts` + GP3 `result-view.tsx` + RTL. Contract step 2. | both results render independently; re-analyze a different clip works; `npm run typecheck` + `npm test` green; keyboard + focus + ARIA-live on the range control |
 | 4 | **Flip `TRANSCRIBE_CHUNKED=true` in prod, remove the flag + the old truncating path.** | full-length MIDI on a real 5-min upload in prod; flat memory in Render metrics; no OOM over a day |

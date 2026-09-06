@@ -148,11 +148,10 @@ def test_release_memory_to_os_is_safe_even_if_ctypes_fails(monkeypatch):
     inference._release_memory_to_os()  # must not raise
 
 
-def test_max_analysis_duration_default_is_60_seconds():
-    # Cut from 240s during the OOM investigation (docs/PROGRESS.md): most of
-    # a transcription's memory turned out to be a fixed librosa/numba/tflite
-    # load cost, not audio-length-proportional, but every MB of margin
-    # matters at the 512MiB ceiling. Guards against silently drifting back up.
+def test_max_analysis_duration_default():
+    # 240s -> 60s during the 512MiB OOM investigation, then -> 120s once the
+    # Standard (2GB) move removed the memory pressure and 60s proved too
+    # short to characterise a song. Guards against silent drift.
     if "MAX_ANALYSIS_DURATION_SEC" in os.environ:
         pytest.skip("MAX_ANALYSIS_DURATION_SEC overridden in the environment")
-    assert inference.MAX_ANALYSIS_DURATION_SEC == 60.0
+    assert inference.MAX_ANALYSIS_DURATION_SEC == 120.0
