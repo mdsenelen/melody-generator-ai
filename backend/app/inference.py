@@ -5,6 +5,7 @@ import base64
 import io
 import json
 import logging
+import math
 import os
 import random
 import subprocess
@@ -15,7 +16,7 @@ import traceback
 import uuid
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:  # annotations only -- these pull in torch, deferred at runtime
     from .model.colab_parity import MelodyCVAE
@@ -170,6 +171,19 @@ GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", 
 # margin above this value so a legitimately slow job is never mistaken for
 # a dead one.
 MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
+# Hard ceiling on the uploaded audio the chunked transcription path will
+# process. Full /api/upload-time enforcement lands in step 2 of
+# docs/PLAN-full-transcription-split.md; for now the chunked path rejects
+# anything longer so a pathological upload can't run for an hour.
+MAX_UPLOAD_DURATION_SEC = float(os.environ.get("MAX_UPLOAD_DURATION_SEC", "600"))
+# Chunked full-audio transcription (docs/PLAN-full-transcription-split.md).
+# Off by default -- step 1 ships it dark, measures prod memory, then step 4
+# flips it and deletes the old truncating path.
+TRANSCRIBE_CHUNKED = os.environ.get("TRANSCRIBE_CHUNKED", "false").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+TRANSCRIBE_CHUNK_SEC = float(os.environ.get("TRANSCRIBE_CHUNK_SEC", "30"))
+TRANSCRIBE_OVERLAP_SEC = float(os.environ.get("TRANSCRIBE_OVERLAP_SEC", "4"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
 DATA_CLEANUP_INTERVAL_SECONDS = float(os.environ.get("DATA_CLEANUP_INTERVAL_SECONDS", "3600"))
 # /generate-variants also runs Basic Pitch internally (see
@@ -1517,6 +1531,218 @@ def _token_ids_to_midi_bytes(token_ids: list[int], bpm: float) -> bytes:
             temp_midi_path.unlink(missing_ok=True)
 
 
+def _merge_chunk_notes(
+    merged: list[dict[str, float | int]],
+    new_notes: list[dict[str, float | int]],
+    *,
+    chunk_start: float,
+    prev_chunk_end: Optional[float],
+    edge_in: float = 0.30,
+    edge_eps: float = 0.15,
+    gap: float = 0.15,
+    dedup: float = 0.15,
+) -> list[dict[str, float | int]]:
+    """Fold one chunk's note events (already shifted to absolute time) into
+    the running merged list. See docs/PLAN-full-transcription-split.md,
+    "The merge algorithm".
+
+    - **weld**: a note born at this chunk's left edge whose pitch matches a
+      merged note that was *truncated by the previous chunk's right edge*
+      and lines up in time -> extend the merged note. Handles a sustained
+      note split across the boundary and chains across >=3 chunks. The
+      "truncated by the edge" check is the disambiguator: if the previous
+      chunk ended the note cleanly, a same-pitch note starting now is a real
+      re-articulation, not a continuation.
+    - **dedup**: a note the previous chunk also saw in full within the
+      overlap -> drop the duplicate.
+    - otherwise append.
+
+    Pure function: inputs are not mutated.
+    """
+    if prev_chunk_end is None:
+        return [dict(n) for n in new_notes]
+
+    out: list[dict[str, float | int]] = [dict(m) for m in merged]
+    threshold = chunk_start + edge_in
+    left_edge = [dict(n) for n in new_notes if n["start"] <= threshold]
+    body = [dict(n) for n in new_notes if n["start"] > threshold]
+
+    for n in left_edge:
+        welded = False
+        for m in reversed(out):
+            if m["pitch"] != n["pitch"]:
+                continue
+            if m["end"] < prev_chunk_end - edge_eps:
+                continue  # ended cleanly before the edge -> not a continuation
+            if n["start"] > m["end"] + gap:
+                continue  # too far apart to be the same note
+            if n["end"] <= m["end"] + gap:
+                welded = True  # fully contained -> duplicate, drop n
+                break
+            m["end"] = n["end"]
+            if "velocity" in m and "velocity" in n:
+                m["velocity"] = int(round((float(m["velocity"]) + float(n["velocity"])) / 2))
+            welded = True
+            break
+        if not welded:
+            body.append(n)
+
+    for n in body:
+        if any(
+            m["pitch"] == n["pitch"]
+            and abs(m["start"] - n["start"]) <= dedup
+            and abs(m["end"] - n["end"]) <= dedup
+            for m in out
+        ):
+            continue
+        out.append(n)
+
+    out.sort(key=lambda x: (x["start"], x["pitch"]))
+    return out
+
+
+def _decode_audio_window(
+    raw: bytes, target_sr: int, offset_sec: float, duration_sec: float
+) -> np.ndarray:
+    """Decode just [offset_sec, offset_sec + duration_sec] of the audio at
+    target_sr, mono. Keeps per-chunk memory independent of total length."""
+    try:
+        audio, _ = librosa.load(
+            io.BytesIO(raw),
+            sr=target_sr,
+            mono=True,
+            offset=offset_sec,
+            duration=duration_sec,
+        )
+        return np.asarray(audio, dtype=np.float32)
+    except Exception as exc:  # pragma: no cover - format-specific
+        raise HTTPException(
+            status_code=400,
+            detail="Could not decode audio for chunked transcription",
+        ) from exc
+
+
+def _transcribe_full_chunked(
+    audio_bytes: bytes,
+    sample_rate: int,
+    source_duration_sec: float,
+    *,
+    on_progress: Optional[Callable[[int], bool]] = None,
+) -> tuple[list[dict[str, float | int]], int]:
+    """Chunked Basic Pitch transcription of the WHOLE audio. Returns
+    (merged_note_events_absolute, n_chunks). Peak memory is flat in input
+    length -- only one chunk's posteriorgram is ever resident, and the
+    accumulated note list is tiny.
+    """
+    hop = max(1.0, TRANSCRIBE_CHUNK_SEC - TRANSCRIBE_OVERLAP_SEC)
+    n_chunks = max(1, math.ceil((source_duration_sec - TRANSCRIBE_OVERLAP_SEC) / hop))
+    merged: list[dict[str, float | int]] = []
+    prev_chunk_end: Optional[float] = None
+
+    for k in range(n_chunks):
+        chunk_start = k * hop
+        chunk_dur = min(TRANSCRIBE_CHUNK_SEC, source_duration_sec - chunk_start)
+        if chunk_dur <= 0:
+            break
+
+        window = _decode_audio_window(audio_bytes, sample_rate, chunk_start, chunk_dur)
+        temp_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+                temp_path = Path(handle.name)
+            sf.write(str(temp_path), window, sample_rate)
+            del window
+            _, chunk_notes = _run_basic_pitch_predict(str(temp_path))
+        finally:
+            if temp_path and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+
+        for note in chunk_notes:
+            note["start"] = float(note["start"]) + chunk_start
+            note["end"] = float(note["end"]) + chunk_start
+        merged = _merge_chunk_notes(
+            merged, chunk_notes, chunk_start=chunk_start, prev_chunk_end=prev_chunk_end
+        )
+        prev_chunk_end = chunk_start + chunk_dur
+
+        _release_memory_to_os()
+        if on_progress is not None:
+            on_progress(int(90 * (k + 1) / n_chunks))
+
+    return merged, n_chunks
+
+
+def _transcribe_and_mood_chunked(
+    audio_bytes: bytes,
+    *,
+    on_progress: Optional[Callable[[int], bool]] = None,
+) -> dict[str, Any]:
+    """Chunked full-audio transcription + default-clip (first 60s) analysis.
+    Same result shape as _transcribe_and_mood, but midi_bytes is the
+    FULL-length MIDI, source_duration_sec is the true length, truncated is
+    always False, and n_chunks is added. See
+    docs/PLAN-full-transcription-split.md."""
+    sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+
+    source_duration_sec = _probe_source_duration_sec(audio_bytes)
+    if source_duration_sec is None:
+        # Can't chunk safely without knowing the length (e.g. a browser
+        # webm/opus recording soundfile can't probe). These are short mic
+        # recordings in practice -- fall back to the bounded single-pass path.
+        logger.warning("Chunked transcription: duration probe failed, using single-pass path")
+        return _transcribe_and_mood(audio_bytes)
+    if source_duration_sec > MAX_UPLOAD_DURATION_SEC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Audio is too long (max {MAX_UPLOAD_DURATION_SEC / 60:.0f} minutes)",
+        )
+
+    merged, n_chunks = _transcribe_full_chunked(
+        audio_bytes, sample_rate, source_duration_sec, on_progress=on_progress
+    )
+
+    clip_end = min(MAX_ANALYSIS_DURATION_SEC, source_duration_sec)
+    clip_audio = _decode_audio_window(audio_bytes, sample_rate, 0.0, clip_end)
+    clip_notes = [n for n in merged if float(n["start"]) < clip_end]
+    if not clip_notes:
+        clip_notes = _fallback_note_events_from_audio(clip_audio, sample_rate)
+
+    estimated_tempo = _estimate_tempo(clip_notes)
+    clip_midi_bytes = _tokens_to_midi_bytes(clip_notes, bpm=estimated_tempo, instrument=0)
+
+    if not merged:
+        full_midi_bytes = clip_midi_bytes
+    else:
+        full_midi_bytes = _tokens_to_midi_bytes(merged, bpm=estimated_tempo, instrument=0)
+
+    tempo_bpm = float(_estimate_tempo(clip_notes, clip_midi_bytes))
+    avg_pitch = (
+        float(np.mean([int(note["pitch"]) for note in clip_notes])) if clip_notes else 60.0
+    )
+    pitch_histogram = _pitch_histogram(clip_notes)
+    key = _extract_key_label(clip_midi_bytes, pitch_histogram)
+    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
+    detected_chords = _detect_chords_from_audio(clip_audio, sample_rate)
+    del clip_audio
+
+    return {
+        "midi_bytes": full_midi_bytes,
+        "note_events": merged,
+        "n_notes": len(merged),
+        "n_chunks": n_chunks,
+        "duration_sec": source_duration_sec,
+        "source_duration_sec": source_duration_sec,
+        "truncated": False,
+        "tempo_bpm": tempo_bpm,
+        "avg_pitch": avg_pitch,
+        "mood_idx": mood_idx,
+        "mood_label": mood_label,
+        "key": key,
+        "pitch_histogram": pitch_histogram,
+        "detected_chords": detected_chords,
+    }
+
+
 def _transcribe_and_mood(
     audio_bytes: bytes,
     decoded: Optional[tuple[np.ndarray, float, bool]] = None,
@@ -1828,29 +2054,43 @@ def _generate_lanes_payload(
     return _package_audio_bytes(_waveform_to_wav_bytes(mix, sample_rate), "lanes")
 
 
-def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]:
+def run_basic_pitch(
+    file_bytes: bytes,
+    original_filename: str,
+    on_progress: Optional[Callable[[int], bool]] = None,
+) -> dict[str, Any]:
     _ = original_filename
     # Serialized against every generation route too (HEAVY_WORK_LOCK, see its
     # definition) -- this is the only entry point the async job worker calls,
     # so this is also where the worker-side lock acquisition lives.
     with HEAVY_WORK_LOCK:
         try:
-            transcription = _transcribe_and_mood(file_bytes)
             sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+
+            if TRANSCRIBE_CHUNKED:
+                # Full-audio chunked transcription (flag off by default --
+                # docs/PLAN-full-transcription-split.md step 1). No WAV
+                # preview for the full-length MIDI; the clip WAV comes from
+                # the separate analyse flow.
+                transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
+                wav_b64 = None
+            else:
+                transcription = _transcribe_and_mood(file_bytes)
+                wav_b64 = _midi_bytes_to_wav_b64(
+                    transcription["midi_bytes"],
+                    sample_rate=sample_rate,
+                    note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
+                    prefer_fluidsynth_only=False,
+                )
+
             midi_filename, _ = _save_bytes(
                 transcription["midi_bytes"], "transcription", ".mid")
-            wav_b64 = _midi_bytes_to_wav_b64(
-                transcription["midi_bytes"],
-                sample_rate=sample_rate,
-                note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
-                prefer_fluidsynth_only=False,
-            )
             wav_filename = ""
             if wav_b64 is not None:
                 wav_bytes = base64.b64decode(wav_b64)
                 wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
 
-            return {
+            result = {
                 "n_notes": int(transcription["n_notes"]),
                 "duration_sec": round(float(transcription["duration_sec"]), 2),
                 "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
@@ -1867,6 +2107,9 @@ def run_basic_pitch(file_bytes: bytes, original_filename: str) -> dict[str, Any]
                 "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
                 "average_pitch": round(float(transcription["avg_pitch"]), 2),
             }
+            if "n_chunks" in transcription:
+                result["n_chunks"] = int(transcription["n_chunks"])
+            return result
         finally:
             _release_memory_to_os()
 
