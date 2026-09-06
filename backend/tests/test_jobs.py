@@ -226,6 +226,48 @@ def test_mark_completed_with_stale_lease_is_discarded(store):
     assert store.get_job(job.id).result["key"] == "NEW RESULT"
 
 
+def test_heartbeat_extends_lease_and_updates_progress(store):
+    job = _create_queued_job(store, source_filename="long.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=10.0)
+    before = datetime.fromisoformat(store.get_job(job.id).lease_expires_at)
+
+    ok = store.heartbeat(
+        job.id, lease_token=claimed.lease_token, progress=37, lease_seconds=180.0
+    )
+    assert ok is True
+
+    refreshed = store.get_job(job.id)
+    assert refreshed.progress == 37
+    assert refreshed.status == PROCESSING
+    after = datetime.fromisoformat(refreshed.lease_expires_at)
+    assert after > before + timedelta(seconds=120)
+
+
+def test_heartbeat_with_stale_token_is_rejected(store):
+    job = _create_queued_job(store, source_filename="long.wav", storage_key="jobs/1/input.wav")
+    original = store.claim_job(job.id, lease_seconds=-1.0)
+    assert store.reclaim_stale_processing_jobs() == [job.id]
+    new_worker = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.heartbeat(job.id, lease_token=new_worker.lease_token, progress=20, lease_seconds=60.0)
+
+    ok = store.heartbeat(
+        job.id, lease_token=original.lease_token, progress=99, lease_seconds=60.0
+    )
+    assert ok is False
+    assert store.get_job(job.id).progress == 20  # the stale heartbeat changed nothing
+
+
+def test_heartbeat_keeps_a_slow_job_out_of_reclaim(store):
+    job = _create_queued_job(store, source_filename="long.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=0.5)
+    # Renew before the short lease elapses.
+    assert store.heartbeat(
+        job.id, lease_token=claimed.lease_token, progress=10, lease_seconds=300.0
+    )
+    time.sleep(0.6)
+    assert store.reclaim_stale_processing_jobs() == []  # lease still valid
+
+
 def test_mark_failed_without_retry_is_terminal(store):
     job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
     claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
@@ -356,7 +398,7 @@ def test_reconcile_stuck_creating_jobs_ignores_fresh_rows(store):
 def test_process_one_job_completes_successfully(store, storage, queue, monkeypatch):
     job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
     storage.write_bytes(job.storage_key, b"fake-audio-bytes")
-    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name: _fake_transcription_result())
+    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result())
 
     process_one_job(job.id, store, storage, queue)
 
@@ -369,7 +411,7 @@ def test_process_one_job_marks_400_as_permanent_failure(store, storage, queue, m
     job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
     storage.write_bytes(job.storage_key, b"garbage")
 
-    def _raise(raw, name):
+    def _raise(raw, name, on_progress=None):
         raise HTTPException(status_code=400, detail="Could not decode audio")
 
     monkeypatch.setattr(inference, "run_basic_pitch", _raise)
@@ -388,7 +430,7 @@ def test_process_one_job_retries_503_as_transient(store, storage, queue, monkeyp
     )
     storage.write_bytes(job.storage_key, b"fake-audio-bytes")
 
-    def _raise(raw, name):
+    def _raise(raw, name, on_progress=None):
         raise HTTPException(status_code=503, detail="Model temporarily unavailable")
 
     monkeypatch.setattr(inference, "run_basic_pitch", _raise)
@@ -406,7 +448,7 @@ def test_process_one_job_retries_unexpected_errors_then_gives_up(store, storage,
     )
     storage.write_bytes(job.storage_key, b"fake-audio-bytes")
 
-    def _raise(raw, name):
+    def _raise(raw, name, on_progress=None):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(inference, "run_basic_pitch", _raise)
@@ -432,7 +474,7 @@ def test_process_one_job_is_a_noop_for_already_claimed_job(store, storage, queue
 
     calls = []
     monkeypatch.setattr(
-        inference, "run_basic_pitch", lambda raw, name: calls.append(1) or _fake_transcription_result()
+        inference, "run_basic_pitch", lambda raw, name, on_progress=None: calls.append(1) or _fake_transcription_result()
     )
 
     process_one_job(job.id, store, storage, queue)
@@ -496,7 +538,7 @@ def test_run_worker_loop_automatically_retries_a_transient_failure(store, storag
 
     attempts = []
 
-    def flaky_run_basic_pitch(raw, name):
+    def flaky_run_basic_pitch(raw, name, on_progress=None):
         attempts.append(1)
         if len(attempts) == 1:
             raise RuntimeError("transient blip")
@@ -549,7 +591,7 @@ def test_run_worker_loop_survives_a_dequeue_error(store, storage, queue, monkeyp
         return real_dequeue(timeout)
 
     monkeypatch.setattr(queue, "dequeue", flaky_dequeue)
-    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name: _fake_transcription_result())
+    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result())
 
     stop_event = threading.Event()
     thread = threading.Thread(
@@ -597,7 +639,7 @@ def test_run_worker_loop_reclaims_stale_job_and_old_attempt_cannot_overwrite(
     # No queue message for this job -- it's "stuck" in processing, exactly
     # as if its worker had crashed after claiming but before finishing.
 
-    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name: _fake_transcription_result())
+    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result())
 
     stop_event = threading.Event()
     thread = threading.Thread(
@@ -690,7 +732,7 @@ def test_reconciliation_recovers_a_creation_that_crashed_after_the_storage_write
     # a crash right here.
     assert store.get_job(job.id).status == CREATING
 
-    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name: _fake_transcription_result())
+    monkeypatch.setattr(inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result())
 
     stop_event = threading.Event()
     thread = threading.Thread(
@@ -763,7 +805,7 @@ def test_worker_mirrors_generated_files_into_shared_storage_for_download_fallbac
     job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
     input_storage.write_bytes(job.storage_key, b"fake-audio-bytes")
 
-    def fake_run_basic_pitch(raw, name):
+    def fake_run_basic_pitch(raw, name, on_progress=None):
         # Mirrors what inference.run_basic_pitch really does: writes to
         # local OUTPUT_DIR and returns the bare filename.
         midi_path = inference.OUTPUT_DIR / "worker_output.mid"

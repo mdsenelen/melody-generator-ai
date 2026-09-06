@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_LEASE_SECONDS = 900.0
 DEFAULT_STUCK_CREATING_AFTER_SECONDS = 30.0
 DEFAULT_POLL_TIMEOUT_SECONDS = 5.0
+# Lease window renewed on each heartbeat (per transcription chunk). Generous
+# margin over one chunk's compute (~30s of audio at ~realtime + overhead) so
+# a slow chunk never looks like a dead worker, while a genuinely dead worker
+# is reclaimed within ~one chunk-time instead of the full DEFAULT_LEASE_SECONDS.
+HEARTBEAT_LEASE_SECONDS = 180.0
 
 
 def process_one_job(
@@ -49,9 +54,24 @@ def process_one_job(
     assert lease_token is not None
 
     logger.info("Processing transcription job %s (%s)", job.id, job.source_filename)
+
+    def _heartbeat(progress: int) -> bool:
+        """Called per transcription chunk. Returns False if the lease was
+        reclaimed -- inference logs it and carries on; the mark_completed
+        lease check below is the real guard against a double-run overwrite."""
+        ok = store.heartbeat(
+            job.id,
+            lease_token=lease_token,
+            progress=max(0, min(99, int(progress))),
+            lease_seconds=HEARTBEAT_LEASE_SECONDS,
+        )
+        if not ok:
+            logger.warning("Job %s heartbeat rejected -- lease %s no longer current", job.id, lease_token)
+        return ok
+
     try:
         raw = storage.read_bytes(job.storage_key)
-        result = inference.run_basic_pitch(raw, job.source_filename)
+        result = inference.run_basic_pitch(raw, job.source_filename, on_progress=_heartbeat)
         _upload_generated_files(result, storage)
         if not store.mark_completed(job.id, result, lease_token=lease_token):
             # Our lease was reclaimed (this attempt ran too long, another

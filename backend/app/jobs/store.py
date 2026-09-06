@@ -94,6 +94,10 @@ class JobStore(Protocol):
 
     def claim_job(self, job_id: str, lease_seconds: float) -> Optional[Job]: ...
 
+    def heartbeat(
+        self, job_id: str, *, lease_token: str, progress: int, lease_seconds: float
+    ) -> bool: ...
+
     def mark_completed(self, job_id: str, result: dict[str, Any], *, lease_token: str) -> bool: ...
 
     def mark_failed(
@@ -327,6 +331,35 @@ class SQLJobStore:
         finally:
             conn.close()
         return self.get_job(job_id) if claimed else None
+
+    def heartbeat(
+        self, job_id: str, *, lease_token: str, progress: int, lease_seconds: float
+    ) -> bool:
+        """Extend a running job's lease and bump its progress. Used by
+        long-running work (chunked transcription) to prove it's still alive
+        so reclaim_stale_processing_jobs() doesn't hand the job to another
+        worker mid-run. Returns False if lease_token no longer matches (the
+        job was already reclaimed) or the job isn't 'processing' -- the
+        caller should stop working on it."""
+        now = _now()
+        lease_expires_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)
+        ).isoformat()
+        conn = self._connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                self._q(
+                    "UPDATE transcription_jobs "
+                    "SET lease_expires_at = ?, progress = ?, updated_at = ? "
+                    "WHERE id = ? AND lease_token = ? AND status = ?"
+                ),
+                (lease_expires_at, int(progress), now, job_id, lease_token, PROCESSING),
+            )
+            conn.commit()
+            return cur.rowcount == 1
+        finally:
+            conn.close()
 
     def mark_completed(self, job_id: str, result: dict[str, Any], *, lease_token: str) -> bool:
         """Returns False (write discarded) if lease_token no longer matches
