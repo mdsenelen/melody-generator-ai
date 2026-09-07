@@ -101,11 +101,6 @@ except Exception:  # pragma: no cover - optional dependency
     pretty_midi = None
 
 try:  # pragma: no cover - optional dependency
-    import music21 as m21
-except Exception:  # pragma: no cover - optional dependency
-    m21 = None
-
-try:  # pragma: no cover - optional dependency
     from basic_pitch import ICASSP_2022_MODEL_PATH
     from basic_pitch.inference import Model as BasicPitchModel
     from basic_pitch.inference import predict as basic_pitch_predict
