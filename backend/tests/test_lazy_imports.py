@@ -41,6 +41,34 @@ def test_importing_app_main_does_not_import_torch() -> None:
     )
 
 
+def test_transcription_path_does_not_import_music21_or_other_dead_weight() -> None:
+    # Phase B import audit (docs/PROGRESS.md "Free-tier hardening"): on the
+    # 512 MiB tier every avoidable MB of the idle floor matters. music21 was
+    # dropped (key detection now uses _key_from_histogram only); matplotlib /
+    # scikit-learn / tensorflow were never pulled and must stay that way.
+    _run_isolated(
+        """
+        import io, sys
+        import numpy as np
+        import soundfile as sf
+        from app import inference
+
+        buf = io.BytesIO()
+        sr = 22050
+        t = np.linspace(0.0, 1.0, sr, endpoint=False)
+        sf.write(buf, (0.2 * np.sin(2 * np.pi * 220.0 * t)).astype("float32"), sr, format="WAV")
+        inference.run_basic_pitch(buf.getvalue(), "probe.wav")
+
+        forbidden = ("music21", "matplotlib", "sklearn", "tensorflow", "onnxruntime")
+        leaked = sorted(
+            m for m in sys.modules
+            if any(m == f or m.startswith(f + ".") for f in forbidden)
+        )
+        assert not leaked, f"transcription path pulled dead-weight imports: {leaked}"
+        """
+    )
+
+
 def test_runtime_status_does_not_import_torch() -> None:
     _run_isolated(
         """

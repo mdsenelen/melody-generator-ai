@@ -15,7 +15,9 @@ soundfile
 tqdm>=4.62.0
 basic-pitch==0.4.0
 pretty_midi
-music21
+# music21 was removed for the 512 MiB tier: it was used only for key detection
+# (behind the Krumhansl-Schmuckler histogram fallback that is now the sole path)
+# and cost ~240 submodules of import RSS at every boot. See docs/PROGRESS.md.
 
 # Async transcription job workflow (backend/app/jobs/) -- see CLAUDE.md's
 # "Async Transcription Job Workflow" section. Each is only actually imported/used

@@ -35,8 +35,9 @@ Next.js API routes (frontend/app/api/*) ──proxy──▶ FastAPI backend (ba
                                                         ▼
                                           inference.py: audio load (librosa,
                                           ffmpeg fallback) → Basic Pitch /
-                                          pyin pitch detection → music21
-                                          chord & key analysis → CVAE encode/
+                                          pyin pitch detection → chord & key
+                                          analysis (librosa chroma +
+                                          Krumhansl-Schmuckler) → CVAE encode/
                                           decode → pretty_midi + FluidSynth
                                           (sine-wave fallback) → MIDI/WAV
 ```
@@ -61,7 +62,7 @@ key is missing" error rather than failing silently — see `CLAUDE.md` for the e
 ## Tech stack
 
 - **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, Jest
-- **Backend**: FastAPI, PyTorch (CPU wheels), librosa, Basic Pitch, music21, pretty_midi
+- **Backend**: FastAPI, PyTorch (CPU wheels), librosa, Basic Pitch, pretty_midi
 - **Audio synthesis**: FluidSynth (optional; falls back to a sine-wave synthesizer if unavailable)
 - **Decode fallback**: ffmpeg, for WebM/Opus recordings librosa can't read natively
 
@@ -124,7 +125,7 @@ frontend, and `pytest` for the backend, on every push and pull request.
 | `backend/.env` | `PYTHONPATH` | Set to `.` so `app.*` imports resolve when running uvicorn |
 | `backend/.env` (optional) | `SOUNDFONT_PATH` | Overrides the default FluidSynth SoundFont path |
 | `backend/.env` (optional) | `GENERATION_TIMEOUT_SECONDS` | Wall-clock timeout for a single synchronous generation request, e.g. `/generate-variants` (default `60`) — needs real margin below Render's own ~100s platform timeout, see `CLAUDE.md`. Transcription no longer runs inside a request this bounds; see the async job workflow below |
-| `backend/.env` (optional) | `MAX_ANALYSIS_DURATION_SEC` | Caps how much of an uploaded clip is decoded/analyzed (default `240`, 4 minutes) — longer clips are truncated, decode itself is bounded to this window rather than decoding the full upload first. No longer tied to `GENERATION_TIMEOUT_SECONDS`; bounds worst-case worker memory/occupancy instead, see `CLAUDE.md` |
+| `backend/.env` (optional) | `MAX_ANALYSIS_DURATION_SEC` | Bounds the mood/key/BPM/chord **analysis clip** (default `60`). In chunked mode the whole upload is still transcribed to MIDI; this only caps the librosa analysis window. No longer tied to `GENERATION_TIMEOUT_SECONDS`; see `CLAUDE.md` |
 | `backend/.env` (optional) | `DATA_RETENTION_HOURS` | How long uploaded/generated files are kept before periodic cleanup deletes them (default `24`; `0` disables cleanup) |
 | `backend/.env` (optional) | `DATA_CLEANUP_INTERVAL_SECONDS` | How often the background cleanup pass runs (default `3600`) |
 | `backend/.env` (optional) | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (default `http://localhost:3000`) — must include the deployed frontend origin, since the browser calls the backend directly for uploads |

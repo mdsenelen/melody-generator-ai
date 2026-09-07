@@ -44,37 +44,74 @@ We want:
 | Endpoint | Shape | Work | Memory |
 |---|---|---|---|
 | `POST /api/transcribe` | async job → `{job_id}`; poll `GET /api/transcribe/{job_id}` | **Full audio**, chunked Basic Pitch → full-length MIDI. No analysis fields. | flat ~300–400 MB regardless of length |
-| `POST /api/analyze` | **synchronous** → analysis JSON directly | mood, key, BPM, chords, pitch histogram on `[clip_start_sec, clip_end_sec]` of an existing upload | ~librosa-features only (see below) |
+| `POST /api/analyze` | **synchronous** → analysis JSON directly | mood, key, BPM, chords, pitch histogram on `[clip_start_sec, clip_end_sec]` of an existing transcribe job | **arithmetic on stored note events — zero librosa, zero Basic Pitch** (see below) |
 | `POST /api/generate-variants` | unchanged (still async-job-wrapped for the result page) | now also takes `clip_start_sec`/`clip_end_sec`; runs its internal Basic Pitch on the clip only | serialized by `HEAVY_WORK_LOCK` |
 
 `/api/transcribe`'s result loses `mood_label`, `mood_idx`, `key`, `tempo_bpm`,
 `detected_chords`, `pitch_histogram`, `average_pitch` — those move to
 `/api/analyze`. It keeps / gains: `midi_b64` (full length), `midi_filename`,
 `wav_b64?`, `source_duration_sec`, `n_notes`, `n_chunks`, `truncated` (now
-always `false` unless the 10-min cap hit).
+always `false` unless the 10-min cap hit), and — **required by the MIDI-based
+`/api/analyze`** — the full `note_events` array persisted in the job result
+(~50 KB for a 5-min track). `/api/analyze` slices these by `[clip_start,
+clip_end]`; it does not re-read the audio.
 
-### `/api/analyze` — Basic-Pitch-free (decided)
+### `/api/analyze` — MIDI-based, no audio at all (revised 2026-09-07)
 
-**Decision: librosa-only, no Basic Pitch in the analysis path** — putting
-`tflite` inference back into a re-runnable endpoint would reinstate the memory
-problem. The clip-analysis outputs don't need note-level transcription:
+**Decision: analysis runs on the transcribe job's stored note events, sliced to
+`[clip_start_sec, clip_end_sec]` — pure arithmetic, no librosa call, no Basic
+Pitch, no audio decode.** This replaces the earlier "librosa-only" design after
+a code audit (below) showed the analysis path is *already* ~95 % MIDI-derived —
+only chord detection touched raw audio.
 
-| Output | Current source | Clip-analysis source (proposed) |
+Audit of what each analysis output actually uses today (`inference.py`):
+
+| Output | Today's source | Touches raw audio / librosa? |
 |---|---|---|
-| `detected_chords` | `_detect_chords_from_audio` (librosa chroma) | **unchanged** — already Basic-Pitch-free |
-| `tempo_bpm` | `_estimate_tempo(note_events)` | `librosa.beat.beat_track` on the clip |
-| `key` | music21 on the MIDI, or Krumhansl-Schmuckler on the pitch histogram | Krumhansl-Schmuckler on librosa chroma of the clip |
-| `pitch_histogram` | from note events | from librosa chroma / CQT of the clip |
-| `average_pitch` | mean of note-event pitches | spectral-centroid-derived estimate, or chroma-weighted |
-| `mood_label` | `heuristic_mood_from_metrics(tempo, avg_pitch, key)` | same, fed by the above |
+| `tempo_bpm` | `_estimate_tempo` → `pretty_midi.PrettyMIDI(...).estimate_tempo()` on the MIDI, inter-onset-interval median fallback on note events | **No.** `librosa.beat` is used *nowhere* in the codebase |
+| `average_pitch` | `np.mean` of note-event pitches | **No** |
+| `pitch_histogram` | pitch-class counts from note events | **No** |
+| `key` | `_key_from_histogram` — Krumhansl-Schmuckler profile match on the 12-bin histogram (music21 removed in Phase B) | **No** |
+| `mood_idx` / `mood_label` | `heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)` — a 3-branch rule (happy / sad / neutral). No timbre, no audio, no model | **No — already 100 % MIDI-derived** |
+| `detected_chords` | `_detect_chords_from_audio` → `librosa.feature.chroma_cqt` on the clip audio | **Yes — the only one** |
 
-This makes `/api/analyze` genuinely light — librosa chroma + beat tracking on a
-30–60 s clip is ~2–5 s and adds maybe 50–80 MB over the fixed library floor, no
-`tflite` inference. Served **synchronously**, and light enough that it does
-**not** take `HEAVY_WORK_LOCK` (no `tflite`, no torch). Accept the small
-accuracy trade on `tempo`/`key` vs. Basic-Pitch-derived values — a
-Basic-Pitch-backed mode is explicitly *not* being added (it would reinstate the
-memory problem it's meant to avoid).
+So `/api/analyze` needs: the job's persisted `note_events` (small — ~800 notes
+for a 5-min track, ~50 KB JSON), a `[clip_start, clip_end]` slice, and the same
+arithmetic helpers run on that slice. **New:** `_chords_from_note_events(notes,
+window_sec≈2.0)` replaces `_detect_chords_from_audio` — window the notes, take
+each window's active pitch classes weighted by sounding duration, template-match
+with the existing `_infer_chord_from_chroma` logic (rename → takes a 12-vector).
+Reference implementation: the thesis notebook's `extract_chords()` (Cell 13).
+
+Memory / cost: **~0 MB, sub-millisecond, re-runnable for free.** It does *not*
+take `HEAVY_WORK_LOCK` and never imports anything new.
+
+Tradeoffs, stated honestly:
+- **Chords lose chroma's ear.** `chroma_cqt` hears the actual harmonic spectrum
+  (overtones, mix content Basic Pitch dropped); MIDI chords only see the
+  transcription. For monophonic / sparse input they're close; for dense
+  polyphony chroma was better. Upside: MIDI chords are *consistent* with the
+  notes the user sees, and it's exactly what the thesis pipeline did.
+- **`librosa` is NOT removed from the process.** `basic_pitch.inference` imports
+  it eagerly, `_read_audio_bytes` / `_decode_audio_window` need `librosa.load`
+  for mp3/m4a/ogg decode, and there's a `librosa.pyin` fallback. The idle floor
+  is unchanged. What this buys: the chunked path's second `clip_audio` decode
+  and the `chroma_cqt` transient (~30–60 MB during the analysis phase, to be
+  measured during implementation) both go away, and `/api/analyze` becomes a
+  genuinely free re-runnable call instead of a 50–80 MB librosa-feature pass.
+
+**Not doing: an ML mood classifier.** There is no mood-labeled dataset — not in
+the repo, not anywhere. The notebook (Cells 6, 13) labels CVAE training data
+with `tokens_to_mood_idx()` (avg pitch + note count) and
+`heuristic_mood_label_from_pm()` (tempo + avg pitch) — both rule-based
+heuristics. Training a RandomForest/GBM on those labels just learns to imitate
+the heuristic (bounded above by it) and re-adds `scikit-learn` (~40–50 MB
+import). A genuinely better classifier needs an external emotion corpus
+(EMOPIA / DEAM / VGMIDI) with a different label taxonomy (valence–arousal
+quadrants ≠ happy/sad/neutral) — a separate project, out of scope here.
+Optional cheap win instead: enrich `heuristic_mood_from_metrics` with note
+density, mean absolute interval, pitch range, and rhythmic regularity (all
+note-event arithmetic) — still no model, still no librosa.
 
 ---
 
@@ -249,10 +286,8 @@ in the job result.
 
 > **Resolved, step 1 (2026-09-06):** a chunked 5-minute transcription peaked at
 > **~400–430 MB, flat across all 12 chunks** — memory does not scale with
-> length, which was the point. Idle floor ~360 MB (numba×2, scipy, sklearn,
-> tflite, music21 + the warm-up's resident Basic Pitch model). ~80–85% of the
-> 512 MiB cap; ~100 MB headroom — enough for the one-at-a-time transcription
-> path, not for anything concurrent.
+> length, which was the point. ~80–85% of the 512 MiB cap; ~100 MB headroom —
+> enough for the one-at-a-time transcription path, not for anything concurrent.
 >
 > **Decision: stay on free tier.** The concurrent-request risk is closed in
 > code instead (see `PROGRESS.md` "Free-tier hardening"): `_run_generation`
@@ -261,9 +296,21 @@ in the job result.
 > importing torch when weights are absent. `malloc_trim` runs between chunks
 > and after every heavy task.
 >
-> Phase B (open): `TRANSCRIBE_CHUNK_SEC` 30→15 to trim the per-chunk peak;
-> audit which heavy libs (`matplotlib`, `music21`, `resampy`) actually load at
-> runtime and drop what doesn't; slim the Docker image.
+> **Phase B (done, 2026-09-07):** import-surface audit against a fresh
+> interpreter (`/proc/self/status` VmRSS). Idle floor is ~290 MB after
+> warm-up (numba, llvmlite, scipy, tflite_runtime, mir_eval, librosa,
+> pretty_midi, resampy + the warm-up's resident Basic Pitch model). **`torch`
+> is never imported on this path** (lazy-torch fix confirmed by measurement),
+> and `matplotlib` / `scikit-learn` / `tensorflow` are never imported at all.
+> The only removable weight was **`music21` (−35 MB RSS at boot)** — dropped;
+> `_key_from_histogram` (Krumhansl-Schmuckler) is now the sole key detector.
+> Everything else on the list is pulled eagerly by `basic_pitch.inference` and
+> can't be deferred without moving the cost into the transcription peak.
+> **`TRANSCRIBE_CHUNK_SEC` 30→15 measured: no peak benefit** (per-chunk
+> working set ~11 MB either way) — kept at 30. No per-transcription ratchet
+> (4 sequential runs flat). `torch` in the image (~200 MB disk) is dead
+> weight but removing it is a "generation permanently off" call, left to the
+> user.
 
 ---
 
@@ -361,11 +408,11 @@ exists.
 | # | Step | Gate |
 |---|---|---|
 | ~~1~~ | ✅ **DONE 2026-09-06** (PR #14 + prod flag flip). `_merge_chunk_notes` weld/dedup + `_transcribe_full_chunked` + `JobStore.heartbeat` + 8 tests. 5-min synthetic clip → 788 notes / 12 chunks / full 300.0s, **peak RSS ~400–430 MB flat**. Decision from the number: **stay free**, harden concurrency in code (429-on-busy + weights-before-torch — see `PROGRESS.md` "Free-tier hardening", landed 2026-09-07). Carried to step 2: `_merge_chunk_notes` `edge_eps` 0.15 → ~0.5 s. | *(met)* |
-| 1b (Phase B, open) | **Trim the transcription peak further.** Test `TRANSCRIBE_CHUNK_SEC` 30→15 (measure). Import audit: does the process actually load `matplotlib` / `music21` / `resampy` at runtime? Drop / lazy-load what it doesn't need. Slim the Docker image. Set `healthCheckPath=/health` (dashboard). | measured peak lower or explained; image smaller; no functional regression |
-| 2 | **`/api/analyze` (librosa-only, sync) + `clip_*` params on generate endpoints + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** librosa paths for `tempo`/`key`/`pitch_histogram`/`avg_pitch`. Contract step 1 (additive — `/api/transcribe` result unchanged for now). Shared TS types. | `/api/analyze` returns sane mood/key/BPM/chords on fixture clips; `/api/transcribe` result byte-identical; 400 on a >10-min upload |
+| ~~1b~~ | ✅ **Phase B DONE 2026-09-07.** Import audit (fresh interpreter, VmRSS): only `music21` was removable — **−35 MB at boot**, dropped (`_key_from_histogram` is now the sole key detector). `torch` confirmed never imported here; `matplotlib`/`sklearn`/`tensorflow` never imported at all. `TRANSCRIBE_CHUNK_SEC` 30→15 measured — **no peak benefit** (per-chunk working set ~11 MB either way), kept at 30. No per-transcription ratchet. Still open, non-blocking: `torch` out of the Docker image (~200 MB disk, "generation off" decision — user's call); `healthCheckPath=/health` (dashboard-only). | *(met — peak explained, −35 MB idle, no regression)* |
+| 2 | **`/api/analyze` (MIDI-based, sync) + `clip_*` params on generate endpoints + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** `/api/analyze` slices the job's stored `note_events` to `[clip_start, clip_end]` and reruns `_estimate_tempo` / `_key_from_histogram` / `heuristic_mood_from_metrics` / `_pitch_histogram` on the slice — no librosa, no audio. New `_chords_from_note_events` replaces `_detect_chords_from_audio` in this path (keep the audio version for the generation route). Persist `note_events` in the transcribe job result. Contract step 1 (additive — `/api/transcribe` gains `note_events`, keeps everything else). Shared TS types. Also fold in `_merge_chunk_notes` `edge_eps` 0.15 → ~0.5 s (carried from step 1). | `/api/analyze` returns sane mood/key/BPM/chords on fixture clips with **zero new imports** (assert in a subprocess test); slicing to a sub-window changes the numbers; `/api/transcribe` result is a superset of today's; 400 on a >10-min upload |
 | 3 | **Frontend: `clip-range.tsx` + two-result `/analyse` + slim transcription result.** wire `/api/analyze` (re-runnable), update `jobResult.ts` + GP3 `result-view.tsx` + RTL. Contract step 2. | both results render independently; re-analyze a different clip works; `npm run typecheck` + `npm test` green; keyboard + focus + ARIA-live on the range control |
 | 4 | **Flip `TRANSCRIBE_CHUNKED=true` in prod, remove the flag + the old truncating path.** | full-length MIDI on a real 5-min upload in prod; flat memory in Render metrics; no OOM over a day |
-| 5 | **Backend cleanup:** drop analysis fields from `/api/transcribe`'s result (contract step 3); update types + tests. | no client reads the dropped fields; types + tests green |
+| 5 | **Backend cleanup:** drop the *computed* analysis fields (`mood_*`, `key`, `tempo_bpm`, `detected_chords`, `pitch_histogram`, `average_pitch`) from `/api/transcribe`'s result — **keep `note_events`**, `/api/analyze` needs it (contract step 3); update types + tests. | no client reads the dropped fields; `/api/analyze` still works off the retained `note_events`; types + tests green |
 
 Canvas waveform selector is **out of scope here — deferred to roadmap Phase 7
 (`/audio-viz`)** rather than built half-now and rewritten. Append each step to
