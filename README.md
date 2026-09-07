@@ -128,7 +128,9 @@ frontend, and `pytest` for the backend, on every push and pull request.
 | `backend/.env` (optional) | `DATA_RETENTION_HOURS` | How long uploaded/generated files are kept before periodic cleanup deletes them (default `24`; `0` disables cleanup) |
 | `backend/.env` (optional) | `DATA_CLEANUP_INTERVAL_SECONDS` | How often the background cleanup pass runs (default `3600`) |
 | `backend/.env` (optional) | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (default `http://localhost:3000`) — must include the deployed frontend origin, since the browser calls the backend directly for uploads |
-| `backend/.env` (optional) | `RUN_WORKER_IN_PROCESS` | Runs the transcription worker on a background thread inside this process (default `true`) — set `false` in production and run `python -m app.worker_main` as its own service instead. See "Async Transcription Job Workflow" in `CLAUDE.md` |
+| `backend/.env` (optional) | `RUN_WORKER_IN_PROCESS` | Runs the transcription worker on a background thread inside this process (default `true`, and what production uses). `false` + `python -m app.worker_main` as its own service is the split-out option. See "Async Transcription Job Workflow" in `CLAUDE.md` |
+| `backend/.env` (optional) | `TRANSCRIBE_CHUNKED` | Chunked full-audio transcription — memory doesn't grow with clip length. Default `false`; production sets `true` |
+| `backend/.env` (optional) | `MAX_UPLOAD_DURATION_SEC` | Hard cap on uploaded audio length for the chunked path (default `600` — 10 min) |
 | `backend/.env` (optional) | `DATABASE_URL` | Postgres DSN for job metadata in production; falls back to a local SQLite file if unset |
 | `backend/.env` (optional) | `REDIS_URL` | Redis URL for the production job queue; falls back to an in-process queue if unset |
 | `backend/.env` (optional) | `JOB_STORAGE_BUCKET`, `JOB_STORAGE_ENDPOINT_URL`, `JOB_STORAGE_REGION`, `JOB_STORAGE_ACCESS_KEY_ID`, `JOB_STORAGE_SECRET_ACCESS_KEY` | S3/R2 bucket (+ credentials) for job input audio in production; falls back to local disk if unset. Required once the worker runs as a separate service from the web process, since they don't share a disk |
@@ -155,8 +157,17 @@ vocabulary, request flow) used to brief AI coding assistants working in this rep
 
 ## Known limitations
 
+- **Runs on Render's free tier (512 MB) — a deliberate cost decision.** The backend serves the
+  API and runs the transcription worker in one process. Audio work (Basic Pitch transcription,
+  CVAE/IDDM generation) is memory-heavy, so **only one heavy task runs at a time**: transcription
+  is processed one job at a time by a single worker, and if a `/generate-variants` request arrives
+  while a heavy task is already running it returns **`429` with a "try again in a moment" message**
+  rather than running concurrently (which would exceed the memory limit and restart the instance).
+  Transcription itself is chunked so its memory doesn't grow with audio length. The backend does
+  not idle-suspend maintenance beyond the `keep-warm` GitHub Action pinging `/health`.
 - Model checkpoints aren't included — you need to train your own via the notebook or supply
-  compatible `cvae_weights.pth` / `iddm_ppo_weights.pth` files.
+  compatible `cvae_weights.pth` / `iddm_ppo_weights.pth` files. When absent (the default), the
+  generation endpoints return a clear `503` and never load the model stack.
 - This is a single-tenant app with no authentication. Transcription job metadata/queue/input-audio
   storage are swappable (SQLite/Postgres, in-process/Redis, local disk/S3-compatible — see
   `CLAUDE.md`'s "Async Transcription Job Workflow"); the worker also mirrors its generated MIDI/WAV
@@ -171,8 +182,12 @@ vocabulary, request flow) used to brief AI coding assistants working in this rep
 ## Deployment
 
 - **Frontend**: Vercel (`frontend/vercel.json`)
-- **Backend web service**: Docker (`backend/Dockerfile`), Python 3.10-slim, exposes port 8000. Set
-  `RUN_WORKER_IN_PROCESS=false` in production.
-- **Backend worker service**: a second Render Background Worker service on the same image, start
-  command overridden to `python -m app.worker_main`. See `CLAUDE.md`'s Deployment section for the
-  full picture (Postgres for job metadata, Redis for the job queue, S3/R2 for job input audio).
+- **Backend**: one Render **free-tier** web service — Docker (`backend/Dockerfile`), Python
+  3.10-slim, port 8000, `RUN_WORKER_IN_PROCESS=true` (API + worker thread in one process),
+  `TRANSCRIBE_CHUNKED=true`. Job metadata on Neon Postgres, the job queue on Render Key Value
+  (Redis), job input/output audio on Backblaze B2 — all free tiers. A `keep-warm` GitHub Action
+  pings `/health` so the instance doesn't idle-suspend. See `CLAUDE.md`'s Deployment section for
+  the full env-var list, and its "known limitations" note above for the single-concurrent-task
+  constraint this shape implies.
+- Splitting the worker into its own Render service (`RUN_WORKER_IN_PROCESS=false` +
+  `python -m app.worker_main`) is supported but not currently deployed.

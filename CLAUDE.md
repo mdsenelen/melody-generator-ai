@@ -32,7 +32,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Environment required: `PYTHONPATH=.` (set in `backend/.env`).
 
-This alone is enough locally: the dev server also runs the transcription worker on a background thread (see the `architecture-reference` skill's "Async Transcription Job Workflow"), so no second process is needed. Only run the worker separately if you've deliberately set `RUN_WORKER_IN_PROCESS=false` to mirror production:
+This alone is enough locally: the dev server also runs the transcription worker on a background thread (see the `architecture-reference` skill's "Async Transcription Job Workflow"), so no second process is needed — and production runs the same in-process arrangement. Only run the worker separately if you've deliberately set `RUN_WORKER_IN_PROCESS=false`:
 
 ```bash
 python -m app.worker_main
@@ -56,9 +56,10 @@ Load-bearing facts worth keeping inline because nearly every task touches them:
 
 - Two model stacks exist; only `model/colab_parity.py` (MelodyCVAE + IDDM-PPO) is active. `model/vae.py` and `model/utils.py` are legacy, not used at inference time.
 - Transcription is async and job-based (`backend/app/jobs/`), not synchronous — `POST /api/transcribe` returns 202 + a job id immediately; there is no synchronous transcribe route anymore.
-- `RUN_WORKER_IN_PROCESS` defaults to `true` for local dev; production sets it `false` and runs `python -m app.worker_main` as a separate service.
+- `RUN_WORKER_IN_PROCESS` defaults to `true` — and production runs it `true` too (API + worker thread in one service). Splitting a dedicated worker out (`python -m app.worker_main`) is supported but not deployed.
+- Transcription is chunked in production (`TRANSCRIBE_CHUNKED=true`): the whole upload is transcribed, in overlapping 30s windows, so peak memory is length-independent (~400MB, measured — `docs/PLAN-full-transcription-split.md`). `MAX_ANALYSIS_DURATION_SEC` (60s) now bounds only the mood/key/BPM/chord *analysis clip*, not the transcription.
 - The production job stack (Neon Postgres, Render Redis, Backblaze B2) is live; per-IP rate limiting (`app/rate_limit.py`) and a request body size cap (`app/request_limits.py`) are both live too, on `/api/transcribe`, `/api/generate-variants`, and (for the body cap) every route.
-- Free-tier constraints are real, not theoretical: the web service's 512MB memory ceiling means it currently can't reliably serve two transcriptions back-to-back without an OOM restart — see the skill's "Cost constraints" section before assuming concurrency is safe.
+- **Free tier (512MB) is a permanent, accepted constraint — a deliberate cost decision, do not propose paying to lift it.** The consequence, enforced in code: **only one heavy audio task runs at a time.** `HEAVY_WORK_LOCK` serializes the transcribe worker against every generation route; a generation request that can't get the lock returns **429** immediately (not a block, not an OOM); the worker waits a bounded `WORKER_HEAVY_WORK_WAIT_SEC` then re-queues. Generation also 503s fast (before importing torch) when model weights aren't present. See the skill's "Cost constraints" section — those limits are the *reason the architecture looks the way it does*, and they're live, not historical.
 
 ## Scope rules
 

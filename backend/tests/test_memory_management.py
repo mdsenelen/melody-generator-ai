@@ -77,6 +77,34 @@ def test_run_generation_holds_heavy_work_lock():
     assert not inference.HEAVY_WORK_LOCK.locked()
 
 
+def test_run_generation_returns_429_immediately_when_lock_is_held():
+    """On the 512MB tier a second heavy pipeline OOMs the box, so a
+    generation request that can't get the lock must fail fast, not block."""
+    from fastapi import HTTPException
+
+    inference.HEAVY_WORK_LOCK.acquire()
+    try:
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(inference._run_generation(lambda: "should not run"))
+        assert exc.value.status_code == 429
+        assert exc.value.headers.get("Retry-After")
+    finally:
+        inference.HEAVY_WORK_LOCK.release()
+
+
+def test_run_basic_pitch_reraises_when_lock_stays_held(monkeypatch):
+    """The transcribe worker waits a bounded while for an in-flight
+    generation, then raises so the job is re-queued rather than blocking
+    the single worker thread forever."""
+    monkeypatch.setattr(inference, "WORKER_HEAVY_WORK_WAIT_SEC", 0.1)
+    inference.HEAVY_WORK_LOCK.acquire()
+    try:
+        with pytest.raises(RuntimeError):
+            inference.run_basic_pitch(b"irrelevant", "probe.wav")
+    finally:
+        inference.HEAVY_WORK_LOCK.release()
+
+
 def test_transcribe_and_generation_never_run_concurrently(monkeypatch, tmp_path):
     """The actual bug: before HEAVY_WORK_LOCK, the transcribe worker and a
     generation route shared no lock and could run their heavy work at the

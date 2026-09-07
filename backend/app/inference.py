@@ -294,6 +294,12 @@ _BASIC_PITCH_MODEL: Optional[Any] = None
 # behind another; on this instance that's a better trade than a second
 # OOM-triggered restart.
 HEAVY_WORK_LOCK = threading.Lock()
+# The generation HTTP routes 429 immediately if they can't get the lock (see
+# _run_generation). The transcribe worker, being a single thread with jobs
+# queued behind it in the store, instead waits this long for an in-flight
+# generation to finish before giving up and letting the job be re-queued --
+# comfortably above GENERATION_TIMEOUT_SECONDS.
+WORKER_HEAVY_WORK_WAIT_SEC = float(os.environ.get("WORKER_HEAVY_WORK_WAIT_SEC", "180"))
 
 
 def _release_memory_to_os() -> None:
@@ -384,17 +390,30 @@ async def _run_generation(func, *args, **kwargs) -> Any:
     indefinitely.
 
     The actual call is serialized against every other heavy pipeline
-    (including the transcribe worker) via HEAVY_WORK_LOCK, and releases
-    memory back to the OS afterward — see both for why. The lock is
-    acquired inside the threadpool-run callable, not here, so a blocking
-    acquire never stalls the asyncio event loop.
+    (including the transcribe worker) via HEAVY_WORK_LOCK. On the 512MB
+    deploy a second heavy pipeline running concurrently OOM-kills the
+    instance, so rather than block (and risk piling up threads that all
+    OOM when they finally run), a request that can't get the lock
+    **immediately** gets a 429 with a clear "try again" message. The lock
+    is acquired inside the threadpool-run callable, not here, so this
+    never stalls the asyncio event loop. Memory is released to the OS
+    afterward — see _release_memory_to_os.
     """
     def _locked_call():
-        with HEAVY_WORK_LOCK:
-            try:
-                return func(*args, **kwargs)
-            finally:
-                _release_memory_to_os()
+        if not HEAVY_WORK_LOCK.acquire(blocking=False):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "The server is busy with another audio task and can only run one "
+                    "at a time on this tier. Please try again in a moment."
+                ),
+                headers={"Retry-After": "30"},
+            )
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _release_memory_to_os()
+            HEAVY_WORK_LOCK.release()
 
     try:
         return await asyncio.wait_for(
@@ -430,15 +449,6 @@ def _load_cvae_iddm() -> dict[str, Any]:
 def _load_cvae_iddm_locked() -> dict[str, Any]:
     global _CVAE_IDDM_BUNDLE
 
-    # Resolved here rather than imported at module load: these pull in torch
-    # (via colab_parity) and only the generation paths reach this function.
-    # _lazy_model also honours a test monkeypatch on inference.<name>.
-    ActorCritic = _lazy_model("ActorCritic")
-    MINENetwork = _lazy_model("MINENetwork")
-    MelStateEncoder = _lazy_model("MelStateEncoder")
-    MelodyCVAE = _lazy_model("MelodyCVAE")
-    TransitionDiscriminator = _lazy_model("TransitionDiscriminator")
-
     def _err(detail: str) -> None:
         global _CVAE_IDDM_BUNDLE
         _CVAE_IDDM_BUNDLE = {
@@ -451,6 +461,24 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
         _raise_variant_service_unavailable(detail)
 
     use_joint = JOINT_WEIGHTS_PATH.exists()
+
+    # Check the weights are on disk BEFORE importing torch. When they aren't
+    # (the current deployment ships no .pth files -- see get_runtime_status),
+    # this makes a generation request a ~1ms 503 that never touches torch,
+    # rather than paying torch's ~150MB import just to fail. On the 512MB
+    # tier that import is the difference between fitting and OOM for a
+    # later transcription in the same process.
+    if not use_joint and not (CVAE_WEIGHTS_PATH.exists() and IDDM_WEIGHTS_PATH.exists()):
+        _err("Melody generation is unavailable here — the model weights file is missing from this deployment.")
+
+    # Resolved here rather than imported at module load: these pull in torch
+    # (via colab_parity) and only the generation paths reach this function.
+    # _lazy_model also honours a test monkeypatch on inference.<name>.
+    ActorCritic = _lazy_model("ActorCritic")
+    MINENetwork = _lazy_model("MINENetwork")
+    MelStateEncoder = _lazy_model("MelStateEncoder")
+    MelodyCVAE = _lazy_model("MelodyCVAE")
+    TransitionDiscriminator = _lazy_model("TransitionDiscriminator")
 
     try:
         if use_joint:
@@ -2062,56 +2090,59 @@ def run_basic_pitch(
     _ = original_filename
     # Serialized against every generation route too (HEAVY_WORK_LOCK, see its
     # definition) -- this is the only entry point the async job worker calls,
-    # so this is also where the worker-side lock acquisition lives.
-    with HEAVY_WORK_LOCK:
-        try:
-            sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+    # so this is also where the worker-side lock acquisition lives. The
+    # worker is a single thread, so it can afford to wait a bounded while
+    # for an in-flight generation to finish; if the wait runs out, raise so
+    # the worker re-queues the job (retryable) instead of blocking forever.
+    if not HEAVY_WORK_LOCK.acquire(timeout=WORKER_HEAVY_WORK_WAIT_SEC):
+        raise RuntimeError("work lock still held after waiting; another heavy task is running")
+    try:
+        sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
 
-            if TRANSCRIBE_CHUNKED:
-                # Full-audio chunked transcription (flag off by default --
-                # docs/PLAN-full-transcription-split.md step 1). No WAV
-                # preview for the full-length MIDI; the clip WAV comes from
-                # the separate analyse flow.
-                transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
-                wav_b64 = None
-            else:
-                transcription = _transcribe_and_mood(file_bytes)
-                wav_b64 = _midi_bytes_to_wav_b64(
-                    transcription["midi_bytes"],
-                    sample_rate=sample_rate,
-                    note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
-                    prefer_fluidsynth_only=False,
-                )
+        if TRANSCRIBE_CHUNKED:
+            # Full-audio chunked transcription. No WAV preview for the
+            # full-length MIDI -- the clip WAV comes from the analyse flow.
+            transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
+            wav_b64 = None
+        else:
+            transcription = _transcribe_and_mood(file_bytes)
+            wav_b64 = _midi_bytes_to_wav_b64(
+                transcription["midi_bytes"],
+                sample_rate=sample_rate,
+                note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
+                prefer_fluidsynth_only=False,
+            )
 
-            midi_filename, _ = _save_bytes(
-                transcription["midi_bytes"], "transcription", ".mid")
-            wav_filename = ""
-            if wav_b64 is not None:
-                wav_bytes = base64.b64decode(wav_b64)
-                wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
+        midi_filename, _ = _save_bytes(
+            transcription["midi_bytes"], "transcription", ".mid")
+        wav_filename = ""
+        if wav_b64 is not None:
+            wav_bytes = base64.b64decode(wav_b64)
+            wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
 
-            result = {
-                "n_notes": int(transcription["n_notes"]),
-                "duration_sec": round(float(transcription["duration_sec"]), 2),
-                "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
-                "truncated": bool(transcription["truncated"]),
-                "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
-                "wav_b64": wav_b64,
-                "midi_filename": midi_filename,
-                "wav_filename": wav_filename,
-                "mood_label": transcription["mood_label"],
-                "mood_idx": int(transcription["mood_idx"]),
-                "detected_chords": transcription["detected_chords"],
-                "key": transcription["key"],
-                "pitch_histogram": transcription["pitch_histogram"],
-                "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
-                "average_pitch": round(float(transcription["avg_pitch"]), 2),
-            }
-            if "n_chunks" in transcription:
-                result["n_chunks"] = int(transcription["n_chunks"])
-            return result
-        finally:
-            _release_memory_to_os()
+        result = {
+            "n_notes": int(transcription["n_notes"]),
+            "duration_sec": round(float(transcription["duration_sec"]), 2),
+            "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
+            "truncated": bool(transcription["truncated"]),
+            "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
+            "wav_b64": wav_b64,
+            "midi_filename": midi_filename,
+            "wav_filename": wav_filename,
+            "mood_label": transcription["mood_label"],
+            "mood_idx": int(transcription["mood_idx"]),
+            "detected_chords": transcription["detected_chords"],
+            "key": transcription["key"],
+            "pitch_histogram": transcription["pitch_histogram"],
+            "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
+            "average_pitch": round(float(transcription["avg_pitch"]), 2),
+        }
+        if "n_chunks" in transcription:
+            result["n_chunks"] = int(transcription["n_chunks"])
+        return result
+    finally:
+        _release_memory_to_os()
+        HEAVY_WORK_LOCK.release()
 
 
 async def handle_generate_request(
