@@ -33,26 +33,26 @@ const PIPELINE_STEPS = [
 export default function LandingPage() {
   return (
     <main className="space-y-16 pb-8">
-      <section className="px-2 pb-8 pt-6">
+      <section className="px-2 pb-8 pt-6 text-center">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-8 inline-flex items-center rounded-[0.55rem] border border-[#8b5cf6]/75 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#d19af7]">
+          <div className="mx-auto mb-8 inline-flex items-center rounded-[0.55rem] border border-[#8b5cf6]/75 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#d19af7]">
             AI music generation
           </div>
 
           <h1
-            className="max-w-5xl text-[clamp(2.8rem,5vw,5.2rem)] leading-[0.94] tracking-[-0.07em] text-[#f3f6fb]"
+            className="mx-auto max-w-5xl text-[clamp(2.8rem,5vw,5.2rem)] leading-[0.94] tracking-[-0.07em] text-[#f3f6fb]"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Turn a clip of audio into new,
             <span className="block text-[#edf3ff]">playable melodies</span>
           </h1>
 
-          <p className="mt-8 max-w-3xl text-[1.08rem] leading-relaxed text-[#dfe7f5]/75 sm:text-[1.45rem]">
+          <p className="mx-auto mt-8 max-w-3xl text-[1.08rem] leading-relaxed text-[#dfe7f5]/75 sm:text-[1.45rem]">
             Upload or record a short clip. Melodia analyses its harmonic content, then generates
-            melodic variants you can preview, download, and use immediately — as MIDI or WAV.
+            melodic variants you can preview, download, and use immediately, as MIDI or WAV.
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/analyse"
               className="inline-flex items-center justify-center rounded-[0.9rem] border border-[#8b5cf6]/70 bg-[#8b5cf6] px-7 py-4 text-base font-semibold text-white shadow-[0_10px_30px_rgba(139,92,246,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(139,92,246,0.45)]"

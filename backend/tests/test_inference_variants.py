@@ -373,7 +373,7 @@ def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
     )
     monkeypatch.setattr(inference, "_run_basic_pitch_predict", lambda path: (b"MThd\x00\x00", note_events))
     monkeypatch.setattr(inference, "_estimate_tempo", lambda events, midi_bytes=None: 128.0)
-    monkeypatch.setattr(inference, "_extract_key_label", lambda midi_bytes, histogram: "C major")
+    monkeypatch.setattr(inference, "_key_from_histogram", lambda histogram: "C major")
     monkeypatch.setattr(inference, "_detect_chords_from_audio", lambda audio, sr: ["C", "G"])
 
     result = inference._transcribe_and_mood(b"fake audio")

@@ -606,7 +606,6 @@ def get_runtime_status() -> dict[str, Any]:
         "weights_dir": str(WEIGHTS_DIR),
         "basic_pitch_available": basic_pitch_predict is not None,
         "pretty_midi_available": pretty_midi is not None,
-        "music21_available": m21 is not None,
         "variant_status": _variant_model_status(),
     }
 
@@ -1432,6 +1431,14 @@ def _pitch_histogram(note_events: list[dict[str, float | int]]) -> list[float]:
 
 
 def _key_from_histogram(histogram: list[float]) -> str:
+    """Krumhansl-Schmuckler key estimation from a 12-bin pitch-class histogram.
+
+    This is the only key detector. music21's ``converter.parse(...).analyze("key")``
+    used to run first (this was its fallback), but music21 costs ~240 submodules
+    of import RSS at boot for a marginally different answer on an already-noisy
+    machine transcription -- dropped for the 512 MiB tier (see docs/PROGRESS.md
+    "Free-tier hardening").
+    """
     hist = np.asarray(histogram, dtype=np.float32)
     if hist.sum() <= 0:
         return "Unknown"
@@ -1463,25 +1470,6 @@ def _key_from_histogram(histogram: list[float]) -> str:
             best_label = f"{root_name} minor"
 
     return best_label
-
-
-def _extract_key_label(midi_bytes: bytes, histogram: list[float]) -> str:
-    if m21 is None:
-        return _key_from_histogram(histogram)
-
-    temp_midi_path: Optional[Path] = None
-    try:  # pragma: no cover
-        with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
-            handle.write(midi_bytes)
-            temp_midi_path = Path(handle.name)
-        parsed = m21.converter.parse(str(temp_midi_path))
-        return str(parsed.analyze("key"))
-    except Exception:
-        return _key_from_histogram(histogram)
-    finally:
-        if temp_midi_path and temp_midi_path.exists():
-            temp_midi_path.unlink(missing_ok=True)
-
 
 
 
@@ -1743,7 +1731,7 @@ def _transcribe_and_mood_chunked(
         float(np.mean([int(note["pitch"]) for note in clip_notes])) if clip_notes else 60.0
     )
     pitch_histogram = _pitch_histogram(clip_notes)
-    key = _extract_key_label(clip_midi_bytes, pitch_histogram)
+    key = _key_from_histogram(pitch_histogram)
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
     detected_chords = _detect_chords_from_audio(clip_audio, sample_rate)
     del clip_audio
@@ -1810,7 +1798,7 @@ def _transcribe_and_mood(
     avg_pitch = float(np.mean([int(note["pitch"])
                       for note in note_events])) if note_events else 60.0
     pitch_histogram = _pitch_histogram(note_events)
-    key = _extract_key_label(midi_bytes, pitch_histogram)
+    key = _key_from_histogram(pitch_histogram)
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
     detected_chords = _detect_chords_from_audio(audio, sample_rate)
 
