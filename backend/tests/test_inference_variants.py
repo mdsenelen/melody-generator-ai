@@ -52,6 +52,18 @@ def reset_variant_bundle(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def heavy_work_lock_free():
+    """_run_generation now 429s (not blocks) when HEAVY_WORK_LOCK is held.
+    A timed-out generation test leaves its threadpool worker still running
+    and holding the lock for a beat; wait it out at teardown so it can't
+    429 the next test."""
+    yield
+    deadline = time.time() + 3.0
+    while inference.HEAVY_WORK_LOCK.locked() and time.time() < deadline:
+        time.sleep(0.02)
+
+
+@pytest.fixture(autouse=True)
 def isolated_job_store(tmp_path, monkeypatch):
     """generate_variants_route/generate_progression_route now persist a
     completed job on every call (see jobs/service.create_completed_job,

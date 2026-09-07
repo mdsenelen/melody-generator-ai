@@ -1,6 +1,11 @@
 # Plan: split full-audio transcription from short-clip analysis
 
-Status: **APPROVED 2026-09-06.** Sub-decisions resolved (below). Step 1 in progress.
+Status: **Step 1 done (2026-09-06)** — chunked transcription shipped behind
+`TRANSCRIBE_CHUNKED`, flipped on in prod, measured: ~400–430 MB peak on a 5-min
+clip, **flat across chunks**. That fits the free tier's 512 MB (~80%), so the
+project **stays on free tier** — with the concurrent-request OOM risk closed in
+code (429-on-busy, weights-check-before-torch — see `PROGRESS.md`
+"Free-tier hardening"). Steps 2–5 proceed on free tier. Sub-decisions below.
 
 ## Why
 
@@ -240,31 +245,25 @@ in the job result.
 
 ---
 
-## Memory — does it fit 512 MiB?
+## Memory — measured on free tier (512 MiB)
 
-```
-fixed library floor   ~250–350 MB   numba×2 (librosa + resampy), scipy,
-                                    scikit-learn, tflite-runtime, music21,
-                                    pretty_midi — paid once per process,
-                                    NOT reduced by chunking
-one 30 s chunk         ~30–60 MB    decode + posteriorgram + note extraction
-merged note list       < 1 MB       even for a 10-min song
-------------------------------------------------------------------
-transcription peak     ~300–420 MB  FLAT in input length
-```
-
-vs. today's unbounded growth (~+18 MB/min posteriorgram + decode + frames).
-
-- **Transcription becomes structurally safe on 512 MiB** — the specific failure
-  mode (length-proportional OOM) is designed out. This is the real win.
-- Generation (torch, ~450–480 MB peak) stays fragile but is serialized by
-  `HEAVY_WORK_LOCK`, lower priority, and currently 503s on missing weights.
-- **`malloc_trim(0)` between chunks** (reuse `_release_memory_to_os`) to stop
-  glibc holding each chunk's freed arena.
-- **Step 1 measures the real fixed floor** (one RSS probe after warm-up, in
-  prod). If it's ~400 MB rather than ~280 MB, margin gets thin and Render
-  Standard re-enters the conversation. Everything downstream is contingent on
-  that number.
+> **Resolved, step 1 (2026-09-06):** a chunked 5-minute transcription peaked at
+> **~400–430 MB, flat across all 12 chunks** — memory does not scale with
+> length, which was the point. Idle floor ~360 MB (numba×2, scipy, sklearn,
+> tflite, music21 + the warm-up's resident Basic Pitch model). ~80–85% of the
+> 512 MiB cap; ~100 MB headroom — enough for the one-at-a-time transcription
+> path, not for anything concurrent.
+>
+> **Decision: stay on free tier.** The concurrent-request risk is closed in
+> code instead (see `PROGRESS.md` "Free-tier hardening"): `_run_generation`
+> 429s immediately when it can't get `HEAVY_WORK_LOCK`; `run_basic_pitch`
+> waits `WORKER_HEAVY_WORK_WAIT_SEC` then re-queues; generation 503s *before*
+> importing torch when weights are absent. `malloc_trim` runs between chunks
+> and after every heavy task.
+>
+> Phase B (open): `TRANSCRIBE_CHUNK_SEC` 30→15 to trim the per-chunk peak;
+> audit which heavy libs (`matplotlib`, `music21`, `resampy`) actually load at
+> runtime and drop what doesn't; slim the Docker image.
 
 ---
 
@@ -361,7 +360,8 @@ exists.
 
 | # | Step | Gate |
 |---|---|---|
-| **1** | **Chunked transcription behind `TRANSCRIBE_CHUNKED=false` + `JobStore.heartbeat` + measure real prod peak.** `_transcribe_and_mood_chunked` (chunk-window decode via `librosa.load(offset=, duration=)`, per-chunk `_run_basic_pitch_predict`, `_merge_chunk_notes` weld/dedup, `_tokens_to_midi_bytes` assembly, default-clip analysis reusing the merged notes + one `librosa.load(duration=60)` for chords, no WAV render). `heartbeat` on the store (protocol + `SQLJobStore` SQLite **and** Postgres), called per chunk from the worker. Unit tests: `_merge_chunk_notes` (pure fn, synthetic boundary-crossing inputs) + `heartbeat` (extend / stale-token / past-original-lease). Deploy flag-on, transcribe a synthetic 5-min clip in prod, **report the measured peak RSS**. | merge + heartbeat unit tests green; synthetic 5-min clip → full-length MIDI in prod; **peak RSS number reported** → go / revisit Standard |
+| ~~1~~ | ✅ **DONE 2026-09-06** (PR #14 + prod flag flip). `_merge_chunk_notes` weld/dedup + `_transcribe_full_chunked` + `JobStore.heartbeat` + 8 tests. 5-min synthetic clip → 788 notes / 12 chunks / full 300.0s, **peak RSS ~400–430 MB flat**. Decision from the number: **stay free**, harden concurrency in code (429-on-busy + weights-before-torch — see `PROGRESS.md` "Free-tier hardening", landed 2026-09-07). Carried to step 2: `_merge_chunk_notes` `edge_eps` 0.15 → ~0.5 s. | *(met)* |
+| 1b (Phase B, open) | **Trim the transcription peak further.** Test `TRANSCRIBE_CHUNK_SEC` 30→15 (measure). Import audit: does the process actually load `matplotlib` / `music21` / `resampy` at runtime? Drop / lazy-load what it doesn't need. Slim the Docker image. Set `healthCheckPath=/health` (dashboard). | measured peak lower or explained; image smaller; no functional regression |
 | 2 | **`/api/analyze` (librosa-only, sync) + `clip_*` params on generate endpoints + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** librosa paths for `tempo`/`key`/`pitch_histogram`/`avg_pitch`. Contract step 1 (additive — `/api/transcribe` result unchanged for now). Shared TS types. | `/api/analyze` returns sane mood/key/BPM/chords on fixture clips; `/api/transcribe` result byte-identical; 400 on a >10-min upload |
 | 3 | **Frontend: `clip-range.tsx` + two-result `/analyse` + slim transcription result.** wire `/api/analyze` (re-runnable), update `jobResult.ts` + GP3 `result-view.tsx` + RTL. Contract step 2. | both results render independently; re-analyze a different clip works; `npm run typecheck` + `npm test` green; keyboard + focus + ARIA-live on the range control |
 | 4 | **Flip `TRANSCRIBE_CHUNKED=true` in prod, remove the flag + the old truncating path.** | full-length MIDI on a real 5-min upload in prod; flat memory in Render metrics; no OOM over a day |
