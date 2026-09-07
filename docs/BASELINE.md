@@ -74,7 +74,7 @@ All within a minor/patch of latest, no urgency:
 | jest | 30.2.0 | 30.4.2 |
 | tailwindcss | 4.1.11 | 4.3.3 |
 
-Backend (`requirements.txt`): FastAPI 0.141.1, uvicorn 0.51.0, torch 2.13.0 (CPU wheel) — all current. `pretty_midi`, `music21`, `redis`, `boto3` are unpinned (no version constraint) — worth pinning eventually for reproducible builds, not urgent.
+Backend (`requirements.txt`): FastAPI 0.141.1, uvicorn 0.51.0, torch 2.13.0 (CPU wheel) — all current. `pretty_midi`, `redis`, `boto3` are unpinned (no version constraint) — worth pinning eventually for reproducible builds, not urgent. (`music21` was removed 2026-09-07 — Phase B import audit, `docs/PROGRESS.md`.)
 
 ## Secrets scan
 
