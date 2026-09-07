@@ -28,23 +28,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={spaceGrotesk.variable}>
-      <body className="relative min-h-screen overflow-x-hidden text-white">
+      <body className="relative min-h-screen overflow-x-hidden text-[var(--melodia-text)] antialiased">
         <video
           autoPlay
           loop
           muted
           playsInline
-          className="fixed inset-0 -z-10 h-full w-full object-cover"
+          className="fixed inset-0 -z-20 h-full w-full object-cover opacity-35"
           style={{ pointerEvents: "none" }}
         >
           <source src="/background.mp4" type="video/mp4" />
         </video>
-        <div className="fixed inset-0 -z-10 bg-black/65" />
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.12),_transparent_28%)]" />
+        <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,rgba(4,8,13,0.18),rgba(4,8,13,0.7))]" />
 
         <div className="relative z-10">
           <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 sm:px-6 lg:px-8">
             <div className="flex flex-1 flex-col gap-6 py-6">
-              <header className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/4 px-5 py-3.5 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
+              <header className="flex flex-col gap-3 rounded-[1.5rem] border border-[var(--melodia-border)] bg-[var(--melodia-panel)] px-5 py-3.5 shadow-[var(--melodia-shadow)] backdrop-blur-xl md:flex-row md:items-center md:justify-between">
                 <Header />
                 <Nav />
               </header>

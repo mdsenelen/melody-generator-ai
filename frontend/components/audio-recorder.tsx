@@ -137,68 +137,71 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
   };
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20 backdrop-blur-sm">
-      <div className="flex flex-col gap-4">
+    <div className="flex min-h-[220px] flex-col justify-between gap-5 rounded-[1.4rem] border border-white/10 bg-[rgba(17,22,32,0.6)] p-5 shadow-[0_10px_26px_rgba(2,6,23,0.2)]">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">Browser recorder</p>
-          <p className="mt-1 text-sm text-gray-400"></p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
+            Record audio
+          </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={startRecording}
-            disabled={isRecording}
-            className="rounded-2xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:border-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            🎙 Record
-          </button>
-          <button
-            type="button"
-            onClick={stopRecording}
-            disabled={!isRecording}
-            className="rounded-2xl border border-sky-400/40 bg-sky-500/15 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Stop
-          </button>
-        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center">
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          className="inline-flex items-center justify-center gap-3 rounded-[1rem] border border-[#8b5cf6]/60 bg-[rgba(139,92,246,0.08)] px-5 py-3 text-base font-medium text-[#f1e9ff] transition hover:border-[#8b5cf6]/80 hover:bg-[rgba(139,92,246,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isRecording ? false : false}
+        >
+          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#d19af7] shadow-[0_0_12px_rgba(209,154,247,0.85)]" />
+          {isRecording ? "Recording..." : "Record from microphone"}
+        </button>
+      </div>
+
+      <div className="rounded-[1rem] border border-white/10 bg-[rgba(10,14,22,0.52)] p-4 text-sm text-[#dfe7f5]/70">
+        <p className="text-[12px] font-medium uppercase tracking-[0.22em] text-white/45">
+          Browser recorder
+        </p>
+        <p className="mt-2 text-sm text-[#dfe7f5]/70">Uses the Web Audio API</p>
+        {error ? <p className="mt-2 text-red-300">{error}</p> : null}
+        <p className="mt-2 text-sm text-[#dfe7f5]/70">{status}</p>
+
         {showLivePitch && isRecording && (
-          <LivePitchHistogram
-            noteHistogram={analyzerState.noteHistogram}
-            pitchClass={analyzerState.pitchClass}
-            currentNote={analyzerState.currentNote}
-            currentFrequency={analyzerState.currentFrequency}
-            clarity={analyzerState.clarity}
-          />
+          <div className="mt-4">
+            <LivePitchHistogram
+              noteHistogram={analyzerState.noteHistogram}
+              pitchClass={analyzerState.pitchClass}
+              currentNote={analyzerState.currentNote}
+              currentFrequency={analyzerState.currentFrequency}
+              clarity={analyzerState.clarity}
+            />
+          </div>
         )}
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-300">
-          <p>{status}</p>
-          {error ? <p className="mt-2 text-red-300">{error}</p> : null}
-          {previewUrl ? (
-            <div className="mt-4 space-y-4">
-              <audio controls className="w-full">
-                <source src={previewUrl} />
-                Your browser does not support the audio element.
-              </audio>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={useRecording}
-                  className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-                >
-                  ✅ Use this recording
-                </button>
-                <button
-                  type="button"
-                  onClick={recordAgain}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:border-white/20 hover:bg-white/10"
-                >
-                  🔄 Record again
-                </button>
-              </div>
+        {previewUrl ? (
+          <div className="mt-4 space-y-4">
+            <audio controls className="w-full">
+              <source src={previewUrl} />
+              Your browser does not support the audio element.
+            </audio>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={useRecording}
+                className="rounded-[0.8rem] border border-emerald-400/40 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
+              >
+                Use this recording
+              </button>
+              <button
+                type="button"
+                onClick={recordAgain}
+                className="rounded-[0.8rem] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-gray-200 transition hover:border-white/20 hover:bg-white/10"
+              >
+                Record again
+              </button>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

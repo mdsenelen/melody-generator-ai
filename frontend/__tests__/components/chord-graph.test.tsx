@@ -33,7 +33,7 @@ describe("ChordGraph", () => {
     jest.restoreAllMocks();
   });
 
-  it("links a rendered progression to its job-id result page instead of an inline download button", async () => {
+  it("shows the rendered progression result and MIDI download link", async () => {
     mockGenerateProgressionFetch();
     const user = userEvent.setup();
 
@@ -43,6 +43,9 @@ describe("ChordGraph", () => {
 
     const resultLink = await screen.findByRole("link", { name: /view & download result/i });
     expect(resultLink).toHaveAttribute("href", "/result/job-progression-1");
-    expect(screen.queryByRole("link", { name: /download midi/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /download midi/i })).toHaveAttribute(
+      "href",
+      "/api/download/progression.mid",
+    );
   });
 });

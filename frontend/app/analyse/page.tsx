@@ -83,6 +83,7 @@ function AnalysisAnimation({ statusMessage }: { statusMessage: string }) {
 
 export default function AnalysePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("upload");
+  const [showRecorder, setShowRecorder] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
   const [selectedUploadFilename, setSelectedUploadFilename] = useState<string | null>(null);
@@ -282,6 +283,7 @@ export default function AnalysePage() {
 
   const handleRecordingComplete = (file: File) => {
     setActiveTab("record");
+    setShowRecorder(true);
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setSelectedUploadFilename(null);
@@ -297,230 +299,244 @@ export default function AnalysePage() {
     <ErrorBoundary>
       <>
         <main className="space-y-8 pb-8">
-          <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="space-y-6 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-              <div className="space-y-3">
-                <UploadButton
-                  onUploadSuccess={handleUploadSuccess}
-                  onUploadError={setErrorMessage}
-                  label="Upload Audio"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("record")}
-                  className="inline-flex items-center justify-center overflow-hidden rounded-2xl border border-purple-400/40 bg-purple-600/20 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:border-purple-300 hover:bg-purple-500/25"
-                >
-                  Record Audio
-                </button>
-
-                {activeTab === "record" ? (
-                  <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
-                ) : null}
+          <section className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-[1.8rem] border border-white/10 bg-[rgba(17,22,32,0.72)] p-6 shadow-[0_10px_24px_rgba(2,6,23,0.2)] backdrop-blur-md">
+              <div className="mb-5 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
+                Upload audio
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Analyse source</p>
-                    <p className="mt-2 text-sm text-white/70">
-                      Analysis starts automatically after upload or recording.
-                    </p>
-                  </div>
-                </div>
+              <UploadButton
+                onUploadSuccess={handleUploadSuccess}
+                onUploadError={setErrorMessage}
+                label="Upload Audio"
+              />
 
-                {selectedFile ? (
-                  <p className="mt-3 text-sm text-white/70">
-                    Selected source:{" "}
-                    <span className="font-medium text-white">{selectedFile.name}</span>
+              {selectedFile ? (
+                <div className="mt-5 rounded-2xl border border-white/10 bg-[rgba(10,14,22,0.5)] p-4 text-sm text-[#dfe7f5]/70">
+                  <p className="text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
+                    Analysis source
                   </p>
-                ) : null}
-              </div>
+                  <p className="mt-2 font-medium text-white">{selectedFile.name}</p>
+                </div>
+              ) : null}
             </div>
 
-            <div className="space-y-6">
-              {isAnalyzing ? (
-                <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                  <AnalysisAnimation statusMessage={statusMessage} />
-                </section>
+            <div className="rounded-[1.8rem] border border-white/10 bg-[rgba(17,22,32,0.72)] p-6 shadow-[0_10px_24px_rgba(2,6,23,0.2)] backdrop-blur-md">
+              <div className="mb-5 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
+                Record audio
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("record");
+                  setShowRecorder((current) => !current);
+                }}
+                className="flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[1.4rem] border border-dashed border-[#8b5cf6]/45 bg-[rgba(139,92,246,0.06)] px-6 py-8 text-center text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.12)]"
+                aria-expanded={showRecorder}
+              >
+                <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[#d19af7]/50 bg-[#8b5cf6]/15 text-2xl text-[#d19af7] shadow-[0_0_18px_rgba(139,92,246,0.24)]">
+                  ●
+                </span>
+                <span className="text-base font-semibold">
+                  {showRecorder ? "Hide recorder" : "Record audio"}
+                </span>
+                <span className="text-sm text-white/45">
+                  {showRecorder
+                    ? "Close recording controls"
+                    : "Use your microphone to record a clip"}
+                </span>
+              </button>
+
+              {showRecorder ? (
+                <div className="mt-5">
+                  <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
+                </div>
               ) : null}
-
-              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                {!analysisResult ? (
-                  <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65 backdrop-blur-sm">
-                    Upload or record audio to see the transcription and downloads.
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p
-                          className="text-sm font-semibold text-white/75"
-                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                        >
-                          Results
-                        </p>
-                        <h2
-                          className="mt-1 text-2xl font-semibold text-white"
-                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                        >
-                          {analysisResult.sourceName}
-                        </h2>
-                      </div>
-
-                      {mood ? (
-                        <div
-                          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
-                        >
-                          <span>{mood.emoji}</span>
-                          <span>Mood: {mood.label}</span>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
-                        <p className="mt-3 text-lg font-semibold text-white">
-                          🔑 {analysisResult.key}
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                          Detected notes
-                        </p>
-                        <p className="mt-3 text-lg font-semibold text-white">
-                          {analysisResult.n_notes}
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
-                        <p className="mt-3 text-lg font-semibold text-white">
-                          {analysisResult.tempo_bpm} BPM
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                          Average pitch
-                        </p>
-                        <p className="mt-3 text-lg font-semibold text-white">
-                          {analysisResult.average_pitch}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p
-                            className="text-sm font-semibold text-white"
-                            style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                          >
-                            Pitch histogram: Tonal summary of your audio input
-                          </p>
-                          <p className="mt-1 text-sm text-white/65">
-                            Pitch-class balance across the transcription.
-                          </p>
-                        </div>
-
-                        <span className="text-sm text-white/50">
-                          {analysisResult.duration_sec.toFixed(2)} s
-                        </span>
-                      </div>
-
-                      {analysisResult.truncated ? (
-                        <p className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-900/20 px-4 py-2 text-sm text-amber-100">
-                          This clip is {formatDuration(analysisResult.source_duration_sec)} long —
-                          only the first {formatDuration(analysisResult.duration_sec)} was analysed.
-                        </p>
-                      ) : null}
-
-                      <div className="mt-5 grid grid-cols-12 gap-2">
-                        {PITCH_CLASS_LABELS.map((label, index) => {
-                          const value = analysisResult.pitch_histogram[index] ?? 0;
-
-                          return (
-                            <div key={label} className="flex flex-col items-center gap-2">
-                              <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
-                                <div
-                                  className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
-                                  style={{
-                                    height: `${Math.max(value * 100, 8)}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-[11px] text-white/60">{label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                        <div className="flex flex-wrap gap-3">
-                          <Link
-                            href={`/result/${analysisResult.jobId}`}
-                            className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
-                          >
-                            View &amp; download result
-                          </Link>
-                        </div>
-
-                        {analysisAudioUrl ? (
-                          <audio controls className="mt-4 w-full" src={analysisAudioUrl}>
-                            Your browser does not support the audio element.
-                          </audio>
-                        ) : (
-                          <p className="mt-4 text-sm text-white/65">
-                            WAV preview will appear here when FluidSynth is available on the
-                            backend.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                      <p
-                        className="text-sm font-semibold text-white"
-                        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                      >
-                        Detected chords
-                      </p>
-                      <p className="mt-2 text-sm text-white/65">
-                        Hover a chord to preview a guitar fingering diagram. Click on a chord to
-                        listen. Chords are grouped by root note.
-                      </p>
-
-                      <div className="mt-4 space-y-4">
-                        {Object.entries(groupedChords).length > 0 ? (
-                          Object.entries(groupedChords).map(([root, chords]) => (
-                            <div key={root} className="space-y-2">
-                              <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                                {root}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {chords.map((chord, index) => (
-                                  <ChordDiagram key={`${chord}-${index}`} chord={chord} />
-                                ))}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-white/60">
-                            No chord labels were detected for this clip.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </section>
             </div>
           </section>
+
+          <div className="space-y-6">
+            {isAnalyzing ? (
+              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
+                <AnalysisAnimation statusMessage={statusMessage} />
+              </section>
+            ) : null}
+
+            <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
+              {!analysisResult ? (
+                <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65 backdrop-blur-sm">
+                  Upload or record audio to see the transcription and downloads.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p
+                        className="text-sm font-semibold text-white/75"
+                        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                      >
+                        Results
+                      </p>
+                      <h2
+                        className="mt-1 text-2xl font-semibold text-white"
+                        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                      >
+                        {analysisResult.sourceName}
+                      </h2>
+                    </div>
+
+                    {mood ? (
+                      <div
+                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
+                      >
+                        <span>{mood.emoji}</span>
+                        <span>Mood: {mood.label}</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        🔑 {analysisResult.key}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                        Detected notes
+                      </p>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        {analysisResult.n_notes}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        {analysisResult.tempo_bpm} BPM
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                        Average pitch
+                      </p>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        {analysisResult.average_pitch}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p
+                          className="text-sm font-semibold text-white"
+                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                        >
+                          Pitch histogram: Tonal summary of your audio input
+                        </p>
+                        <p className="mt-1 text-sm text-white/65">
+                          Pitch-class balance across the transcription.
+                        </p>
+                      </div>
+
+                      <span className="text-sm text-white/50">
+                        {analysisResult.duration_sec.toFixed(2)} s
+                      </span>
+                    </div>
+
+                    {analysisResult.truncated ? (
+                      <p className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-900/20 px-4 py-2 text-sm text-amber-100">
+                        This clip is {formatDuration(analysisResult.source_duration_sec)} long —
+                        only the first {formatDuration(analysisResult.duration_sec)} was analysed.
+                      </p>
+                    ) : null}
+
+                    <div className="mt-5 grid grid-cols-12 gap-2">
+                      {PITCH_CLASS_LABELS.map((label, index) => {
+                        const value = analysisResult.pitch_histogram[index] ?? 0;
+
+                        return (
+                          <div key={label} className="flex flex-col items-center gap-2">
+                            <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
+                              <div
+                                className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
+                                style={{
+                                  height: `${Math.max(value * 100, 8)}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-white/60">{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/result/${analysisResult.jobId}`}
+                          className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
+                        >
+                          View &amp; download result
+                        </Link>
+                      </div>
+
+                      {analysisAudioUrl ? (
+                        <audio controls className="mt-4 w-full" src={analysisAudioUrl}>
+                          Your browser does not support the audio element.
+                        </audio>
+                      ) : (
+                        <p className="mt-4 text-sm text-white/65">
+                          WAV preview will appear here when FluidSynth is available on the backend.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                    <p
+                      className="text-sm font-semibold text-white"
+                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                    >
+                      Detected chords
+                    </p>
+                    <p className="mt-2 text-sm text-white/65">
+                      Hover a chord to preview a guitar fingering diagram. Click on a chord to
+                      listen. Chords are grouped by root note.
+                    </p>
+
+                    <div className="mt-4 space-y-4">
+                      {Object.entries(groupedChords).length > 0 ? (
+                        Object.entries(groupedChords).map(([root, chords]) => (
+                          <div key={root} className="space-y-2">
+                            <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                              {root}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {chords.map((chord, index) => (
+                                <ChordDiagram key={`${chord}-${index}`} chord={chord} />
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-white/60">
+                          No chord labels were detected for this clip.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
         </main>
 
         {errorMessage ? <ErrorToast message={errorMessage} onDismiss={dismissError} /> : null}

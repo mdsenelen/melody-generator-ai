@@ -61,6 +61,8 @@ export default function GenerateVariantsPage() {
   const [storedFilename, setStoredFilename] = useState<string | null>(null);
   const [useStoredUpload, setUseStoredUpload] = useState(false);
   const [nVariants, setNVariants] = useState(4);
+  const [selectedMood, setSelectedMood] = useState("Neutral");
+  const [selectedScale, setSelectedScale] = useState("Original");
   const [temperatures, setTemperatures] = useState<number[]>(buildDefaultTemperatures(4));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,104 +153,118 @@ export default function GenerateVariantsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[2rem] border border-white/10 bg-gray-900/80 p-6 shadow-xl shadow-black/20">
-        <div className="flex flex-wrap items-start gap-3">
-          <UploadButton
-            onUploadSuccess={handleUploadSuccess}
-            onUploadError={setError}
-            label="Upload audio"
-          />
-          <button
-            type="button"
-            onClick={() => setShowRecorder((v) => !v)}
-            className="inline-flex items-center justify-center overflow-hidden rounded-2xl border border-purple-400/40 bg-purple-600/20 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:border-purple-300 hover:bg-purple-500/25"
-          >
-            {showRecorder ? "Hide recorder" : "Record audio"}
-          </button>
-        </div>
+    <div className="space-y-8 pb-8">
+      <div>
+        <p className="text-[11px] font-medium tracking-[0.24em] text-[#bf9bff] uppercase">
+          Variants
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">
+          Transform your audio
+        </h1>
+        <p className="mt-2 max-w-xl text-sm text-white/55">
+          Configure the source and transformation controls, then generate new playable ideas.
+        </p>
+      </div>
 
-        {showRecorder ? (
-          <div className="mt-6">
-            <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <section className="rounded-[1.5rem] border border-white/10 bg-[rgba(17,22,32,0.78)] p-5 shadow-[0_12px_28px_rgba(2,6,23,0.2)] backdrop-blur-md">
+          <div className="mb-5 text-[10px] font-semibold tracking-[0.22em] text-white/40 uppercase">
+            Audio source
           </div>
-        ) : null}
+          <div className="space-y-3">
+            <UploadButton
+              onUploadSuccess={handleUploadSuccess}
+              onUploadError={setError}
+              label="Upload audio"
+            />
+            <button
+              type="button"
+              onClick={() => setShowRecorder((v) => !v)}
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/75 transition hover:border-white/25 hover:text-white"
+            >
+              {showRecorder ? "Hide recorder" : "Record audio"}
+            </button>
+          </div>
 
-        {lastUpload ? (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div>
-              <p className="text-sm font-semibold text-white">Recent upload available</p>
-              <p className="mt-1 text-sm text-gray-400">{lastUpload.sourceName}</p>
+          {showRecorder ? (
+            <div className="mt-4">
+              <AudioRecorder onRecordingComplete={handleRecordingComplete} />
             </div>
+          ) : null}
+
+          {lastUpload ? (
             <button
               type="button"
               onClick={handleUseStoredUpload}
               disabled={useStoredUpload}
-              className="rounded-full border border-purple-400/40 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 w-full rounded-xl border border-[#a879ff]/40 bg-[#8b5cf6]/10 px-4 py-3 text-left text-sm font-semibold text-[#d7c1ff] transition hover:border-[#bda0ff] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {useStoredUpload ? "Using this upload" : "Use my last upload"}
+              {useStoredUpload ? "Using this upload" : `Use ${lastUpload.sourceName}`}
             </button>
-          </div>
-        ) : null}
+          ) : null}
 
-        <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Selected source</p>
-              <p className="mt-2 text-sm text-gray-300">
-                {selectedSourceName ?? "No audio selected yet"}
+          <div className="mt-8 border-t border-white/10 pt-6">
+            <p className="text-[10px] font-semibold tracking-[0.22em] text-white/40 uppercase">
+              Transformation
+            </p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="mb-2 text-xs text-white/45">Mood</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Happy", "Neutral", "Sad"].map((moodOption) => (
+                    <button
+                      key={moodOption}
+                      type="button"
+                      onClick={() => setSelectedMood(moodOption)}
+                      className={`rounded-lg border px-3 py-2 text-xs transition ${selectedMood === moodOption ? "border-[#a879ff]/70 bg-[#8b5cf6]/25 text-white" : "border-white/10 bg-white/[0.03] text-white/50 hover:border-white/25"}`}
+                    >
+                      {moodOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs text-white/45">Scale</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Original", "Major", "Minor"].map((scaleOption) => (
+                    <button
+                      key={scaleOption}
+                      type="button"
+                      onClick={() => setSelectedScale(scaleOption)}
+                      className={`rounded-lg border px-3 py-2 text-xs transition ${selectedScale === scaleOption ? "border-[#a879ff]/70 bg-[#8b5cf6]/25 text-white" : "border-white/10 bg-white/[0.03] text-white/50 hover:border-white/25"}`}
+                    >
+                      {scaleOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={generateVariants}
+            disabled={loading || (!selectedFile && !useStoredUpload)}
+            className="mt-8 inline-flex w-full items-center justify-center rounded-xl border border-[#a879ff]/70 bg-[#8b5cf6]/30 px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#8b5cf6]/45 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? <Spinner size="sm" label="Generating variants" /> : "Generate 3 Variants"}
+          </button>
+        </section>
+
+        <section className="min-h-[520px] rounded-[1.5rem] border border-white/10 bg-[rgba(17,22,32,0.56)] p-6 shadow-[0_12px_28px_rgba(2,6,23,0.16)] backdrop-blur-md">
+          {!result ? (
+            <div className="flex min-h-[470px] flex-col items-center justify-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-3xl font-light text-white/55">
+                +
+              </div>
+              <h2 className="mt-6 text-xl font-semibold text-white">Configure on the left</h2>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/45">
+                Load audio, set transformation parameters, and generate.
               </p>
-              {storedFilename ? (
-                <p className="mt-1 text-xs tracking-[0.2em] text-gray-500 uppercase">
-                  {storedFilename}
-                </p>
-              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={generateVariants}
-              disabled={loading || (!selectedFile && !useStoredUpload)}
-              className="inline-flex min-w-[13rem] items-center justify-center rounded-2xl border border-purple-400/40 bg-purple-500/15 px-5 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? <Spinner size="sm" label="Generating variants" /> : "Generate variants"}
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-[auto_1fr]">
-            <label className="flex flex-col gap-2 text-sm text-gray-300">
-              <span className="font-medium text-gray-200">Variants: {nVariants}</span>
-              <input
-                type="range"
-                min={1}
-                max={8}
-                step={1}
-                value={nVariants}
-                onChange={(event) => updateVariantCount(Number(event.target.value))}
-                className="accent-purple-400"
-              />
-            </label>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {temperatures.slice(0, nVariants).map((temperature, index) => (
-                <label
-                  key={`temperature-${index}`}
-                  className="flex flex-col gap-2 text-sm text-gray-300"
-                >
-                  <span className="font-medium text-gray-200">Temperature {index + 1}</span>
-                  <input
-                    type="number"
-                    min={0.3}
-                    max={2.0}
-                    step={0.1}
-                    value={temperature}
-                    onChange={(event) => updateTemperature(index, Number(event.target.value))}
-                    className="rounded-2xl border border-white/10 bg-gray-950 px-3 py-2 text-white transition outline-none focus:border-purple-400"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+          ) : null}
+        </section>
+      </div>
 
       {error ? (
         <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">

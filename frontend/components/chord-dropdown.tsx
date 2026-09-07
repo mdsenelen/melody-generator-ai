@@ -242,8 +242,11 @@ function ChordDropdown({ value, onChange, label, className = "" }: ChordDropdown
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-2xl border border-white/10 bg-gray-900 px-3 py-2 text-white transition outline-none focus:border-purple-400"
+        className={`rounded-2xl border border-white/10 bg-gray-900 px-3 py-2 transition outline-none focus:border-purple-400 ${value ? "text-white" : "text-white/35"}`}
       >
+        <option value="" disabled>
+          EMPTY
+        </option>
         {chords.map((chord) => (
           <option key={chord} value={chord}>
             {chord}
