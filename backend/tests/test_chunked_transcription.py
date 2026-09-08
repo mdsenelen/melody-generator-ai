@@ -93,7 +93,6 @@ def test_transcribe_and_mood_chunked_assembles_full_midi_and_reports_progress(mo
         inference, "_run_basic_pitch_predict",
         lambda path: (b"", [_n(0.5, 2.0, 60)]),
     )
-    monkeypatch.setattr(inference, "_detect_chords_from_audio", lambda audio, sr: ["C", "G"])
 
     progress_calls: list[int] = []
     result = inference._transcribe_and_mood_chunked(
@@ -105,9 +104,11 @@ def test_transcribe_and_mood_chunked_assembles_full_midi_and_reports_progress(mo
     assert result["n_chunks"] >= 3
     assert result["n_notes"] >= 3           # one per chunk, at absolute offsets
     assert len(result["midi_bytes"]) > 0
+    assert result["note_events"], "note_events must be carried through for /api/analyze"
     assert progress_calls == sorted(progress_calls)  # monotonic
     assert progress_calls[-1] <= 90
-    assert result["detected_chords"] == ["C", "G"]
+    # chords now come from the merged notes (all pitch 60), not a librosa pass
+    assert result["detected_chords"] == ["C"]
 
 
 def test_transcribe_and_mood_chunked_rejects_audio_over_the_cap(monkeypatch):

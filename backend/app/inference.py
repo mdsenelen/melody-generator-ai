@@ -958,6 +958,121 @@ def _detect_chords_from_audio(audio: np.ndarray, sample_rate: int) -> list[str]:
     return chords
 
 
+def _chords_from_note_events(
+    note_events: list[dict[str, float | int]],
+    *,
+    window_sec: float = 2.0,
+    start: Optional[float] = None,
+    end: Optional[float] = None,
+) -> list[str]:
+    """Chord progression from note events -- no audio. Windows the notes into
+    ``window_sec`` bins, builds a duration-weighted 12-bin pitch-class vector
+    per window, and names it with the same template match
+    ``_detect_chords_from_audio`` uses on a chroma vector. Consecutive repeats
+    are collapsed. This is the analysis-path chord source (see
+    docs/PLAN-full-transcription-split.md step 2); the chroma version stays for
+    the generation route, which already has the decoded audio in hand.
+    """
+    if not note_events:
+        return []
+    span_start = start if start is not None else min(float(n["start"]) for n in note_events)
+    span_end = end if end is not None else max(float(n["end"]) for n in note_events)
+    if span_end <= span_start:
+        return []
+
+    chords: list[str] = []
+    t = span_start
+    while t < span_end:
+        t_end = min(t + window_sec, span_end)
+        vec = np.zeros(12, dtype=np.float32)
+        for n in note_events:
+            overlap = min(float(n["end"]), t_end) - max(float(n["start"]), t)
+            if overlap > 0:
+                vec[int(n["pitch"]) % 12] += overlap
+        if vec.sum() > 0:
+            label = _infer_chord_from_chroma(vec)
+            if not chords or chords[-1] != label:
+                chords.append(label)
+        t += window_sec
+    return chords
+
+
+def _trim_note_events(
+    note_events: list[dict[str, float | int]],
+) -> list[dict[str, float | int]]:
+    """Compact form persisted in the transcribe job result so /api/analyze can
+    slice it later: just start/end/pitch/velocity, times rounded to ms."""
+    trimmed: list[dict[str, float | int]] = []
+    for n in note_events:
+        start = round(float(n["start"]), 3)
+        trimmed.append({
+            "start": start,
+            "end": max(start, round(float(n["end"]), 3)),
+            "pitch": int(n["pitch"]),
+            "velocity": int(n.get("velocity", 90)),
+        })
+    return trimmed
+
+
+def analyze_clip(
+    note_events: list[dict[str, float | int]],
+    clip_start_sec: float = 0.0,
+    clip_end_sec: Optional[float] = None,
+) -> dict[str, Any]:
+    """Mood / key / tempo / chords / pitch histogram for the note events that
+    fall in ``[clip_start_sec, clip_end_sec)``. Pure arithmetic on the notes --
+    no audio decode, no Basic Pitch, no ``HEAVY_WORK_LOCK``. Powers
+    POST /api/analyze; the same numbers the transcription path reports today,
+    just re-runnable against any sub-window without re-transcribing.
+    """
+    clip_start_sec = max(0.0, float(clip_start_sec))
+    span_end = (
+        float(clip_end_sec)
+        if clip_end_sec is not None
+        else max((float(n["end"]) for n in note_events), default=clip_start_sec)
+    )
+    clip = [
+        n for n in note_events
+        if float(n["end"]) > clip_start_sec and float(n["start"]) < span_end
+    ]
+
+    if not clip:
+        return {
+            "tempo_bpm": 90.0,
+            "average_pitch": 60.0,
+            "mood_idx": 2,
+            "mood_label": MOOD_LABELS[2],
+            "key": "Unknown",
+            "pitch_histogram": [0.0] * 12,
+            "detected_chords": [],
+            "n_notes": 0,
+            "clip_start_sec": round(clip_start_sec, 3),
+            "clip_end_sec": round(span_end, 3),
+        }
+
+    rough_tempo = _estimate_tempo(clip)
+    clip_midi_bytes = _tokens_to_midi_bytes(clip, bpm=rough_tempo, instrument=0)
+    tempo_bpm = round(float(_estimate_tempo(clip, clip_midi_bytes)), 2)
+    avg_pitch = round(float(np.mean([int(n["pitch"]) for n in clip])), 2)
+    pitch_histogram = _pitch_histogram(clip)
+    key = _key_from_histogram(pitch_histogram)
+    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
+    detected_chords = _chords_from_note_events(clip, start=clip_start_sec, end=span_end)
+
+    return {
+        "tempo_bpm": tempo_bpm,
+        "average_pitch": avg_pitch,
+        "mood_idx": int(mood_idx),
+        "mood_label": mood_label,
+        "key": key,
+        "pitch_histogram": pitch_histogram,
+        "detected_chords": detected_chords,
+        "n_notes": len(clip),
+        "clip_start_sec": round(clip_start_sec, 3),
+        "clip_end_sec": round(span_end, 3),
+    }
+
+
 def _parse_chord_notes(chord: str) -> list[int]:
     chord = chord.strip()
     if not chord:
@@ -1721,10 +1836,13 @@ def _transcribe_and_mood_chunked(
     )
 
     clip_end = min(MAX_ANALYSIS_DURATION_SEC, source_duration_sec)
-    clip_audio = _decode_audio_window(audio_bytes, sample_rate, 0.0, clip_end)
     clip_notes = [n for n in merged if float(n["start"]) < clip_end]
     if not clip_notes:
+        # only decode audio for the pitch fallback when there are no notes at
+        # all -- the common path is now audio-free (chords come from the notes)
+        clip_audio = _decode_audio_window(audio_bytes, sample_rate, 0.0, clip_end)
         clip_notes = _fallback_note_events_from_audio(clip_audio, sample_rate)
+        del clip_audio
 
     estimated_tempo = _estimate_tempo(clip_notes)
     clip_midi_bytes = _tokens_to_midi_bytes(clip_notes, bpm=estimated_tempo, instrument=0)
@@ -1741,8 +1859,7 @@ def _transcribe_and_mood_chunked(
     pitch_histogram = _pitch_histogram(clip_notes)
     key = _key_from_histogram(pitch_histogram)
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
-    detected_chords = _detect_chords_from_audio(clip_audio, sample_rate)
-    del clip_audio
+    detected_chords = _chords_from_note_events(clip_notes, start=0.0, end=clip_end)
 
     return {
         "midi_bytes": full_midi_bytes,
@@ -1808,7 +1925,7 @@ def _transcribe_and_mood(
     pitch_histogram = _pitch_histogram(note_events)
     key = _key_from_histogram(pitch_histogram)
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
-    detected_chords = _detect_chords_from_audio(audio, sample_rate)
+    detected_chords = _chords_from_note_events(note_events)
 
     return {
         "midi_bytes": midi_bytes,
@@ -2127,6 +2244,10 @@ def run_basic_pitch(
             "pitch_histogram": transcription["pitch_histogram"],
             "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
             "average_pitch": round(float(transcription["avg_pitch"]), 2),
+            # Persisted so POST /api/analyze can re-analyze any clip window
+            # without re-transcribing (see docs/PLAN-full-transcription-split.md
+            # step 2). ~40 KB for a 5-min track.
+            "note_events": _trim_note_events(transcription.get("note_events") or []),
         }
         if "n_chunks" in transcription:
             result["n_chunks"] = int(transcription["n_chunks"])
@@ -2334,6 +2455,8 @@ async def generate_variants_route(
     n_variants: int = Form(4),
     temperatures: Optional[str] = Form(None),
     seed: Optional[int] = Form(None),
+    clip_start_sec: Optional[float] = Form(None),
+    clip_end_sec: Optional[float] = Form(None),
 ) -> dict[str, Any]:
     count = max(1, min(8, int(n_variants)))
 
@@ -2349,6 +2472,22 @@ async def generate_variants_route(
             )
         raw = input_path.read_bytes()
         source_name = input_path.name
+
+    if clip_start_sec is not None or clip_end_sec is not None:
+        # Generate from just the selected window: decode it and hand the
+        # rest of the pipeline a plain WAV of that slice.
+        clip_sr = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+        start = max(0.0, float(clip_start_sec or 0.0))
+        if clip_end_sec is not None and float(clip_end_sec) <= start:
+            raise HTTPException(
+                status_code=400, detail="clip_end_sec must be greater than clip_start_sec"
+            )
+        clip_dur = (
+            float(clip_end_sec) - start if clip_end_sec is not None else MAX_ANALYSIS_DURATION_SEC
+        )
+        raw = _waveform_to_wav_bytes(
+            _decode_audio_window(raw, clip_sr, start, clip_dur), clip_sr
+        )
 
     if not isinstance(seed, int):
         seed = None
