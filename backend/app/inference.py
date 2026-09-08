@@ -86,6 +86,7 @@ def __getattr__(name: str) -> Any:  # PEP 562
 
 
 from .model.tokens import (
+    MOOD_LABELS,
     heuristic_mood_from_metrics,
     midi_to_tokens,
     tokens_to_bar_idx,
@@ -2472,6 +2473,11 @@ async def generate_variants_route(
             )
         raw = input_path.read_bytes()
         source_name = input_path.name
+
+    # Direct callers (tests) leave Form params as their FieldInfo default
+    # rather than None -- coerce non-numeric to None, same as `seed` below.
+    clip_start_sec = clip_start_sec if isinstance(clip_start_sec, (int, float)) else None
+    clip_end_sec = clip_end_sec if isinstance(clip_end_sec, (int, float)) else None
 
     if clip_start_sec is not None or clip_end_sec is not None:
         # Generate from just the selected window: decode it and hand the
