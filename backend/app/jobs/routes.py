@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from app.rate_limit import rate_limiter
+from app.schemas import AnalyzeRequest
 
 from .models import COMPLETED, EXPIRED, FAILED, Job
 from .service import create_transcription_job, get_job_store
@@ -92,3 +93,39 @@ async def get_transcribe_job(job_id: str) -> dict[str, Any]:
         return {"job_id": job.id, "status": EXPIRED, "progress": job.progress, "result": None, "error": None}
 
     return job.to_status_payload()
+
+
+@router.post("/analyze")
+async def analyze_clip_route(payload: AnalyzeRequest) -> dict[str, Any]:
+    """Mood / key / tempo / chords / pitch histogram for a clip of a completed
+    transcribe job -- computed from its stored note events, re-runnable against
+    any window without re-transcribing. No audio, no Basic Pitch, no
+    HEAVY_WORK_LOCK (see docs/PLAN-full-transcription-split.md step 2)."""
+    from app import inference  # lazy import, see create_transcribe_job above
+
+    store = get_job_store()
+    job = await run_in_threadpool(store.get_job, payload.job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != COMPLETED or not job.result:
+        raise HTTPException(
+            status_code=409, detail="Transcription is not complete for this job yet"
+        )
+
+    note_events = job.result.get("note_events")
+    if not note_events:
+        raise HTTPException(
+            status_code=409,
+            detail="This transcription has no stored note data — re-transcribe to analyze a clip.",
+        )
+
+    start = max(0.0, float(payload.clip_start_sec))
+    end = payload.clip_end_sec
+    if end is not None:
+        end = float(end)
+        if end <= start:
+            raise HTTPException(
+                status_code=400, detail="clip_end_sec must be greater than clip_start_sec"
+            )
+
+    return await run_in_threadpool(inference.analyze_clip, note_events, start, end)

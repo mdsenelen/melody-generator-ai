@@ -26,3 +26,13 @@ class GenerateProgressionRequest(BaseModel):
     progression: list[str]
     bpm: float = 120.0
     instrument: int = 0
+
+
+class AnalyzeRequest(BaseModel):
+    """POST /api/analyze -- mood / key / tempo / chords / pitch histogram for a
+    clip of a completed transcribe job, computed from its stored note events
+    (no audio, no Basic Pitch). clip_end_sec None means "to the end"."""
+
+    job_id: str
+    clip_start_sec: float = 0.0
+    clip_end_sec: Optional[float] = None

@@ -43,18 +43,19 @@ We want:
 
 | Endpoint | Shape | Work | Memory |
 |---|---|---|---|
-| `POST /api/transcribe` | async job → `{job_id}`; poll `GET /api/transcribe/{job_id}` | **Full audio**, chunked Basic Pitch → full-length MIDI. No analysis fields. | flat ~300–400 MB regardless of length |
-| `POST /api/analyze` | **synchronous** → analysis JSON directly | mood, key, BPM, chords, pitch histogram on `[clip_start_sec, clip_end_sec]` of an existing transcribe job | **arithmetic on stored note events — zero librosa, zero Basic Pitch** (see below) |
-| `POST /api/generate-variants` | unchanged (still async-job-wrapped for the result page) | now also takes `clip_start_sec`/`clip_end_sec`; runs its internal Basic Pitch on the clip only | serialized by `HEAVY_WORK_LOCK` |
+| `POST /api/transcribe` | async job → `{job_id}`; poll `GET /api/transcribe/{job_id}` | **Full audio**, chunked Basic Pitch → full-length MIDI + persisted `note_events` | flat ~300–400 MB regardless of length |
+| `POST /api/analyze` | **synchronous** → analysis JSON directly | mood, key, BPM, chords, pitch histogram on `[clip_start_sec, clip_end_sec]` of a completed transcribe job | **arithmetic on stored note events — zero librosa, zero Basic Pitch** (see below) |
+| `POST /api/generate-variants` | unchanged (still async-job-wrapped for the result page) | now also takes `clip_start_sec`/`clip_end_sec`; decodes + runs its internal Basic Pitch on that window only | serialized by `HEAVY_WORK_LOCK` |
 
-`/api/transcribe`'s result loses `mood_label`, `mood_idx`, `key`, `tempo_bpm`,
-`detected_chords`, `pitch_histogram`, `average_pitch` — those move to
-`/api/analyze`. It keeps / gains: `midi_b64` (full length), `midi_filename`,
-`wav_b64?`, `source_duration_sec`, `n_notes`, `n_chunks`, `truncated` (now
-always `false` unless the 10-min cap hit), and — **required by the MIDI-based
-`/api/analyze`** — the full `note_events` array persisted in the job result
-(~50 KB for a 5-min track). `/api/analyze` slices these by `[clip_start,
-clip_end]`; it does not re-read the audio.
+**Contract, staged:**
+- **Step 2 (this step) — additive.** `/api/transcribe`'s result *gains*
+  `note_events` (trimmed `{start,end,pitch,velocity}`, ~40 KB for a 5-min
+  track); everything it returns today stays. `/api/analyze` is new. Nothing
+  breaks.
+- **Step 5 — the removal.** `/api/transcribe`'s result then *loses* the
+  computed fields (`mood_label`, `mood_idx`, `key`, `tempo_bpm`,
+  `detected_chords`, `pitch_histogram`, `average_pitch`) — the client reads
+  them from `/api/analyze` by then. `note_events` stays (analyze needs it).
 
 ### `/api/analyze` — MIDI-based, no audio at all (revised 2026-09-07)
 
@@ -407,9 +408,9 @@ exists.
 
 | # | Step | Gate |
 |---|---|---|
-| ~~1~~ | ✅ **DONE 2026-09-06** (PR #14 + prod flag flip). `_merge_chunk_notes` weld/dedup + `_transcribe_full_chunked` + `JobStore.heartbeat` + 8 tests. 5-min synthetic clip → 788 notes / 12 chunks / full 300.0s, **peak RSS ~400–430 MB flat**. Decision from the number: **stay free**, harden concurrency in code (429-on-busy + weights-before-torch — see `PROGRESS.md` "Free-tier hardening", landed 2026-09-07). Carried to step 2: `_merge_chunk_notes` `edge_eps` 0.15 → ~0.5 s. | *(met)* |
+| ~~1~~ | ✅ **DONE 2026-09-06** (PR #14 + prod flag flip). `_merge_chunk_notes` weld/dedup + `_transcribe_full_chunked` + `JobStore.heartbeat` + 8 tests. 5-min synthetic clip → 788 notes / 12 chunks / full 300.0s, **peak RSS ~400–430 MB flat**. Decision from the number: **stay free**, harden concurrency in code (429-on-busy + weights-before-torch — see `PROGRESS.md` "Free-tier hardening", landed 2026-09-07). `_merge_chunk_notes` `edge_eps` was ~50 ms too tight on the synthetic clip — tuning it stays with the mir_eval validation harness (needs an F1 measurement on real music to set, not a guess), not step 2. | *(met)* |
 | ~~1b~~ | ✅ **Phase B DONE 2026-09-07.** Import audit (fresh interpreter, VmRSS): only `music21` was removable — **−35 MB at boot**, dropped (`_key_from_histogram` is now the sole key detector). `torch` confirmed never imported here; `matplotlib`/`sklearn`/`tensorflow` never imported at all. `TRANSCRIBE_CHUNK_SEC` 30→15 measured — **no peak benefit** (per-chunk working set ~11 MB either way), kept at 30. No per-transcription ratchet. Still open, non-blocking: `torch` out of the Docker image (~200 MB disk, "generation off" decision — user's call); `healthCheckPath=/health` (dashboard-only). | *(met — peak explained, −35 MB idle, no regression)* |
-| 2 | **`/api/analyze` (MIDI-based, sync) + `clip_*` params on generate endpoints + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** `/api/analyze` slices the job's stored `note_events` to `[clip_start, clip_end]` and reruns `_estimate_tempo` / `_key_from_histogram` / `heuristic_mood_from_metrics` / `_pitch_histogram` on the slice — no librosa, no audio. New `_chords_from_note_events` replaces `_detect_chords_from_audio` in this path (keep the audio version for the generation route). Persist `note_events` in the transcribe job result. Contract step 1 (additive — `/api/transcribe` gains `note_events`, keeps everything else). Shared TS types. Also fold in `_merge_chunk_notes` `edge_eps` 0.15 → ~0.5 s (carried from step 1). | `/api/analyze` returns sane mood/key/BPM/chords on fixture clips with **zero new imports** (assert in a subprocess test); slicing to a sub-window changes the numbers; `/api/transcribe` result is a superset of today's; 400 on a >10-min upload |
+| 2 | **`/api/analyze` (MIDI-based, sync) + `clip_*` params on `/generate-variants` + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** `POST /api/analyze {job_id, clip_start_sec?, clip_end_sec?}` → `analyze_clip()` slices the job's stored `note_events` to the window and reruns `_estimate_tempo` / `_key_from_histogram` / `heuristic_mood_from_metrics` / `_pitch_histogram` on the slice — no librosa, no audio, does **not** take `HEAVY_WORK_LOCK`. New `_chords_from_note_events` replaces `_detect_chords_from_audio` in `_transcribe_and_mood` + `_transcribe_and_mood_chunked` (keep the audio version for `generate_from_audio`). Persist `note_events` (trimmed `{start,end,pitch,velocity}`) in the transcribe job result. `MAX_UPLOAD_DURATION_SEC` best-effort at `/api/upload` (header probe — hard enforcement stays in the chunked transcribe path for mp3/m4a the probe can't read). `clip_start_sec`/`clip_end_sec` on `/generate-variants` → decode only that window for generation. Contract step 1 (additive — `/api/transcribe` gains `note_events`, keeps everything else). Shared TS types. | `/api/analyze` returns sane mood/key/BPM/chords off note events with **zero new imports** (subprocess test); slicing to a sub-window changes the numbers; `/api/transcribe` result is a superset of today's; 400 on a >10-min wav upload; `pytest` + `npm run typecheck` green |
 | 3 | **Frontend: `clip-range.tsx` + two-result `/analyse` + slim transcription result.** wire `/api/analyze` (re-runnable), update `jobResult.ts` + GP3 `result-view.tsx` + RTL. Contract step 2. | both results render independently; re-analyze a different clip works; `npm run typecheck` + `npm test` green; keyboard + focus + ARIA-live on the range control |
 | 4 | **Flip `TRANSCRIBE_CHUNKED=true` in prod, remove the flag + the old truncating path.** | full-length MIDI on a real 5-min upload in prod; flat memory in Render metrics; no OOM over a day |
 | 5 | **Backend cleanup:** drop the *computed* analysis fields (`mood_*`, `key`, `tempo_bpm`, `detected_chords`, `pitch_histogram`, `average_pitch`) from `/api/transcribe`'s result — **keep `note_events`**, `/api/analyze` needs it (contract step 3); update types + tests. | no client reads the dropped fields; `/api/analyze` still works off the retained `note_events`; types + tests green |
@@ -420,13 +421,16 @@ Canvas waveform selector is **out of scope here — deferred to roadmap Phase 7
 
 ---
 
-## Sub-decisions — resolved 2026-09-06
+## Sub-decisions — resolved 2026-09-06, `/api/analyze` revised 2026-09-07
 
-1. `/api/analyze`: **librosa-only**, no Basic-Pitch path (would reinstate the
-   memory problem).
-2. `/api/analyze`: **synchronous** (librosa-only makes it safe), no `HEAVY_WORK_LOCK`.
+1. `/api/analyze`: **MIDI-based** — arithmetic on the transcribe job's stored
+   `note_events`, sliced to the clip window. No Basic Pitch, no librosa, no
+   audio decode. (Was "librosa-only" until the 2026-09-07 code audit showed
+   analysis is already ~95 % MIDI-derived — see the `/api/analyze` section
+   above.)
+2. `/api/analyze`: **synchronous**, no `HEAVY_WORK_LOCK` (it's pure arithmetic).
 3. Full-MIDI tempo: **reuse the default clip's tempo**. No whole-file
-   `librosa.beat` pass.
+   `librosa.beat` pass. (`librosa.beat` is used nowhere in the codebase.)
 4. Clip selector: **range control is the permanent UI**. Waveform → roadmap
    Phase 7, not now.
 

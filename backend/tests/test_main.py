@@ -56,6 +56,40 @@ def test_upload_within_cap_still_succeeds():
     (main.UPLOAD_DIR / body["filename"]).unlink(missing_ok=True)
 
 
+def test_upload_rejects_audio_over_the_duration_cap(monkeypatch):
+    # Best-effort header probe -- when it can read the duration and it's over
+    # MAX_UPLOAD_DURATION_SEC, reject before a job (and before chunked
+    # transcription) ever sees it.
+    from app import inference
+
+    monkeypatch.setattr(
+        inference, "_probe_source_duration_sec",
+        lambda raw: inference.MAX_UPLOAD_DURATION_SEC + 120.0,
+    )
+    before = len(list(main.UPLOAD_DIR.glob("*")))
+    response = client.post(
+        "/api/upload",
+        files={"file": ("long.wav", b"RIFF....WAVEfmt " + b"\x00" * 64, "audio/wav")},
+    )
+    assert response.status_code == 400
+    assert "minutes" in response.json()["detail"].lower()
+    assert len(list(main.UPLOAD_DIR.glob("*"))) == before  # not written to disk
+
+
+def test_upload_allows_audio_whose_duration_cannot_be_probed(monkeypatch):
+    # mp3 / m4a: libsndfile can't read the header, probe returns None -- the
+    # upload must still go through (the chunked transcribe path is the hard cap).
+    from app import inference
+
+    monkeypatch.setattr(inference, "_probe_source_duration_sec", lambda raw: None)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("song.mp3", b"ID3\x04\x00\x00\x00\x00", "audio/mpeg")},
+    )
+    assert response.status_code == 201
+    (main.UPLOAD_DIR / response.json()["filename"]).unlink(missing_ok=True)
+
+
 # --- global unhandled-exception handler --------------------------------------
 
 

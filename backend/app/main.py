@@ -200,6 +200,16 @@ async def upload_audio(
     if not raw:
         raise HTTPException(status_code=400, detail="Empty upload")
 
+    # Best-effort duration cap before a job exists. The header probe only reads
+    # wav/flac/ogg; mp3/m4a/webm return None and are hard-capped later in the
+    # chunked transcribe path (MAX_UPLOAD_DURATION_SEC).
+    probed = inference._probe_source_duration_sec(raw)
+    if probed is not None and probed > inference.MAX_UPLOAD_DURATION_SEC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Audio is too long (max {inference.MAX_UPLOAD_DURATION_SEC / 60:.0f} minutes)",
+        )
+
     unique_id = uuid.uuid4().hex
     suffix = Path(file.filename).suffix.lower() or ".wav"
     filename = f"upload_{unique_id}{suffix}"

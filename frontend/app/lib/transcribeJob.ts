@@ -1,6 +1,13 @@
 import { getPublicBackendApiUrl } from "./backendUrl";
 import { requestJson } from "./request";
 
+export type NoteEvent = {
+  start: number;
+  end: number;
+  pitch: number;
+  velocity: number;
+};
+
 export type TranscriptionResult = {
   n_notes: number;
   duration_sec: number;
@@ -17,6 +24,11 @@ export type TranscriptionResult = {
   pitch_histogram: number[];
   tempo_bpm: number;
   average_pitch: number;
+  // Persisted so POST /api/analyze can re-analyze any clip window without
+  // re-transcribing. Backend always sends it now; optional here until the
+  // frontend actually consumes it (plan step 3) and the computed fields
+  // above are dropped (plan step 5), at which point it becomes required.
+  note_events?: NoteEvent[];
 };
 
 export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed" | "expired";
