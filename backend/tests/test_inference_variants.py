@@ -868,6 +868,22 @@ def test_read_audio_bytes_raises_when_ffmpeg_also_cannot_decode():
     assert "ffmpeg" in exc.value.detail.lower()
 
 
+def test_read_audio_bytes_degrades_cleanly_when_ffmpeg_is_missing(monkeypatch):
+    """The prod image must ship ffmpeg (see backend/Dockerfile), but if it's
+    ever absent again the undecodable-format path must surface a 400, not a
+    bare FileNotFoundError that the worker logs as 'failed unexpectedly'."""
+    def _no_ffmpeg(*args, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "ffmpeg")
+
+    monkeypatch.setattr(inference.subprocess, "run", _no_ffmpeg)
+
+    with pytest.raises(HTTPException) as exc:
+        inference._read_audio_bytes(b"not-decodable-by-libsndfile" * 20, target_sr=22050)
+
+    assert exc.value.status_code == 400
+    assert "format" in exc.value.detail.lower()
+
+
 def test_read_audio_bytes_truncates_clips_longer_than_max_duration():
     raw = _sine_wav_bytes(440.0, 2.0, 22050)
 

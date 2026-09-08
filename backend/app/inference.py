@@ -726,11 +726,20 @@ def _read_audio_bytes(
                 f.write(raw)
                 tmp_in = f.name
             tmp_out = tmp_in + "_converted.wav"
-            result = subprocess.run(
-                ["ffmpeg", "-y", "-i", tmp_in,
-                 "-ar", str(target_sr), "-ac", "1", "-f", "wav", tmp_out],
-                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-            )
+            try:
+                result = subprocess.run(
+                    ["ffmpeg", "-y", "-i", tmp_in,
+                     "-ar", str(target_sr), "-ac", "1", "-f", "wav", tmp_out],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                )
+            except FileNotFoundError as exc:
+                # ffmpeg not on PATH (should be in the Docker image -- see the
+                # Dockerfile). Degrade to a clean 400 instead of a bare
+                # FileNotFoundError surfacing as "failed unexpectedly".
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not decode this audio format on the server.",
+                ) from exc
             if result.returncode != 0:
                 raise HTTPException(
                     status_code=400,
