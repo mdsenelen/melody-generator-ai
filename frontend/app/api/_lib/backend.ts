@@ -4,7 +4,6 @@ const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:8000";
 const RESPONSE_HEADER_ALLOWLIST = [
   "cache-control",
   "content-disposition",
-  "content-length",
   "content-type",
   "etag",
   "last-modified",
@@ -33,7 +32,7 @@ export function getBackendApiUrl(path: string) {
   return `${getBackendBaseUrl()}/api${normalizedPath}`;
 }
 
-function buildProxyResponse(response: Response) {
+async function buildProxyResponse(response: Response) {
   const headers = new Headers();
 
   for (const headerName of RESPONSE_HEADER_ALLOWLIST) {
@@ -43,7 +42,11 @@ function buildProxyResponse(response: Response) {
     }
   }
 
-  return new NextResponse(response.body, {
+  // Do not forward the upstream length: an intermediary may repackage the
+  // body, leaving the browser with a truncated JSON response.
+  const body = await response.arrayBuffer();
+
+  return new NextResponse(body, {
     status: response.status,
     headers,
   });
