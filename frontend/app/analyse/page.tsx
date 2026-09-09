@@ -5,10 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { ChordDiagram } from "../../components/chord-diagram";
+import { ClipRange, type ClipWindow } from "../../components/clip-range";
 import ErrorBoundary from "../../components/error-boundary";
 import { ErrorToast } from "../../components/error-toast";
 import { Spinner } from "../../components/spinner";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
+import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
 import { useSessionStore } from "../lib/session-store";
 import {
   createTranscribeJob,
@@ -18,15 +20,20 @@ import {
 } from "../lib/transcribeJob";
 import { uploadFile } from "../lib/upload";
 
-type TabKey = "upload" | "record";
-
-type AnalysisResult = TranscriptionResult & {
+type Transcription = TranscriptionResult & {
   sourceName: string;
   uploadedFilename: string;
   jobId: string;
 };
 
+type AnalysisState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; data: ClipAnalysis }
+  | { status: "error"; error: string };
+
 const PITCH_CLASS_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const DEFAULT_CLIP_SEC = 60;
 
 const moodMeta = {
   happy: {
@@ -34,16 +41,8 @@ const moodMeta = {
     label: "happy",
     classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100",
   },
-  sad: {
-    emoji: "😢",
-    label: "sad",
-    classes: "border-blue-500 bg-blue-900/40 text-blue-100",
-  },
-  neutral: {
-    emoji: "😐",
-    label: "neutral",
-    classes: "border-gray-600 bg-gray-800 text-gray-100",
-  },
+  sad: { emoji: "😢", label: "sad", classes: "border-blue-500 bg-blue-900/40 text-blue-100" },
+  neutral: { emoji: "😐", label: "neutral", classes: "border-gray-600 bg-gray-800 text-gray-100" },
 } as const;
 
 function formatDuration(seconds: number) {
@@ -69,80 +68,113 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
-function AnalysisAnimation({ statusMessage }: { statusMessage: string }) {
+function TranscribingAnimation({ statusMessage }: { statusMessage: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-14">
       <Spinner size="lg" label={statusMessage} />
       <p className="max-w-xs text-center text-xs text-white/45">
-        The first analysis after a period of inactivity can take up to a couple of minutes while the
-        backend wakes up — later ones are much faster.
+        The first transcription after a period of inactivity can take up to a couple of minutes
+        while the backend wakes up — later ones are much faster.
       </p>
     </div>
   );
 }
 
 export default function AnalysePage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("upload");
   const [showRecorder, setShowRecorder] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
-  const [selectedUploadFilename, setSelectedUploadFilename] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [analysisAudioUrl, setAnalysisAudioUrl] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(
-    "Choose a file or record a clip to start analysis.",
-  );
+  const [transcription, setTranscription] = useState<Transcription | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisState>({ status: "idle" });
+  const [clipWindow, setClipWindow] = useState<ClipWindow>({ start: 0, end: DEFAULT_CLIP_SEC });
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("Choose a file or record a clip to start.");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [pendingSourceName, setPendingSourceName] = useState<string | null>(null);
-  const requestIdRef = useRef(0);
+
+  const transcribeReqRef = useRef(0);
+  const analysisReqRef = useRef(0);
+  const analysisAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
-  // Stable reference: ErrorToast's auto-dismiss effect depends on this
-  // callback, so a fresh function identity on every render would reset its
-  // timer before it ever fires.
   const dismissError = useCallback(() => setErrorMessage(null), []);
 
-  // Guards state updates from an in-flight job poll (see pollTranscribeJob)
-  // that resolves after the component has already unmounted.
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      analysisAbortRef.current?.abort();
     };
   }, []);
 
   useEffect(() => {
-    if (!analysisResult?.wav_b64) {
-      setAnalysisAudioUrl(null);
+    if (!transcription?.wav_b64) {
+      setPreviewAudioUrl(null);
       return;
     }
+    const url = createAudioObjectUrl(transcription.wav_b64, "audio/wav");
+    setPreviewAudioUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [transcription?.wav_b64]);
 
-    const url = createAudioObjectUrl(analysisResult.wav_b64, "audio/wav");
-    setAnalysisAudioUrl(url);
+  const runAnalysis = useCallback(async (jobId: string, window: ClipWindow) => {
+    const reqId = ++analysisReqRef.current;
+    analysisAbortRef.current?.abort();
+    const controller = new AbortController();
+    analysisAbortRef.current = controller;
+    setAnalysis({ status: "loading" });
 
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [analysisResult?.wav_b64]);
+    try {
+      const data = await analyzeClip(
+        { job_id: jobId, clip_start_sec: window.start, clip_end_sec: window.end },
+        { signal: controller.signal },
+      );
+      if (reqId !== analysisReqRef.current || !mountedRef.current) {
+        return;
+      }
+      setAnalysis({ status: "ready", data });
 
-  const runSelectedAnalysis = async (
+      // Keep the session summary other pages (generate-variants) read in sync
+      // with the window that's currently shown -- but never clobber the real
+      // upload id / filename runTranscription stored.
+      const session = useSessionStore.getState().lastUpload;
+      if (session) {
+        useSessionStore.getState().setLastUpload({
+          ...session,
+          transcription: {
+            chords: data.detected_chords,
+            key: data.key,
+            moodLabel: data.mood_label,
+            pitchHistogram: data.pitch_histogram,
+          },
+        });
+      }
+    } catch (analysisError) {
+      if (controller.signal.aborted || reqId !== analysisReqRef.current || !mountedRef.current) {
+        return;
+      }
+      setAnalysis({
+        status: "error",
+        error: analysisError instanceof Error ? analysisError.message : "Analysis failed",
+      });
+    }
+  }, []);
+
+  const runTranscription = async (
     file: File,
     uploaded: { id: string; filename: string } | null,
   ) => {
-    const requestId = ++requestIdRef.current;
+    const requestId = ++transcribeReqRef.current;
+    analysisReqRef.current += 1; // invalidate any in-flight analysis for the previous clip
     setErrorMessage(null);
-    setPendingSourceName(file.name);
-    setIsAnalyzing(true);
-    setStatusMessage(`Analysing ${file.name}...`);
+    setTranscription(null);
+    setAnalysis({ status: "idle" });
+    setIsTranscribing(true);
+    setStatusMessage(`Transcribing ${file.name}...`);
 
-    // The backend can be waking up from Render's free-tier idle sleep, in
-    // which case the first analysis after a while can take a lot longer
-    // than usual — let the user know rather than leaving a bare spinner.
-    const slowAnalysisTimer = window.setTimeout(() => {
-      if (requestId === requestIdRef.current) {
+    const slowTimer = window.setTimeout(() => {
+      if (requestId === transcribeReqRef.current) {
         setStatusMessage(
-          `Still analysing ${file.name}... this can take a minute or two if the server was idle.`,
+          `Still transcribing ${file.name}... this can take a minute or two if the server was idle.`,
         );
       }
     }, 8000);
@@ -151,13 +183,8 @@ export default function AnalysePage() {
       let stored = uploaded;
 
       if (!stored) {
-        // Same cold-start issue as the /transcribe retry below: a sleeping
-        // Render free-tier backend can 502 on the very first request it
-        // receives (no CORS headers on that response either, since it never
-        // reaches our app), even though a request moments later succeeds
-        // once the container has finished waking up.
         const uploadResult = await uploadFile(file).catch(async (firstError) => {
-          if (requestId !== requestIdRef.current) {
+          if (requestId !== transcribeReqRef.current) {
             throw firstError;
           }
           console.warn("[analysis] first upload attempt failed, retrying once", {
@@ -169,23 +196,10 @@ export default function AnalysePage() {
           return uploadFile(file);
         });
         stored = { id: uploadResult.id, filename: uploadResult.filename };
-        setSelectedUploadFilename(uploadResult.filename);
       }
 
-      // Transcription now runs on a background worker (see CLAUDE.md's job
-      // architecture section) instead of synchronously inside this HTTP
-      // request, so job creation itself is just a fast enqueue — unlike the
-      // old synchronous /transcribe call, there's no "the first attempt is
-      // still running a 60s inference server-side" risk that made retrying
-      // unsafe. It's now safe to retry unconditionally on any failure: the
-      // backend dedupes retried job-creation calls by content hash / upload
-      // id, so a retry can't spin up a redundant second transcription.
-      //
-      // `stored` is always populated by this point (either passed in or
-      // just uploaded above), so this references the already-uploaded copy
-      // by id instead of sending the whole file over the wire a second time.
       const created = await createTranscribeJob(file, stored).catch(async (firstError) => {
-        if (requestId !== requestIdRef.current) {
+        if (requestId !== transcribeReqRef.current) {
           throw firstError;
         }
         console.warn("[analysis] first job-creation attempt failed, retrying once", {
@@ -196,18 +210,17 @@ export default function AnalysePage() {
         await new Promise((resolve) => window.setTimeout(resolve, 1500));
         return createTranscribeJob(file, stored);
       });
-      window.clearTimeout(slowAnalysisTimer);
+      window.clearTimeout(slowTimer);
 
-      if (requestId !== requestIdRef.current) {
+      if (requestId !== transcribeReqRef.current) {
         return;
       }
-
-      setStatusMessage(`Queued for analysis...`);
+      setStatusMessage(`Queued for transcription...`);
 
       const result = await pollTranscribeJob(created.job_id, {
-        isSuperseded: () => requestId !== requestIdRef.current || !mountedRef.current,
+        isSuperseded: () => requestId !== transcribeReqRef.current || !mountedRef.current,
         onStatusChange: (status, elapsedMs) => {
-          if (requestId !== requestIdRef.current || !mountedRef.current) {
+          if (requestId !== transcribeReqRef.current || !mountedRef.current) {
             return;
           }
           const stillWaking = elapsedMs > 8000;
@@ -215,29 +228,31 @@ export default function AnalysePage() {
             setStatusMessage(
               stillWaking
                 ? `Still queued for ${file.name}... this can take a minute or two if the server was idle.`
-                : `Queued for analysis...`,
+                : `Queued for transcription...`,
             );
           } else if (status.status === "processing") {
             setStatusMessage(
               stillWaking
-                ? `Still analysing ${file.name}... longer clips take longer to transcribe, and a cold server can add a minute or two on top.`
-                : `Analysing ${file.name}...`,
+                ? `Still transcribing ${file.name}... longer clips take longer, and a cold server can add a minute or two on top.`
+                : `Transcribing ${file.name}...`,
             );
           }
         },
       });
 
-      if (requestId !== requestIdRef.current || !mountedRef.current) {
+      if (requestId !== transcribeReqRef.current || !mountedRef.current) {
         return;
       }
 
-      setAnalysisResult({
+      setTranscription({
         ...result,
         sourceName: file.name,
         uploadedFilename: stored.filename,
         jobId: created.job_id,
       });
+      setStatusMessage(`Transcription ready for ${file.name}.`);
 
+      // generate-variants / choose-progression reference the upload by id.
       useSessionStore.getState().setLastUpload({
         uploadId: stored.id,
         filename: stored.filename,
@@ -250,50 +265,53 @@ export default function AnalysePage() {
         },
       });
 
-      setStatusMessage(`Analysis ready for ${file.name}.`);
-      setPendingSourceName(null);
-    } catch (analysisError) {
-      window.clearTimeout(slowAnalysisTimer);
-      if (analysisError instanceof TranscribeJobSupersededError) {
-        // Expected control flow (a newer analysis started, or this
-        // component unmounted mid-poll) -- not a real failure to surface.
+      const defaultEnd = Math.min(DEFAULT_CLIP_SEC, Math.max(1, result.source_duration_sec));
+      const window0: ClipWindow = { start: 0, end: defaultEnd };
+      setClipWindow(window0);
+      void runAnalysis(created.job_id, window0);
+    } catch (transcribeError) {
+      window.clearTimeout(slowTimer);
+      if (transcribeError instanceof TranscribeJobSupersededError) {
         return;
       }
-      console.error("[analysis] failed", { file: file.name, error: analysisError });
-      if (requestId === requestIdRef.current && mountedRef.current) {
-        setErrorMessage(analysisError instanceof Error ? analysisError.message : "Analysis failed");
-        setStatusMessage("We couldn't analyse that audio clip.");
+      console.error("[analysis] failed", { file: file.name, error: transcribeError });
+      if (requestId === transcribeReqRef.current && mountedRef.current) {
+        setErrorMessage(
+          transcribeError instanceof Error ? transcribeError.message : "Transcription failed",
+        );
+        setStatusMessage("We couldn't transcribe that audio clip.");
       }
     } finally {
-      if (requestId === requestIdRef.current && mountedRef.current) {
-        setIsAnalyzing(false);
+      if (requestId === transcribeReqRef.current && mountedRef.current) {
+        setIsTranscribing(false);
       }
     }
   };
 
   const handleUploadSuccess = ({ id, filename, file }: UploadSuccessPayload) => {
-    setActiveTab("upload");
     setSelectedFile(file);
-    setSelectedSourceName(file.name);
-    setSelectedUploadFilename(filename);
     setErrorMessage(null);
-    setStatusMessage(`Uploaded ${file.name}. Starting analysis...`);
-    void runSelectedAnalysis(file, { id, filename });
+    setStatusMessage(`Uploaded ${file.name}. Starting transcription...`);
+    void runTranscription(file, { id, filename });
   };
 
   const handleRecordingComplete = (file: File) => {
-    setActiveTab("record");
     setShowRecorder(true);
     setSelectedFile(file);
-    setSelectedSourceName(file.name);
-    setSelectedUploadFilename(null);
     setErrorMessage(null);
-    setStatusMessage(`Recording ready. Starting analysis for ${file.name}...`);
-    void runSelectedAnalysis(file, null);
+    setStatusMessage(`Recording ready. Transcribing ${file.name}...`);
+    void runTranscription(file, null);
   };
 
-  const groupedChords = analysisResult ? groupChordsByRoot(analysisResult.detected_chords) : {};
-  const mood = analysisResult ? moodMeta[analysisResult.mood_label] : null;
+  const handleClipCommit = (next: ClipWindow) => {
+    if (!transcription) return;
+    setClipWindow(next);
+    void runAnalysis(transcription.jobId, next);
+  };
+
+  const analysisData = analysis.status === "ready" ? analysis.data : null;
+  const groupedChords = analysisData ? groupChordsByRoot(analysisData.detected_chords) : {};
+  const mood = analysisData ? moodMeta[analysisData.mood_label] : null;
 
   return (
     <ErrorBoundary>
@@ -314,7 +332,7 @@ export default function AnalysePage() {
               {selectedFile ? (
                 <div className="mt-5 rounded-2xl border border-white/10 bg-[rgba(10,14,22,0.5)] p-4 text-sm text-[#dfe7f5]/70">
                   <p className="text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
-                    Analysis source
+                    Source
                   </p>
                   <p className="mt-2 font-medium text-white">{selectedFile.name}</p>
                 </div>
@@ -328,10 +346,7 @@ export default function AnalysePage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab("record");
-                  setShowRecorder((current) => !current);
-                }}
+                onClick={() => setShowRecorder((current) => !current)}
                 className="flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[1.4rem] border border-dashed border-[#8b5cf6]/45 bg-[rgba(139,92,246,0.06)] px-6 py-8 text-center text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.12)]"
                 aria-expanded={showRecorder}
               >
@@ -357,185 +372,200 @@ export default function AnalysePage() {
           </section>
 
           <div className="space-y-6">
-            {isAnalyzing ? (
+            {isTranscribing ? (
               <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                <AnalysisAnimation statusMessage={statusMessage} />
+                <TranscribingAnimation statusMessage={statusMessage} />
               </section>
             ) : null}
 
+            {/* Transcription result -- the full-length MIDI + downloads. */}
             <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-              {!analysisResult ? (
-                <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65 backdrop-blur-sm">
+              {!transcription ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65 backdrop-blur-sm">
                   Upload or record audio to see the transcription and downloads.
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p
-                        className="text-sm font-semibold text-white/75"
-                        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                      >
-                        Results
-                      </p>
-                      <h2
-                        className="mt-1 text-2xl font-semibold text-white"
-                        style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                      >
-                        {analysisResult.sourceName}
-                      </h2>
-                    </div>
-
-                    {mood ? (
-                      <div
-                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
-                      >
-                        <span>{mood.emoji}</span>
-                        <span>Mood: {mood.label}</span>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
-                      <p className="mt-3 text-lg font-semibold text-white">
-                        🔑 {analysisResult.key}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                        Detected notes
-                      </p>
-                      <p className="mt-3 text-lg font-semibold text-white">
-                        {analysisResult.n_notes}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
-                      <p className="mt-3 text-lg font-semibold text-white">
-                        {analysisResult.tempo_bpm} BPM
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                      <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                        Average pitch
-                      </p>
-                      <p className="mt-3 text-lg font-semibold text-white">
-                        {analysisResult.average_pitch}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p
-                          className="text-sm font-semibold text-white"
-                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                        >
-                          Pitch histogram: Tonal summary of your audio input
-                        </p>
-                        <p className="mt-1 text-sm text-white/65">
-                          Pitch-class balance across the transcription.
-                        </p>
-                      </div>
-
-                      <span className="text-sm text-white/50">
-                        {analysisResult.duration_sec.toFixed(2)} s
-                      </span>
-                    </div>
-
-                    {analysisResult.truncated ? (
-                      <p className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-900/20 px-4 py-2 text-sm text-amber-100">
-                        This clip is {formatDuration(analysisResult.source_duration_sec)} long —
-                        only the first {formatDuration(analysisResult.duration_sec)} was analysed.
-                      </p>
-                    ) : null}
-
-                    <div className="mt-5 grid grid-cols-12 gap-2">
-                      {PITCH_CLASS_LABELS.map((label, index) => {
-                        const value = analysisResult.pitch_histogram[index] ?? 0;
-
-                        return (
-                          <div key={label} className="flex flex-col items-center gap-2">
-                            <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
-                              <div
-                                className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
-                                style={{
-                                  height: `${Math.max(value * 100, 8)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-[11px] text-white/60">{label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                      <div className="flex flex-wrap gap-3">
-                        <Link
-                          href={`/result/${analysisResult.jobId}`}
-                          className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
-                        >
-                          View &amp; download result
-                        </Link>
-                      </div>
-
-                      {analysisAudioUrl ? (
-                        <audio controls className="mt-4 w-full" src={analysisAudioUrl}>
-                          Your browser does not support the audio element.
-                        </audio>
-                      ) : (
-                        <p className="mt-4 text-sm text-white/65">
-                          WAV preview will appear here when FluidSynth is available on the backend.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                <div className="space-y-5">
+                  <div>
                     <p
-                      className="text-sm font-semibold text-white"
+                      className="text-sm font-semibold text-white/75"
                       style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
                     >
-                      Detected chords
+                      Transcription
                     </p>
+                    <h2
+                      className="mt-1 text-2xl font-semibold text-white"
+                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                    >
+                      {transcription.sourceName}
+                    </h2>
                     <p className="mt-2 text-sm text-white/65">
-                      Hover a chord to preview a guitar fingering diagram. Click on a chord to
-                      listen. Chords are grouped by root note.
+                      {transcription.n_notes} notes ·{" "}
+                      {formatDuration(transcription.source_duration_sec)} of audio
                     </p>
+                  </div>
 
-                    <div className="mt-4 space-y-4">
-                      {Object.entries(groupedChords).length > 0 ? (
-                        Object.entries(groupedChords).map(([root, chords]) => (
-                          <div key={root} className="space-y-2">
-                            <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                              {root}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {chords.map((chord, index) => (
-                                <ChordDiagram key={`${chord}-${index}`} chord={chord} />
-                              ))}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-white/60">
-                          No chord labels were detected for this clip.
-                        </p>
-                      )}
-                    </div>
+                  {previewAudioUrl ? (
+                    <audio controls className="w-full" src={previewAudioUrl}>
+                      Your browser does not support the audio element.
+                    </audio>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href={`/result/${transcription.jobId}`}
+                      className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
+                    >
+                      View &amp; download result
+                    </Link>
                   </div>
                 </div>
               )}
             </section>
+
+            {/* Clip analysis -- re-runnable against any window of the source. */}
+            {transcription ? (
+              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p
+                      className="text-sm font-semibold text-white/75"
+                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                    >
+                      Clip analysis
+                    </p>
+                    <p className="mt-1 text-sm text-white/65">
+                      Mood, key, tempo and chords for a section of the audio. Pick a window and
+                      re-analyse without transcribing again.
+                    </p>
+                  </div>
+                  {mood ? (
+                    <div
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
+                    >
+                      <span>{mood.emoji}</span>
+                      <span>Mood: {mood.label}</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                  <ClipRange
+                    sourceDurationSec={transcription.source_duration_sec}
+                    value={clipWindow}
+                    onCommit={handleClipCommit}
+                    busy={analysis.status === "loading"}
+                  />
+                </div>
+
+                <div aria-live="polite" className="mt-5">
+                  {analysis.status === "loading" ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Spinner label="Analysing this section..." />
+                    </div>
+                  ) : analysis.status === "error" ? (
+                    <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
+                      {analysis.error}
+                    </div>
+                  ) : analysisData ? (
+                    <div className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
+                          <p className="mt-3 text-lg font-semibold text-white">
+                            🔑 {analysisData.key}
+                          </p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                            Notes in window
+                          </p>
+                          <p className="mt-3 text-lg font-semibold text-white">
+                            {analysisData.n_notes}
+                          </p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
+                          <p className="mt-3 text-lg font-semibold text-white">
+                            {analysisData.tempo_bpm} BPM
+                          </p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                            Average pitch
+                          </p>
+                          <p className="mt-3 text-lg font-semibold text-white">
+                            {analysisData.average_pitch}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                        <p
+                          className="text-sm font-semibold text-white"
+                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                        >
+                          Pitch histogram
+                        </p>
+                        <p className="mt-1 text-sm text-white/65">
+                          Pitch-class balance across {formatDuration(analysisData.clip_start_sec)}–
+                          {formatDuration(analysisData.clip_end_sec)}.
+                        </p>
+                        <div className="mt-5 grid grid-cols-12 gap-2">
+                          {PITCH_CLASS_LABELS.map((label, index) => {
+                            const value = analysisData.pitch_histogram[index] ?? 0;
+                            return (
+                              <div key={label} className="flex flex-col items-center gap-2">
+                                <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
+                                  <div
+                                    className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
+                                    style={{ height: `${Math.max(value * 100, 8)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] text-white/60">{label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                        <p
+                          className="text-sm font-semibold text-white"
+                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
+                        >
+                          Detected chords
+                        </p>
+                        <p className="mt-2 text-sm text-white/65">
+                          Hover a chord to preview a guitar fingering. Chords are grouped by root
+                          note.
+                        </p>
+                        <div className="mt-4 space-y-4">
+                          {Object.entries(groupedChords).length > 0 ? (
+                            Object.entries(groupedChords).map(([root, chords]) => (
+                              <div key={root} className="space-y-2">
+                                <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
+                                  {root}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {chords.map((chord, index) => (
+                                    <ChordDiagram key={`${chord}-${index}`} chord={chord} />
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-white/60">
+                              No chord labels were detected for this window.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
           </div>
         </main>
 
