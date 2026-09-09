@@ -106,6 +106,27 @@ describe("Analyse page: transcription + clip analysis", () => {
     expect(screen.getByText(/Mood: happy/)).toBeInTheDocument();
   });
 
+  it("shows the chord progression in playback order plus a most-used summary", async () => {
+    mockedAnalyzeClip.mockResolvedValue({
+      ...BASE_ANALYSIS,
+      // playback order with an immediate repeat
+      detected_chords: ["C", "C", "Am", "F", "G", "C"],
+    });
+
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+    await upload(user, makeFile("riff.wav"));
+
+    await waitFor(() => expect(screen.getByText("Chord progression")).toBeInTheDocument());
+    // consecutive "C C" collapses; order preserved -> C, Am, F, G, C (5 chips)
+    const chordButtons = screen.getAllByRole("button", {
+      name: /show its fingering diagram/i,
+    });
+    expect(chordButtons).toHaveLength(5);
+    // most-used: C appears 3x
+    expect(screen.getByText(/Most used:/)).toHaveTextContent("C ×3");
+  });
+
   it("keeps the transcription area hidden until audio has been transcribed", async () => {
     const pendingPoll = deferred<typeof BASE_RESULT>();
     mockedPollJob.mockReturnValue(pendingPoll.promise);
