@@ -33,9 +33,9 @@ const PIPELINE_STEPS = [
 export default function LandingPage() {
   return (
     <main className="space-y-16 pb-8">
-      <section className="px-2 pb-8 pt-6 text-center">
+      <section className="px-2 pt-6 pb-8 text-center">
         <div className="mx-auto max-w-5xl">
-          <div className="mx-auto mb-8 inline-flex items-center rounded-[0.55rem] border border-[#8b5cf6]/75 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#d19af7]">
+          <div className="mx-auto mb-8 inline-flex items-center rounded-[0.55rem] border border-[#8b5cf6]/75 bg-transparent px-3 py-1.5 text-[10px] font-semibold tracking-[0.24em] text-[#d19af7] uppercase">
             AI music generation
           </div>
 

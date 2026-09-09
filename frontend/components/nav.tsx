@@ -9,7 +9,7 @@ const links = [
 
 export default function Nav() {
   return (
-    <nav className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-white/55">
+    <nav className="flex flex-wrap items-center gap-2 text-[11px] font-medium tracking-[0.18em] text-white/55 uppercase">
       {links.map((link) => (
         <Link
           key={link.href}
