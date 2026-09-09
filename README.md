@@ -130,8 +130,8 @@ frontend, and `pytest` for the backend, on every push and pull request.
 | `backend/.env` (optional) | `DATA_CLEANUP_INTERVAL_SECONDS` | How often the background cleanup pass runs (default `3600`) |
 | `backend/.env` (optional) | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (default `http://localhost:3000`) — must include the deployed frontend origin, since the browser calls the backend directly for uploads |
 | `backend/.env` (optional) | `RUN_WORKER_IN_PROCESS` | Runs the transcription worker on a background thread inside this process (default `true`, and what production uses). `false` + `python -m app.worker_main` as its own service is the split-out option. See "Async Transcription Job Workflow" in `CLAUDE.md` |
-| `backend/.env` (optional) | `TRANSCRIBE_CHUNKED` | Chunked full-audio transcription — memory doesn't grow with clip length. Default `false`; production sets `true` |
-| `backend/.env` (optional) | `MAX_UPLOAD_DURATION_SEC` | Hard cap on uploaded audio length for the chunked path (default `600` — 10 min) |
+| `backend/.env` (optional) | `MAX_UPLOAD_DURATION_SEC` | Hard cap on uploaded audio length (default `600` — 10 min) |
+| `backend/.env` (optional) | `TRANSCRIBE_CHUNK_SEC` / `TRANSCRIBE_OVERLAP_SEC` | Chunk geometry for full-audio transcription (defaults `30` / `4`) |
 | `backend/.env` (optional) | `DATABASE_URL` | Postgres DSN for job metadata in production; falls back to a local SQLite file if unset |
 | `backend/.env` (optional) | `REDIS_URL` | Redis URL for the production job queue; falls back to an in-process queue if unset |
 | `backend/.env` (optional) | `JOB_STORAGE_BUCKET`, `JOB_STORAGE_ENDPOINT_URL`, `JOB_STORAGE_REGION`, `JOB_STORAGE_ACCESS_KEY_ID`, `JOB_STORAGE_SECRET_ACCESS_KEY` | S3/R2 bucket (+ credentials) for job input audio in production; falls back to local disk if unset. Required once the worker runs as a separate service from the web process, since they don't share a disk |
@@ -184,8 +184,8 @@ vocabulary, request flow) used to brief AI coding assistants working in this rep
 
 - **Frontend**: Vercel (`frontend/vercel.json`)
 - **Backend**: one Render **free-tier** web service — Docker (`backend/Dockerfile`), Python
-  3.10-slim, port 8000, `RUN_WORKER_IN_PROCESS=true` (API + worker thread in one process),
-  `TRANSCRIBE_CHUNKED=true`. Job metadata on Neon Postgres, the job queue on Render Key Value
+  3.10-slim, port 8000, `RUN_WORKER_IN_PROCESS=true` (API + worker thread in one process).
+  Job metadata on Neon Postgres, the job queue on Render Key Value
   (Redis), job input/output audio on Backblaze B2 — all free tiers. A `keep-warm` GitHub Action
   pings `/health` so the instance doesn't idle-suspend. See `CLAUDE.md`'s Deployment section for
   the full env-var list, and its "known limitations" note above for the single-concurrent-task

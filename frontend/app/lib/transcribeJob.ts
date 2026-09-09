@@ -17,18 +17,11 @@ export type TranscriptionResult = {
   wav_b64: string | null;
   midi_filename: string;
   wav_filename: string;
-  mood_label: "happy" | "sad" | "neutral";
-  mood_idx: number;
-  detected_chords: string[];
-  key: string;
-  pitch_histogram: number[];
-  tempo_bpm: number;
-  average_pitch: number;
-  // Persisted so POST /api/analyze can re-analyze any clip window without
-  // re-transcribing. Backend always sends it now; optional here until the
-  // frontend actually consumes it (plan step 3) and the computed fields
-  // above are dropped (plan step 5), at which point it becomes required.
-  note_events?: NoteEvent[];
+  n_chunks?: number;
+  // Full merged transcription. mood / key / tempo / chords / pitch histogram
+  // are NOT here -- POST /api/analyze slices these note events to a clip
+  // window and computes them (plan step 5, contract step 3).
+  note_events: NoteEvent[];
 };
 
 export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed" | "expired";

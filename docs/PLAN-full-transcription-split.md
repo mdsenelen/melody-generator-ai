@@ -1,11 +1,16 @@
 # Plan: split full-audio transcription from short-clip analysis
 
-Status: **Step 1 done (2026-09-06)** — chunked transcription shipped behind
-`TRANSCRIBE_CHUNKED`, flipped on in prod, measured: ~400–430 MB peak on a 5-min
-clip, **flat across chunks**. That fits the free tier's 512 MB (~80%), so the
-project **stays on free tier** — with the concurrent-request OOM risk closed in
-code (429-on-busy, weights-check-before-torch — see `PROGRESS.md`
-"Free-tier hardening"). Steps 2–5 proceed on free tier. Sub-decisions below.
+Status: **All 5 steps done (2026-09-06 → 2026-09-09).** Chunked transcription
+peaks at ~400–430 MB on a 5-min clip, flat across chunks — fits the free tier's
+512 MB (the project **stays on free tier**, concurrent-request OOM risk closed
+in code; see `PROGRESS.md` "Free-tier hardening"). `/api/transcribe` returns
+MIDI + `note_events`; `POST /api/analyze` slices those to a clip window and
+computes mood/key/tempo/chords with pure arithmetic (no librosa, no Basic
+Pitch); `/analyse` shows the two results independently with a re-runnable clip
+range. The `TRANSCRIBE_CHUNKED` flag and the old single-pass truncating path
+are gone. Follow-ups still open: `mir_eval` chunked-vs-whole F1 validation
+harness, `_merge_chunk_notes` `edge_eps` tuning, WAV preview for the analyse
+clip, canvas waveform selector (roadmap phase 7).
 
 ## Why
 
@@ -412,8 +417,8 @@ exists.
 | ~~1b~~ | ✅ **Phase B DONE 2026-09-07.** Import audit (fresh interpreter, VmRSS): only `music21` was removable — **−35 MB at boot**, dropped (`_key_from_histogram` is now the sole key detector). `torch` confirmed never imported here; `matplotlib`/`sklearn`/`tensorflow` never imported at all. `TRANSCRIBE_CHUNK_SEC` 30→15 measured — **no peak benefit** (per-chunk working set ~11 MB either way), kept at 30. No per-transcription ratchet. Still open, non-blocking: `torch` out of the Docker image (~200 MB disk, "generation off" decision — user's call); `healthCheckPath=/health` (dashboard-only). | *(met — peak explained, −35 MB idle, no regression)* |
 | 2 | **`/api/analyze` (MIDI-based, sync) + `clip_*` params on `/generate-variants` + `MAX_UPLOAD_DURATION_SEC` at `/api/upload`.** `POST /api/analyze {job_id, clip_start_sec?, clip_end_sec?}` → `analyze_clip()` slices the job's stored `note_events` to the window and reruns `_estimate_tempo` / `_key_from_histogram` / `heuristic_mood_from_metrics` / `_pitch_histogram` on the slice — no librosa, no audio, does **not** take `HEAVY_WORK_LOCK`. New `_chords_from_note_events` replaces `_detect_chords_from_audio` in `_transcribe_and_mood` + `_transcribe_and_mood_chunked` (keep the audio version for `generate_from_audio`). Persist `note_events` (trimmed `{start,end,pitch,velocity}`) in the transcribe job result. `MAX_UPLOAD_DURATION_SEC` best-effort at `/api/upload` (header probe — hard enforcement stays in the chunked transcribe path for mp3/m4a the probe can't read). `clip_start_sec`/`clip_end_sec` on `/generate-variants` → decode only that window for generation. Contract step 1 (additive — `/api/transcribe` gains `note_events`, keeps everything else). Shared TS types. | `/api/analyze` returns sane mood/key/BPM/chords off note events with **zero new imports** (subprocess test); slicing to a sub-window changes the numbers; `/api/transcribe` result is a superset of today's; 400 on a >10-min wav upload; `pytest` + `npm run typecheck` green |
 | 3 | **Frontend: `clip-range.tsx` + two-result `/analyse` + slim transcription result.** wire `/api/analyze` (re-runnable), update `jobResult.ts` + GP3 `result-view.tsx` + RTL. Contract step 2. | both results render independently; re-analyze a different clip works; `npm run typecheck` + `npm test` green; keyboard + focus + ARIA-live on the range control |
-| 4 | **Flip `TRANSCRIBE_CHUNKED=true` in prod, remove the flag + the old truncating path.** | full-length MIDI on a real 5-min upload in prod; flat memory in Render metrics; no OOM over a day |
-| 5 | **Backend cleanup:** drop the *computed* analysis fields (`mood_*`, `key`, `tempo_bpm`, `detected_chords`, `pitch_histogram`, `average_pitch`) from `/api/transcribe`'s result — **keep `note_events`**, `/api/analyze` needs it (contract step 3); update types + tests. | no client reads the dropped fields; `/api/analyze` still works off the retained `note_events`; types + tests green |
+| ~~4~~ | ✅ **DONE 2026-09-09.** `TRANSCRIBE_CHUNKED` const + the `if/else` branch in `run_basic_pitch` removed — `_transcribe_and_mood_chunked` is the only path. `_transcribe_and_mood` stays (webm-recording fallback + generation-path transcription). No WAV preview for the full-length MIDI (`wav_b64: null`, `wav_filename: ""`). Flag was already `true` in prod since step 1, so this is code cleanup, not a behaviour change. README / CLAUDE.md / architecture-reference updated. | *(met — prod already chunked, `n_chunks` in every result; verified via a fresh prod transcribe)* |
+| ~~5~~ | ✅ **DONE 2026-09-09.** `run_basic_pitch`'s result dropped `mood_label`, `mood_idx`, `detected_chords`, `key`, `pitch_histogram`, `tempo_bpm`, `average_pitch` — kept `n_notes`, `duration_sec`, `source_duration_sec`, `truncated`, `midi_b64`/`midi_filename`, `wav_b64`/`wav_filename` (null/empty), `n_chunks`, `note_events`. `_transcribe_and_mood_chunked` no longer computes them either. TS `TranscriptionResult`: 7 fields removed, `note_events` now required, `n_chunks?` added. `result-view.tsx` transcription branch: MIDI download only (no WAV, no analysis line). Backward-compatible either deploy order — the frontend stopped reading these in step 3, so an old field present-but-unread or a new field absent-but-not-read both no-op. `typecheck` confirms no non-test code touched them. Backend + frontend tests updated. | *(met — `typecheck` clean, 78 frontend tests, `/api/analyze` still serves everything off `note_events`)* |
 
 Canvas waveform selector is **out of scope here — deferred to roadmap Phase 7
 (`/audio-viz`)** rather than built half-now and rewritten. Append each step to

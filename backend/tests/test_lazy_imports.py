@@ -97,7 +97,7 @@ def test_transcription_path_does_not_import_torch() -> None:
         sf.write(buf, tone, sr, format="WAV")
 
         result = inference.run_basic_pitch(buf.getvalue(), "probe.wav")
-        assert "mood_label" in result
+        assert "note_events" in result
 
         leaked = sorted(m for m in sys.modules if m == "torch" or m.startswith("torch."))
         assert not leaked, f"the transcription path imported torch: {leaked}"

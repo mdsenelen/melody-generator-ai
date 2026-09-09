@@ -253,16 +253,13 @@ export default function AnalysePage() {
       setStatusMessage(`Transcription ready for ${file.name}.`);
 
       // generate-variants / choose-progression reference the upload by id.
+      // The transcription summary is filled by runAnalysis right after (from
+      // /api/analyze) -- the transcribe result no longer carries it.
       useSessionStore.getState().setLastUpload({
         uploadId: stored.id,
         filename: stored.filename,
         sourceName: file.name,
-        transcription: {
-          chords: result.detected_chords,
-          key: result.key,
-          moodLabel: result.mood_label,
-          pitchHistogram: result.pitch_histogram,
-        },
+        transcription: { chords: [], key: "", moodLabel: "neutral", pitchHistogram: [] },
       });
 
       const defaultEnd = Math.min(DEFAULT_CLIP_SEC, Math.max(1, result.source_duration_sec));
@@ -379,12 +376,8 @@ export default function AnalysePage() {
             ) : null}
 
             {/* Transcription result -- the full-length MIDI + downloads. */}
-            <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-              {!transcription ? (
-                <div className="flex min-h-[220px] items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/5 p-8 text-center text-white/65 backdrop-blur-sm">
-                  Upload or record audio to see the transcription and downloads.
-                </div>
-              ) : (
+            {transcription ? (
+              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
                 <div className="space-y-5">
                   <div>
                     <p
@@ -420,8 +413,8 @@ export default function AnalysePage() {
                     </Link>
                   </div>
                 </div>
-              )}
-            </section>
+              </section>
+            ) : null}
 
             {/* Clip analysis -- re-runnable against any window of the source. */}
             {transcription ? (

@@ -173,11 +173,6 @@ MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "6
 # anything longer so a pathological upload can't run for an hour.
 MAX_UPLOAD_DURATION_SEC = float(os.environ.get("MAX_UPLOAD_DURATION_SEC", "600"))
 # Chunked full-audio transcription (docs/PLAN-full-transcription-split.md).
-# Off by default -- step 1 ships it dark, measures prod memory, then step 4
-# flips it and deletes the old truncating path.
-TRANSCRIBE_CHUNKED = os.environ.get("TRANSCRIBE_CHUNKED", "false").strip().lower() in (
-    "1", "true", "yes", "on",
-)
 TRANSCRIBE_CHUNK_SEC = float(os.environ.get("TRANSCRIBE_CHUNK_SEC", "30"))
 TRANSCRIBE_OVERLAP_SEC = float(os.environ.get("TRANSCRIBE_OVERLAP_SEC", "4"))
 DATA_RETENTION_HOURS = float(os.environ.get("DATA_RETENTION_HOURS", "24"))
@@ -1812,18 +1807,16 @@ def _transcribe_and_mood_chunked(
     *,
     on_progress: Optional[Callable[[int], bool]] = None,
 ) -> dict[str, Any]:
-    """Chunked full-audio transcription + default-clip (first 60s) analysis.
-    Same result shape as _transcribe_and_mood, but midi_bytes is the
-    FULL-length MIDI, source_duration_sec is the true length, truncated is
-    always False, and n_chunks is added. See
+    """Chunked full-audio transcription -> full-length MIDI + merged note
+    events. No analysis fields any more (plan step 5 -- mood/key/tempo/chords
+    come from POST /api/analyze, sliced from ``note_events``). Falls back to
+    the bounded single-pass path when the source duration can't be probed
+    (browser webm/opus recordings soundfile can't read). See
     docs/PLAN-full-transcription-split.md."""
     sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
 
     source_duration_sec = _probe_source_duration_sec(audio_bytes)
     if source_duration_sec is None:
-        # Can't chunk safely without knowing the length (e.g. a browser
-        # webm/opus recording soundfile can't probe). These are short mic
-        # recordings in practice -- fall back to the bounded single-pass path.
         logger.warning("Chunked transcription: duration probe failed, using single-pass path")
         return _transcribe_and_mood(audio_bytes)
     if source_duration_sec > MAX_UPLOAD_DURATION_SEC:
@@ -1836,47 +1829,29 @@ def _transcribe_and_mood_chunked(
         audio_bytes, sample_rate, source_duration_sec, on_progress=on_progress
     )
 
-    clip_end = min(MAX_ANALYSIS_DURATION_SEC, source_duration_sec)
-    clip_notes = [n for n in merged if float(n["start"]) < clip_end]
-    if not clip_notes:
-        # only decode audio for the pitch fallback when there are no notes at
-        # all -- the common path is now audio-free (chords come from the notes)
+    if merged:
+        note_events = merged
+    else:
+        # Near-silent upload: Basic Pitch found nothing across every chunk.
+        # Fall back to a pyin pass over the first analysis window so the MIDI
+        # isn't empty.
+        clip_end = min(MAX_ANALYSIS_DURATION_SEC, source_duration_sec)
         clip_audio = _decode_audio_window(audio_bytes, sample_rate, 0.0, clip_end)
-        clip_notes = _fallback_note_events_from_audio(clip_audio, sample_rate)
+        note_events = _fallback_note_events_from_audio(clip_audio, sample_rate)
         del clip_audio
 
-    estimated_tempo = _estimate_tempo(clip_notes)
-    clip_midi_bytes = _tokens_to_midi_bytes(clip_notes, bpm=estimated_tempo, instrument=0)
-
-    if not merged:
-        full_midi_bytes = clip_midi_bytes
-    else:
-        full_midi_bytes = _tokens_to_midi_bytes(merged, bpm=estimated_tempo, instrument=0)
-
-    tempo_bpm = float(_estimate_tempo(clip_notes, clip_midi_bytes))
-    avg_pitch = (
-        float(np.mean([int(note["pitch"]) for note in clip_notes])) if clip_notes else 60.0
+    full_midi_bytes = _tokens_to_midi_bytes(
+        note_events, bpm=_estimate_tempo(note_events), instrument=0
     )
-    pitch_histogram = _pitch_histogram(clip_notes)
-    key = _key_from_histogram(pitch_histogram)
-    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
-    detected_chords = _chords_from_note_events(clip_notes, start=0.0, end=clip_end)
 
     return {
         "midi_bytes": full_midi_bytes,
-        "note_events": merged,
-        "n_notes": len(merged),
+        "note_events": note_events,
+        "n_notes": len(note_events),
         "n_chunks": n_chunks,
         "duration_sec": source_duration_sec,
         "source_duration_sec": source_duration_sec,
         "truncated": False,
-        "tempo_bpm": tempo_bpm,
-        "avg_pitch": avg_pitch,
-        "mood_idx": mood_idx,
-        "mood_label": mood_label,
-        "key": key,
-        "pitch_histogram": pitch_histogram,
-        "detected_chords": detected_chords,
     }
 
 
@@ -2206,48 +2181,28 @@ def run_basic_pitch(
     if not HEAVY_WORK_LOCK.acquire(timeout=WORKER_HEAVY_WORK_WAIT_SEC):
         raise RuntimeError("work lock still held after waiting; another heavy task is running")
     try:
-        sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-
-        if TRANSCRIBE_CHUNKED:
-            # Full-audio chunked transcription. No WAV preview for the
-            # full-length MIDI -- the clip WAV comes from the analyse flow.
-            transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
-            wav_b64 = None
-        else:
-            transcription = _transcribe_and_mood(file_bytes)
-            wav_b64 = _midi_bytes_to_wav_b64(
-                transcription["midi_bytes"],
-                sample_rate=sample_rate,
-                note_events=transcription.get("note_events"),  # parsed lazily if FluidSynth unavailable
-                prefer_fluidsynth_only=False,
-            )
+        # Full-audio chunked transcription -- the only path now (the flag and
+        # the old truncating single-pass branch were removed in plan step 4).
+        # No WAV preview for the full-length MIDI: mood/key/BPM/chords and any
+        # clip audio come from POST /api/analyze instead.
+        transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
 
         midi_filename, _ = _save_bytes(
             transcription["midi_bytes"], "transcription", ".mid")
-        wav_filename = ""
-        if wav_b64 is not None:
-            wav_bytes = base64.b64decode(wav_b64)
-            wav_filename, _ = _save_bytes(wav_bytes, "transcription", ".wav")
 
+        # /api/transcribe returns the MIDI + note events only. The computed
+        # analysis fields (mood/key/tempo/chords/histogram/avg-pitch) moved to
+        # POST /api/analyze, which slices `note_events` to a clip window (plan
+        # step 5, contract step 3).
         result = {
             "n_notes": int(transcription["n_notes"]),
             "duration_sec": round(float(transcription["duration_sec"]), 2),
             "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
             "truncated": bool(transcription["truncated"]),
             "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
-            "wav_b64": wav_b64,
+            "wav_b64": None,
             "midi_filename": midi_filename,
-            "wav_filename": wav_filename,
-            "mood_label": transcription["mood_label"],
-            "mood_idx": int(transcription["mood_idx"]),
-            "detected_chords": transcription["detected_chords"],
-            "key": transcription["key"],
-            "pitch_histogram": transcription["pitch_histogram"],
-            "tempo_bpm": round(float(transcription["tempo_bpm"]), 2),
-            "average_pitch": round(float(transcription["avg_pitch"]), 2),
-            # Persisted so POST /api/analyze can re-analyze any clip window
-            # without re-transcribing (see docs/PLAN-full-transcription-split.md
-            # step 2). ~40 KB for a 5-min track.
+            "wav_filename": "",
             "note_events": _trim_note_events(transcription.get("note_events") or []),
         }
         if "n_chunks" in transcription:

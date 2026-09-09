@@ -48,6 +48,8 @@ def reset_service_singletons(monkeypatch):
 
 
 def _fake_transcription_result(**overrides):
+    # Shape of /api/transcribe's result after plan step 5: MIDI + note events
+    # only, analysis fields moved to /api/analyze.
     result = {
         "n_notes": 3,
         "duration_sec": 1.0,
@@ -57,13 +59,12 @@ def _fake_transcription_result(**overrides):
         "wav_b64": None,
         "midi_filename": "transcription.mid",
         "wav_filename": "",
-        "mood_label": "happy",
-        "mood_idx": 0,
-        "detected_chords": ["C"],
-        "key": "C major",
-        "pitch_histogram": [0.1] * 12,
-        "tempo_bpm": 120.0,
-        "average_pitch": 60.0,
+        "n_chunks": 1,
+        "note_events": [
+            {"start": 0.0, "end": 0.5, "pitch": 60, "velocity": 90},
+            {"start": 0.5, "end": 1.0, "pitch": 64, "velocity": 90},
+            {"start": 1.0, "end": 1.5, "pitch": 67, "velocity": 90},
+        ],
     }
     result.update(overrides)
     return result
@@ -190,7 +191,8 @@ def test_mark_completed_requires_matching_lease(store):
     refreshed = store.get_job(job.id)
     assert refreshed.status == COMPLETED
     assert refreshed.progress == 100
-    assert refreshed.result["key"] == "C major"
+    assert refreshed.result["n_notes"] == 3
+    assert len(refreshed.result["note_events"]) == 3
 
 
 def test_mark_completed_with_stale_lease_is_discarded(store):
@@ -404,7 +406,7 @@ def test_process_one_job_completes_successfully(store, storage, queue, monkeypat
 
     refreshed = store.get_job(job.id)
     assert refreshed.status == COMPLETED
-    assert refreshed.result["tempo_bpm"] == 120.0
+    assert refreshed.result["n_notes"] == 3
 
 
 def test_process_one_job_marks_400_as_permanent_failure(store, storage, queue, monkeypatch):

@@ -107,8 +107,10 @@ def test_transcribe_and_mood_chunked_assembles_full_midi_and_reports_progress(mo
     assert result["note_events"], "note_events must be carried through for /api/analyze"
     assert progress_calls == sorted(progress_calls)  # monotonic
     assert progress_calls[-1] <= 90
-    # chords now come from the merged notes (all pitch 60), not a librosa pass
-    assert result["detected_chords"] == ["C"]
+    # analysis fields (mood/key/tempo/chords/histogram) are no longer here --
+    # they moved to POST /api/analyze (plan step 5)
+    for gone in ("detected_chords", "mood_label", "key", "tempo_bpm", "pitch_histogram"):
+        assert gone not in result
 
 
 def test_transcribe_and_mood_chunked_rejects_audio_over_the_cap(monkeypatch):
