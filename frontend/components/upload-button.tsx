@@ -67,12 +67,14 @@ export function UploadButton({
           ↑
         </div>
 
-        <span className="mb-2 text-[1.05rem] font-semibold text-[#f2f3f7]">
-          {isLoading ? "Uploading..." : "Drop audio file here"}
-        </span>
-        <span className="text-sm text-[#dfe7f5]/70">
-          {isLoading ? "Please wait" : "MP3 · WAV · FLAC · M4A · up to 50 MB"}
-        </span>
+        {!isLoading ? (
+          <>
+            <span className="mb-2 text-[1.05rem] font-semibold text-[#f2f3f7]">
+              Drop audio file here
+            </span>
+            <span className="text-sm text-[#dfe7f5]/70">MP3 · WAV · FLAC · M4A · up to 50 MB</span>
+          </>
+        ) : null}
 
         {isLoading ? <Spinner size="sm" label="Uploading" className="mt-4" /> : null}
 
