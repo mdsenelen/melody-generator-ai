@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { uploadFile } from "../app/lib/upload";
 import { Spinner } from "./spinner";
@@ -24,6 +24,15 @@ export function UploadButton({
 }: UploadButtonProps) {
   const [status, setStatus] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -38,6 +47,10 @@ export function UploadButton({
       const { id, filename } = await uploadFile(file);
       onUploadSuccess({ id, filename, file });
       setStatus("Upload complete");
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
+      }
+      statusTimerRef.current = setTimeout(() => setStatus(""), 2000);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
       setStatus(message);
@@ -77,8 +90,8 @@ export function UploadButton({
         <p className="mb-2 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
           {label.toUpperCase()}
         </p>
-        <p className="min-h-[1.25rem] text-sm text-[#dfe7f5]/60" aria-live="polite">
-          {status || "Upload complete"}
+        <p className="min-h-[1.25rem] font-sans text-sm text-[#dfe7f5]/60" aria-live="polite">
+          {status}
         </p>
       </div>
     </div>
