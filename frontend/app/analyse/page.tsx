@@ -70,12 +70,8 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
 
 function TranscribingAnimation({ statusMessage }: { statusMessage: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-6 py-14">
+    <div className="flex items-center justify-center py-14">
       <Spinner size="lg" label={statusMessage} />
-      <p className="max-w-xs text-center text-xs text-white/45">
-        The first transcription after a period of inactivity can take up to a couple of minutes
-        while the backend wakes up — later ones are much faster.
-      </p>
     </div>
   );
 }
@@ -429,7 +425,7 @@ export default function AnalysePage() {
                     </p>
                     <p className="mt-1 text-sm text-white/65">
                       Mood, key, tempo and chords for a section of the audio. Pick a window and
-                      re-analyse without transcribing again.
+                      re-analyse.
                     </p>
                   </div>
                   {mood ? (
