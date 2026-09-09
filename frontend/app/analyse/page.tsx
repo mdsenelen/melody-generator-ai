@@ -52,15 +52,26 @@ function formatDuration(seconds: number) {
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
-function groupChordsByRoot(chords: string[]) {
-  return chords.reduce<Record<string, string[]>>((groups, chord) => {
-    const root = chord.match(/^[A-G](?:#|b)?/)?.[0] ?? "Other";
-    if (!groups[root]) {
-      groups[root] = [];
+function summariseChords(chords: string[]) {
+  // detected_chords is already in playback order (one label per analysis
+  // window). Keep that order for the progression view; collapse immediate
+  // repeats so "C C C Am" reads as "C → Am".
+  const sequence: string[] = [];
+  for (const chord of chords) {
+    if (sequence[sequence.length - 1] !== chord) {
+      sequence.push(chord);
     }
-    groups[root].push(chord);
-    return groups;
-  }, {});
+  }
+
+  const counts = new Map<string, number>();
+  for (const chord of chords) {
+    counts.set(chord, (counts.get(chord) ?? 0) + 1);
+  }
+  const mostCommon = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([chord, count]) => ({ chord, count }));
+
+  return { sequence, mostCommon };
 }
 
 function createAudioObjectUrl(base64Audio: string, mimeType: string) {
@@ -303,7 +314,7 @@ export default function AnalysePage() {
   };
 
   const analysisData = analysis.status === "ready" ? analysis.data : null;
-  const groupedChords = analysisData ? groupChordsByRoot(analysisData.detected_chords) : {};
+  const chordSummary = analysisData ? summariseChords(analysisData.detected_chords) : null;
   const mood = analysisData ? moodMeta[analysisData.mood_label] : null;
 
   return (
@@ -523,35 +534,61 @@ export default function AnalysePage() {
                           className="text-sm font-semibold text-white"
                           style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
                         >
-                          Detected chords
+                          Chord progression
                         </p>
                         <p className="mt-2 text-sm text-white/65">
-                          Hover a chord to preview a guitar fingering. Chords are grouped by root
-                          note.
+                          The chords in playback order. Hover one to preview a guitar fingering.
                         </p>
-                        <div className="mt-4 space-y-4">
-                          {Object.entries(groupedChords).length > 0 ? (
-                            Object.entries(groupedChords).map(([root, chords]) => (
-                              <div key={root} className="space-y-2">
-                                <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                                  {root}
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {chords.map((chord, index) => (
-                                    <ChordDiagram key={`${chord}-${index}`} chord={chord} />
-                                  ))}
+
+                        {chordSummary && chordSummary.sequence.length > 0 ? (
+                          <>
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                              {chordSummary.sequence.map((chord, index) => (
+                                <div key={`${chord}-${index}`} className="flex items-center gap-2">
+                                  <ChordDiagram chord={chord} />
+                                  {index < chordSummary.sequence.length - 1 ? (
+                                    <span aria-hidden="true" className="text-white/35">
+                                      →
+                                    </span>
+                                  ) : null}
                                 </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-sm text-white/60">
-                              No chord labels were detected for this window.
+                              ))}
+                            </div>
+
+                            <p className="mt-4 text-sm text-white/65">
+                              Most used:{" "}
+                              {chordSummary.mostCommon.slice(0, 3).map((entry, index) => (
+                                <span key={entry.chord}>
+                                  {index > 0 ? ", " : ""}
+                                  <span className="font-semibold text-white">{entry.chord}</span>
+                                  <span className="text-white/45"> ×{entry.count}</span>
+                                </span>
+                              ))}
                             </p>
-                          )}
-                        </div>
+                          </>
+                        ) : (
+                          <p className="mt-4 text-sm text-white/60">
+                            No chord labels were detected for this window.
+                          </p>
+                        )}
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-10 text-center">
+                      <p className="text-sm text-white/55">
+                        Analysis for this window hasn&apos;t run yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          transcription && void runAnalysis(transcription.jobId, clipWindow)
+                        }
+                        className="rounded-full border border-[#8b5cf6]/50 bg-[rgba(139,92,246,0.12)] px-4 py-2 text-sm font-semibold text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.2)]"
+                      >
+                        Analyse this clip
+                      </button>
+                    </div>
+                  )}
                 </div>
               </section>
             ) : null}
