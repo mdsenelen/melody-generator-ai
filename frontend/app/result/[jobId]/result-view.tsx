@@ -188,12 +188,8 @@ export default function ResultView({ jobId }: { jobId: string }) {
           </p>
         </div>
 
-        {result.wav_b64 ? (
-          <audio controls className="w-full" src={`data:audio/wav;base64,${result.wav_b64}`}>
-            Your browser does not support the audio element.
-          </audio>
-        ) : null}
-
+        {/* Full-length transcription is MIDI only -- mood/key/tempo/chords and
+            a clip preview come from the analyse page (POST /api/analyze). */}
         <div className="flex flex-wrap gap-3">
           <a
             href={downloadPathFor(result.midi_filename)}
@@ -202,15 +198,6 @@ export default function ResultView({ jobId }: { jobId: string }) {
           >
             Download MIDI
           </a>
-          {result.wav_filename ? (
-            <a
-              href={downloadPathFor(result.wav_filename)}
-              download={result.wav_filename}
-              className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-            >
-              Download WAV
-            </a>
-          ) : null}
         </div>
       </div>
     </Frame>

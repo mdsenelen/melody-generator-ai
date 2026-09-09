@@ -25,13 +25,8 @@ const COMPLETED_RESULT = {
   wav_b64: null,
   midi_filename: "t.mid",
   wav_filename: "",
-  mood_label: "happy" as const,
-  mood_idx: 0,
-  detected_chords: ["C"],
-  key: "C major",
-  pitch_histogram: [0.1],
-  tempo_bpm: 120,
-  average_pitch: 61,
+  n_chunks: 1,
+  note_events: [{ start: 0, end: 0.5, pitch: 60, velocity: 90 }],
 };
 
 function statusResponse(
@@ -145,7 +140,7 @@ describe("pollTranscribeJob", () => {
     }
 
     const result = await promise;
-    expect(result.key).toBe("C major");
+    expect(result.n_notes).toBe(4);
     expect(onStatusChange).toHaveBeenCalledTimes(3);
   });
 
@@ -193,7 +188,7 @@ describe("pollTranscribeJob", () => {
     }
 
     const result = await promise;
-    expect(result.key).toBe("C major");
+    expect(result.n_notes).toBe(4);
   });
 
   it("gives up after too many consecutive poll failures", async () => {

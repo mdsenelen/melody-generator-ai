@@ -34,7 +34,7 @@ describe("ResultView", () => {
     expect(await screen.findByText(/still working on your result/i)).toBeInTheDocument();
   });
 
-  it("renders a transcription result with real download links, not inline buttons", async () => {
+  it("renders a transcription result with a real MIDI download link, not an inline button", async () => {
     mockedGetJob.mockResolvedValue(
       statusResponse({
         status: "completed",
@@ -44,16 +44,11 @@ describe("ResultView", () => {
           source_duration_sec: 1,
           truncated: false,
           midi_b64: "AAA=",
-          wav_b64: "AAA=",
+          wav_b64: null,
           midi_filename: "transcription.mid",
-          wav_filename: "transcription.wav",
-          mood_label: "happy",
-          mood_idx: 0,
-          detected_chords: ["C"],
-          key: "C major",
-          pitch_histogram: [],
-          tempo_bpm: 120,
-          average_pitch: 60,
+          wav_filename: "",
+          n_chunks: 1,
+          note_events: [{ start: 0, end: 0.5, pitch: 60, velocity: 90 }],
         },
       }),
     );
@@ -63,14 +58,13 @@ describe("ResultView", () => {
     expect(
       await screen.findByRole("heading", { name: /transcription complete/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/3 notes/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /download midi/i })).toHaveAttribute(
       "href",
       "/api/download/transcription.mid",
     );
-    expect(screen.getByRole("link", { name: /download wav/i })).toHaveAttribute(
-      "href",
-      "/api/download/transcription.wav",
-    );
+    // full transcription is MIDI only now
+    expect(screen.queryByRole("link", { name: /download wav/i })).not.toBeInTheDocument();
   });
 
   it("renders a variants result with a variant picker and per-variant download links", async () => {

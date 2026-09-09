@@ -27,14 +27,8 @@ const BASE_RESULT = {
   wav_b64: null,
   midi_filename: "t.mid",
   wav_filename: "",
-  mood_label: "happy" as const,
-  mood_idx: 0,
-  detected_chords: ["C", "G"],
-  key: "C major",
-  pitch_histogram: new Array(12).fill(0.1),
-  tempo_bpm: 120,
-  average_pitch: 61,
-  note_events: [],
+  n_chunks: 3,
+  note_events: [{ start: 0, end: 0.5, pitch: 60, velocity: 90 }],
 };
 
 const BASE_ANALYSIS = {
@@ -110,6 +104,24 @@ describe("Analyse page: transcription + clip analysis", () => {
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText(/Mood: happy/)).toBeInTheDocument();
+  });
+
+  it("keeps the transcription area hidden until audio has been transcribed", async () => {
+    const pendingPoll = deferred<typeof BASE_RESULT>();
+    mockedPollJob.mockReturnValue(pendingPoll.promise);
+
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+
+    expect(
+      screen.queryByText(/upload or record audio to see the transcription and downloads/i),
+    ).not.toBeInTheDocument();
+
+    await upload(user, makeFile("pending.wav"));
+    await waitFor(() => expect(screen.getByText(/queued for transcription/i)).toBeInTheDocument());
+    expect(
+      screen.queryByText(/upload or record audio to see the transcription and downloads/i),
+    ).not.toBeInTheDocument();
   });
 
   it("re-analyses a different clip window on commit", async () => {
