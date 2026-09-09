@@ -2,6 +2,32 @@
 
 :root {
   --font-sans: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", serif;
+  --font-display-compact: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", serif;
+  --melodia-bg: #070b14;
+  --melodia-bg-alt: #0b1220;
+  --melodia-panel: rgba(12, 18, 29, 0.78);
+  --melodia-panel-strong: rgba(16, 22, 34, 0.94);
+  --melodia-border: rgba(148, 163, 184, 0.18);
+  --melodia-border-strong: rgba(167, 177, 194, 0.28);
+  --melodia-text: #eef3ff;
+  --melodia-text-soft: rgba(220, 227, 240, 0.78);
+  --melodia-text-muted: rgba(148, 163, 184, 0.8);
+  --melodia-accent: #8b5cf6;
+  --melodia-accent-strong: #a78bfa;
+  --melodia-accent-2: #38bdf8;
+  --melodia-accent-3: #fbbf24;
+  --melodia-glow: rgba(139, 92, 246, 0.26);
+  --melodia-shadow: 0 22px 60px rgba(2, 6, 23, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--melodia-bg);
+  color-scheme: dark;
 }
 
 body {
@@ -9,10 +35,36 @@ body {
   overscroll-behavior: none;
   min-height: 100vh;
   margin: 0;
-  color: white;
-  background: #0a0a0f;
+  color: var(--melodia-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(139, 92, 246, 0.2), transparent 24%),
+    radial-gradient(circle at 88% 8%, rgba(56, 189, 248, 0.12), transparent 24%),
+    linear-gradient(135deg, #04080d 0%, #0a111b 36%, #0d1421 64%, #060b12 100%);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at center, black 38%, transparent 100%);
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.38);
+  color: #f8faff;
+}
+
+img {
+  display: block;
+  max-width: 100%;
 }
 
 ::-webkit-scrollbar {
@@ -24,10 +76,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(148, 163, 184, 0.35);
 }

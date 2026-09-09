@@ -9,12 +9,12 @@ const links = [
 
 export default function Nav() {
   return (
-    <nav className="flex flex-wrap items-center gap-1.5">
+    <nav className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-white/55">
       {links.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-[13px] font-medium text-white/70 backdrop-blur-sm transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+          className="rounded-full border border-transparent px-2.5 py-1.5 transition hover:text-[#d7b9ff]"
         >
           {link.label}
         </Link>
