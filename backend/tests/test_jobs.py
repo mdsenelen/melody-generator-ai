@@ -666,12 +666,12 @@ def test_run_worker_loop_reclaims_stale_job_and_old_attempt_cannot_overwrite(
     # The "original" worker finally finishes and tries to complete with
     # its stale lease -- must not overwrite the real result.
     ok = store.mark_completed(
-        job.id, _fake_transcription_result(key="STALE OVERWRITE ATTEMPT"),
+        job.id, _fake_transcription_result(n_notes=999),
         lease_token=original_claim.lease_token,
     )
     assert ok is False
     assert store.get_job(job.id).result == winning_result
-    assert store.get_job(job.id).result["key"] != "STALE OVERWRITE ATTEMPT"
+    assert store.get_job(job.id).result["n_notes"] != 999
 
 
 # --- service.create_transcription_job ------------------------------------
