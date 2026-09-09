@@ -181,7 +181,10 @@ export default function ResultView({ jobId }: { jobId: string }) {
           <p className="text-sm font-semibold text-white/75">Result</p>
           <h1 className="mt-1 text-2xl font-semibold text-white">Transcription complete</h1>
           <p className="mt-2 text-sm text-white/65">
-            Key: {result.key} · Mood: {result.mood_label} · {result.tempo_bpm} BPM
+            {result.n_notes} notes
+            {result.source_duration_sec
+              ? ` · ${Math.round(result.source_duration_sec)}s of audio`
+              : null}
           </p>
         </div>
 
