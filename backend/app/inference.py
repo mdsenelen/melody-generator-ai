@@ -129,6 +129,15 @@ AUDIO_CONFIG_PATH = WEIGHTS_DIR / "audio_params.json"
 CVAE_WEIGHTS_PATH = WEIGHTS_DIR / "cvae_weights.pth"
 IDDM_WEIGHTS_PATH = WEIGHTS_DIR / "iddm_ppo_weights.pth"
 JOINT_WEIGHTS_PATH = WEIGHTS_DIR / "joint_e2e_weights.pth"
+
+# The trained joint checkpoint (~1.4 MB) is NOT in git -- it's fetched on first
+# use from MODEL_WEIGHTS_URL (a GitHub release asset in prod). Unset -> the
+# generation routes 503 as before. Downloaded once per container to the
+# ephemeral disk; re-fetched after a redeploy/restart.
+MODEL_WEIGHTS_URL = os.environ.get("MODEL_WEIGHTS_URL", "").strip()
+MODEL_WEIGHTS_DOWNLOAD_TIMEOUT_SEC = float(
+    os.environ.get("MODEL_WEIGHTS_DOWNLOAD_TIMEOUT_SEC", "30")
+)
 def _resolve_device() -> str:
     """Torch device string. Every supported deployment runs the pinned CPU
     torch wheel, so this is "cpu" unless MELODY_DEVICE says otherwise. Kept a
@@ -418,6 +427,39 @@ async def _run_generation(func, *args, **kwargs) -> Any:
         ) from exc
 
 
+def _ensure_joint_weights() -> None:
+    """Fetch the joint checkpoint to disk if it isn't there yet and a source
+    URL is configured. No-op when the file already exists (local dev, or an
+    earlier download this container) or when MODEL_WEIGHTS_URL is unset (then
+    the caller's exists-check 503s, same as before). Runs under
+    _CVAE_IDDM_LOAD_LOCK via _load_cvae_iddm, so it's single-flighted.
+    Stdlib only -- no torch, no new dependency.
+    """
+    if JOINT_WEIGHTS_PATH.exists() or not MODEL_WEIGHTS_URL:
+        return
+
+    import urllib.request
+
+    WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_path = JOINT_WEIGHTS_PATH.with_suffix(".pth.partial")
+    try:
+        logger.info("Fetching model weights from %s", MODEL_WEIGHTS_URL)
+        with urllib.request.urlopen(
+            MODEL_WEIGHTS_URL, timeout=MODEL_WEIGHTS_DOWNLOAD_TIMEOUT_SEC
+        ) as response, open(tmp_path, "wb") as out:
+            shutil.copyfileobj(response, out)
+        if tmp_path.stat().st_size < 1024:
+            raise ValueError(f"downloaded weights are implausibly small ({tmp_path.stat().st_size} B)")
+        tmp_path.replace(JOINT_WEIGHTS_PATH)  # atomic
+        logger.info("Model weights ready at %s (%d bytes)",
+                    JOINT_WEIGHTS_PATH, JOINT_WEIGHTS_PATH.stat().st_size)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        logger.exception("Model weights download failed")
+        # Leave the file absent -- the exists-check below turns this into a
+        # clean 503 rather than a torch-import-then-crash.
+
+
 def _load_cvae_iddm() -> dict[str, Any]:
     if _CVAE_IDDM_BUNDLE is not None:
         if _CVAE_IDDM_BUNDLE.get("load_error"):
@@ -451,15 +493,23 @@ def _load_cvae_iddm_locked() -> dict[str, Any]:
         }
         _raise_variant_service_unavailable(detail)
 
+    # Best-effort fetch of the joint checkpoint (stdlib download, no torch).
+    _ensure_joint_weights()
     use_joint = JOINT_WEIGHTS_PATH.exists()
 
-    # Check the weights are on disk BEFORE importing torch. When they aren't
-    # (the current deployment ships no .pth files -- see get_runtime_status),
+    # Check the weights are on disk BEFORE importing torch. When they aren't,
     # this makes a generation request a ~1ms 503 that never touches torch,
     # rather than paying torch's ~150MB import just to fail. On the 512MB
-    # tier that import is the difference between fitting and OOM for a
-    # later transcription in the same process.
+    # tier that import is the difference between fitting and OOM for a later
+    # transcription in the same process.
     if not use_joint and not (CVAE_WEIGHTS_PATH.exists() and IDDM_WEIGHTS_PATH.exists()):
+        if MODEL_WEIGHTS_URL:
+            # A URL is configured but the file still isn't here -- the fetch
+            # in _ensure_joint_weights failed (likely transient). 503 without
+            # caching so the next generation request retries the download.
+            _raise_variant_service_unavailable(
+                "Model weights are still downloading or the fetch failed — try again shortly."
+            )
         _err("Melody generation is unavailable here — the model weights file is missing from this deployment.")
 
     # Resolved here rather than imported at module load: these pull in torch

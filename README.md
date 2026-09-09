@@ -55,9 +55,12 @@ The backend has two model stacks in the codebase, but only one is active at infe
 | Weights | `model/weights/web_model.pt` | `cvae_weights.pth` + `iddm_ppo_weights.pth` |
 | Trained by | — | `backend/melody_generation_ORDERED_FINAL_(1).ipynb` |
 
-Model weight checkpoints are **not committed** to this repository (they're large binary
-artifacts). Without them, generation endpoints return a `503` with a specific "which checkpoint
-key is missing" error rather than failing silently — see `CLAUDE.md` for the exact schema.
+Model weight checkpoints are **not committed** to this repository. The deployed backend
+fetches the joint checkpoint (~1.4 MB) on the first generation request from
+`MODEL_WEIGHTS_URL` (a GitHub release asset) and caches it on the container's disk. With
+`MODEL_WEIGHTS_URL` unset, or if the download fails, the generation endpoints return a `503`
+with a specific "which checkpoint key is missing" error rather than failing silently — see
+`CLAUDE.md` for the exact schema.
 
 ## Tech stack
 
@@ -124,6 +127,7 @@ frontend, and `pytest` for the backend, on every push and pull request.
 | --- | --- | --- |
 | `backend/.env` | `PYTHONPATH` | Set to `.` so `app.*` imports resolve when running uvicorn |
 | `backend/.env` (optional) | `SOUNDFONT_PATH` | Overrides the default FluidSynth SoundFont path |
+| `backend/.env` (optional) | `MODEL_WEIGHTS_URL` | URL the backend fetches `joint_e2e_weights.pth` from on the first generation request when it isn't already on disk (a GitHub release asset in production). Unset → generation `503`s, never importing torch. `MODEL_WEIGHTS_DOWNLOAD_TIMEOUT_SEC` (default `30`) bounds the fetch |
 | `backend/.env` (optional) | `GENERATION_TIMEOUT_SECONDS` | Wall-clock timeout for a single synchronous generation request, e.g. `/generate-variants` (default `60`) — needs real margin below Render's own ~100s platform timeout, see `CLAUDE.md`. Transcription no longer runs inside a request this bounds; see the async job workflow below |
 | `backend/.env` (optional) | `MAX_ANALYSIS_DURATION_SEC` | Bounds the mood/key/BPM/chord **analysis clip** (default `60`). In chunked mode the whole upload is still transcribed to MIDI; this only caps the librosa analysis window. No longer tied to `GENERATION_TIMEOUT_SECONDS`; see `CLAUDE.md` |
 | `backend/.env` (optional) | `DATA_RETENTION_HOURS` | How long uploaded/generated files are kept before periodic cleanup deletes them (default `24`; `0` disables cleanup) |
@@ -166,9 +170,14 @@ vocabulary, request flow) used to brief AI coding assistants working in this rep
   rather than running concurrently (which would exceed the memory limit and restart the instance).
   Transcription itself is chunked so its memory doesn't grow with audio length. The backend does
   not idle-suspend maintenance beyond the `keep-warm` GitHub Action pinging `/health`.
-- Model checkpoints aren't included — you need to train your own via the notebook or supply
-  compatible `cvae_weights.pth` / `iddm_ppo_weights.pth` files. When absent (the default), the
-  generation endpoints return a clear `503` and never load the model stack.
+- Model checkpoints aren't in git. The deployed backend downloads the joint checkpoint from
+  `MODEL_WEIGHTS_URL` on the first generation request (cached on disk, re-fetched after a
+  redeploy). Without that env var — or to use your own — supply `joint_e2e_weights.pth` (or the
+  legacy `cvae_weights.pth` + `iddm_ppo_weights.pth` pair) in `backend/app/model/weights/`. When
+  none are reachable, the generation endpoints return a clear `503` and never load torch.
+- Generation activates torch on the deployed 512 MB tier once weights are present — serialized
+  against transcription by `HEAVY_WORK_LOCK`, but the memory headroom is thin; treat generation
+  as best-effort there.
 - This is a single-tenant app with no authentication. Transcription job metadata/queue/input-audio
   storage are swappable (SQLite/Postgres, in-process/Redis, local disk/S3-compatible — see
   `CLAUDE.md`'s "Async Transcription Job Workflow"); the worker also mirrors its generated MIDI/WAV
