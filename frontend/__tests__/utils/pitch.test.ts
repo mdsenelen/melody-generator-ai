@@ -3,6 +3,7 @@ import {
   midiToPitchClass,
   midiToNoteName,
   isInPlayableRange,
+  topPitchClasses,
   NOTE_NAMES,
 } from "../../utils/pitch";
 
@@ -108,6 +109,29 @@ describe("pitch utils", () => {
     it("should reject frequencies above 2100 Hz", () => {
       expect(isInPlayableRange(2101)).toBe(false);
       expect(isInPlayableRange(5000)).toBe(false);
+    });
+  });
+
+  describe("topPitchClasses", () => {
+    it("returns the note names for the highest-weighted pitch classes, in descending order", () => {
+      // index 9 = A, 0 = C, 5 = F are the highest three of the analyse-page fixture
+      const histogram = [0.7, 0.1, 0, 0, 0, 0.6, 0, 0, 0, 0.9, 0, 0];
+      expect(topPitchClasses(histogram, 3)).toEqual(["A", "C", "F"]);
+    });
+
+    it("defaults to the top 5", () => {
+      const histogram = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0, 0, 0];
+      expect(topPitchClasses(histogram)).toEqual(["C", "C#", "D", "D#", "E"]);
+    });
+
+    it("omits pitch classes with zero weight even under the requested count", () => {
+      const histogram = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      expect(topPitchClasses(histogram, 5)).toEqual(["C"]);
+    });
+
+    it("returns an empty list for an empty or all-zero histogram", () => {
+      expect(topPitchClasses([])).toEqual([]);
+      expect(topPitchClasses(new Array(12).fill(0))).toEqual([]);
     });
   });
 });

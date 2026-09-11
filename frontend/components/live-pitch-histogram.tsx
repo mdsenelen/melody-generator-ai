@@ -20,22 +20,24 @@ export function LivePitchHistogram({
   const isPitched = clarity >= CLARITY_THRESHOLD && currentNote !== null;
 
   return (
-    <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
+    <div className="border-border bg-background mt-4 rounded-[var(--radius)] border p-4">
       {/* Header row: current note name + frequency */}
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold tracking-widest text-white/50 uppercase">Live pitch</p>
+        <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+          Live pitch
+        </p>
         <div className="flex items-center gap-2">
           {isPitched ? (
             <>
               {/* Pulsing dot — indicates live signal */}
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              <span className="text-sm font-bold text-white">{currentNote}</span>
-              <span className="text-xs text-white/50">{currentFrequency} Hz</span>
+              <span className="text-foreground text-sm font-semibold">{currentNote}</span>
+              <span className="text-muted-foreground text-xs">{currentFrequency} Hz</span>
             </>
           ) : (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-white/20" />
-              <span className="text-xs text-white/40">listening…</span>
+              <span className="bg-border-strong inline-block h-2 w-2 rounded-full" />
+              <span className="text-muted-foreground text-xs">listening…</span>
             </>
           )}
         </div>
@@ -55,12 +57,12 @@ export function LivePitchHistogram({
               <div className="relative flex w-full items-end" style={{ height: "56px" }}>
                 <div
                   className={[
-                    "w-full rounded-t-md transition-all duration-75",
+                    "w-full rounded-t-[2px] transition-all duration-75",
                     isActive
-                      ? "animate-pulse bg-gradient-to-t from-purple-500 to-sky-300 shadow-lg shadow-sky-400/40"
+                      ? "bg-primary animate-pulse shadow-[0_0_12px_rgba(172,32,232,0.5)]"
                       : normalized > 0
-                        ? "bg-gradient-to-t from-purple-700/60 to-sky-600/40"
-                        : "bg-white/10",
+                        ? "bg-primary/40"
+                        : "bg-border",
                   ].join(" ")}
                   style={{ height: `${heightPct}%` }}
                 />
@@ -69,7 +71,7 @@ export function LivePitchHistogram({
               <span
                 className={[
                   "text-[10px] leading-none font-semibold",
-                  isActive ? "text-sky-300" : "text-white/40",
+                  isActive ? "text-primary" : "text-muted-foreground",
                 ].join(" ")}
               >
                 {name}
@@ -81,13 +83,13 @@ export function LivePitchHistogram({
 
       {/* Clarity meter — a thin strip showing signal confidence */}
       <div className="mt-3">
-        <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="bg-border h-px w-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-emerald-400/70 transition-all duration-150"
+            className="h-full bg-emerald-400/70 transition-all duration-150"
             style={{ width: `${Math.round(clarity * 100)}%` }}
           />
         </div>
-        <p className="mt-1 text-right text-[10px] text-white/30">
+        <p className="text-muted-foreground mt-1 text-right font-mono text-[10px]">
           clarity {Math.round(clarity * 100)}%
         </p>
       </div>

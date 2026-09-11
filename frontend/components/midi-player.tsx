@@ -24,13 +24,15 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
 
   if (state.status === "empty") {
     return (
-      <p className={`text-sm text-white/45 ${className}`}>No audio to play for this melody.</p>
+      <p className={`text-muted-foreground text-sm ${className}`}>
+        No audio to play for this melody.
+      </p>
     );
   }
 
   if (state.status === "error") {
     return (
-      <p className={`text-sm text-amber-200/80 ${className}`}>
+      <p className={`text-sm text-amber-400/80 ${className}`}>
         {state.message} The MIDI download still works.
       </p>
     );
@@ -51,7 +53,7 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
         disabled={isLoading}
         aria-pressed={isPlaying}
         aria-label={isPlaying ? "Pause melody" : "Play melody"}
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-purple-400/60 bg-purple-500/20 text-white transition hover:bg-purple-500/30 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="border-primary/60 bg-primary/20 text-foreground hover:bg-primary/30 focus-visible:ring-primary/60 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isLoading ? (
           <Spinner size="sm" label="Loading piano" className="[&>span:last-child]:sr-only" />
@@ -69,14 +71,14 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
           aria-valuemin={0}
           aria-valuemax={Math.round(durationSec)}
           aria-label="Playback position"
-          className="h-1.5 w-full overflow-hidden rounded-full bg-white/10"
+          className="bg-border h-px w-full overflow-hidden"
         >
           <div
-            className="h-full rounded-full bg-purple-400 transition-[width] duration-200 ease-linear motion-reduce:transition-none"
+            className="bg-primary h-full transition-[width] duration-200 ease-linear motion-reduce:transition-none"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <p className="mt-1 text-[11px] text-white/40 tabular-nums">
+        <p className="text-muted-foreground mt-1 font-mono text-[11px] tabular-nums">
           {formatTime(positionSec)} / {formatTime(durationSec)}
         </p>
       </div>

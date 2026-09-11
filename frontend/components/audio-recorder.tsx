@@ -137,10 +137,10 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
   };
 
   return (
-    <div className="flex min-h-[220px] flex-col justify-between gap-5 rounded-[1.4rem] border border-white/10 bg-[rgba(17,22,32,0.6)] p-5 shadow-[0_10px_26px_rgba(2,6,23,0.2)]">
+    <div className="border-border bg-card flex min-h-[220px] flex-col justify-between gap-5 rounded-[var(--radius)] border p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
+          <p className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
             Record audio
           </p>
         </div>
@@ -152,9 +152,9 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
           onClick={startRecording}
           aria-label="Record from microphone"
           disabled={isRecording}
-          className="inline-flex items-center justify-center gap-3 rounded-[1rem] border border-[#8b5cf6]/60 bg-[rgba(139,92,246,0.08)] px-5 py-3 text-base font-medium text-[#f1e9ff] transition hover:border-[#8b5cf6]/80 hover:bg-[rgba(139,92,246,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="border-primary/60 bg-primary/8 font-display text-foreground hover:border-primary hover:bg-primary/14 inline-flex items-center justify-center gap-3 rounded-[var(--radius)] border px-5 py-3 text-base transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#d19af7] shadow-[0_0_12px_rgba(209,154,247,0.85)]" />
+          <span className="bg-primary flex h-3.5 w-3.5 items-center justify-center rounded-full" />
           {isRecording ? "Recording..." : "Record from microphone"}
         </button>
         <button
@@ -162,19 +162,19 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
           onClick={stopRecording}
           aria-label="Stop"
           disabled={!isRecording}
-          className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+          className="border-border text-secondary-foreground hover:border-border-strong hover:text-foreground rounded-[var(--radius)] border px-5 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-35"
         >
           Stop
         </button>
       </div>
 
-      <div className="rounded-[1rem] border border-white/10 bg-[rgba(10,14,22,0.52)] p-4 text-sm text-[#dfe7f5]/70">
-        <p className="text-[12px] font-medium tracking-[0.22em] text-white/45 uppercase">
+      <div className="border-border bg-background text-muted-foreground rounded-[var(--radius)] border p-4 text-sm">
+        <p className="text-muted-foreground font-mono text-[12px] tracking-widest uppercase">
           Browser recorder
         </p>
-        <p className="mt-2 text-sm text-[#dfe7f5]/70">Uses the Web Audio API</p>
+        <p className="text-muted-foreground mt-2 text-sm">Uses the Web Audio API</p>
         {error ? <p className="mt-2 text-red-300">{error}</p> : null}
-        {!isRecording ? <p className="mt-2 text-sm text-[#dfe7f5]/70">{status}</p> : null}
+        {!isRecording ? <p className="text-muted-foreground mt-2 text-sm">{status}</p> : null}
 
         {showLivePitch && isRecording && (
           <div className="mt-4">
@@ -198,14 +198,14 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
               <button
                 type="button"
                 onClick={useRecording}
-                className="rounded-[0.8rem] border border-emerald-400/40 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
+                className="rounded-[var(--radius)] border border-emerald-400/40 bg-emerald-500/15 px-4 py-2.5 text-sm text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/20"
               >
                 Use this recording
               </button>
               <button
                 type="button"
                 onClick={recordAgain}
-                className="rounded-[0.8rem] border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-gray-200 transition hover:border-white/20 hover:bg-white/10"
+                className="border-border text-secondary-foreground hover:border-border-strong hover:text-foreground rounded-[var(--radius)] border px-4 py-2.5 text-sm transition-colors"
               >
                 Record again
               </button>

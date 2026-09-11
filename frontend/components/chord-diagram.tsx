@@ -720,7 +720,7 @@ export function ChordDiagram({ chord }: { chord: string }) {
     <div className="group relative inline-flex">
       <button
         type="button"
-        className="cursor-pointer rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold whitespace-nowrap text-purple-100 transition select-none hover:border-purple-300 hover:bg-purple-500/20 focus-visible:border-purple-300 focus-visible:bg-purple-500/20 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:outline-none"
+        className="border-primary/30 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 focus-visible:border-primary/60 focus-visible:bg-primary/20 focus-visible:ring-primary/60 cursor-pointer rounded-[var(--radius)] border px-3 py-1 font-mono text-xs whitespace-nowrap transition select-none focus-visible:ring-2 focus-visible:outline-none"
         onClick={() => playChord(chord)}
         title="Click to play"
         aria-label={`Play ${label} chord${shape ? " and show its fingering diagram" : ""}`}
@@ -728,7 +728,7 @@ export function ChordDiagram({ chord }: { chord: string }) {
         {label}
       </button>
       <div className="pointer-events-none absolute bottom-full left-1/2 z-30 hidden -translate-x-1/2 pb-3 group-focus-within:block group-hover:block">
-        <div className="rounded-2xl border border-white/10 bg-gray-950/95 p-3 shadow-2xl shadow-black/30">
+        <div className="border-border bg-card rounded-[var(--radius)] border p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
           {shape ? (
             <svg
               width="168"
@@ -742,7 +742,12 @@ export function ChordDiagram({ chord }: { chord: string }) {
                 {shape.label}
               </text>
               {shape.baseFret && shape.baseFret > 1 ? (
-                <text x="144" y="48" textAnchor="middle" className="fill-gray-300 text-[10px]">
+                <text
+                  x="144"
+                  y="48"
+                  textAnchor="middle"
+                  className="fill-muted-foreground text-[10px]"
+                >
                   {shape.baseFret}fr
                 </text>
               ) : null}
@@ -841,7 +846,7 @@ export function ChordDiagram({ chord }: { chord: string }) {
               ))}
             </svg>
           ) : (
-            <div className="w-36 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-xs text-gray-400">
+            <div className="border-border text-muted-foreground w-36 rounded-[var(--radius)] border border-dashed px-4 py-8 text-center text-xs">
               Diagram unavailable for {chord}
             </div>
           )}

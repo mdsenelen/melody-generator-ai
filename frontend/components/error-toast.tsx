@@ -11,7 +11,7 @@ export function ErrorToast({ message, onDismiss }: { message: string; onDismiss:
   }, [onDismiss]);
 
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex max-w-xs items-start gap-2 rounded-2xl border border-red-500/50 bg-red-950/90 p-4 text-red-100 shadow-lg shadow-black/30">
+    <div className="fixed right-4 bottom-4 z-50 flex max-w-xs items-start gap-2 rounded-[var(--radius)] border border-red-500/50 bg-[#120808] p-4 text-red-100 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
       <span className="mt-0.5 flex-shrink-0 text-base font-bold">!</span>
       <div className="flex-1">
         <p className="text-sm">{message}</p>

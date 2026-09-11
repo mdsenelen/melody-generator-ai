@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ChordDiagram } from "./chord-diagram";
-import { Spinner } from "./spinner";
+import { Button, buttonClass } from "./ui/button";
+import { Slider } from "./ui/slider";
 import { requestJson } from "../app/lib/request";
 
 export const INSTRUMENT_OPTIONS = [
@@ -97,45 +98,46 @@ export function ChordGraph({
   };
 
   return (
-    <section className="rounded-[1.35rem] border border-white/10 bg-[rgba(17,22,32,0.76)] p-5 shadow-[0_12px_28px_rgba(2,6,23,0.2)] backdrop-blur-md sm:p-6">
+    <section className="border-border bg-card rounded-[var(--radius)] border p-5 sm:p-6">
       <div className="flex flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2
-                className="text-xl font-semibold tracking-[-0.02em] text-white"
-                style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-              >
-                {title}
-              </h2>
+              <h2 className="font-display text-foreground text-xl font-light">{title}</h2>
               {genreBadge ?? null}
             </div>
-            {description ? <p className="mt-2 text-sm text-white/55">{description}</p> : null}
-            <p className="mt-3 max-w-md text-sm leading-6 text-white/45">
+            {description ? (
+              <p className="text-muted-foreground mt-2 text-sm">{description}</p>
+            ) : null}
+            <p className="text-muted-foreground mt-3 max-w-md text-sm leading-6">
               A versatile chord movement for building melodies, hooks, and richer harmonic ideas.
             </p>
           </div>
-          <span className="hidden text-xs text-white/30 sm:block">{progression.length} chords</span>
+          <span className="text-muted-foreground hidden font-mono text-xs sm:block">
+            {progression.length} chords
+          </span>
         </div>
 
         <div>
-          <p className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-white/40 uppercase">
+          <p className="text-muted-foreground mb-3 font-mono text-[10px] tracking-widest uppercase">
             Chord sequence
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {progression.map((chord, index) => (
               <div key={`${chord}-${index}`} className="flex items-center gap-2">
-                <span className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white">
+                <span className="border-border bg-secondary text-foreground rounded-[var(--radius)] border px-3 py-2 font-mono text-sm">
                   {chord}
                 </span>
-                {index < progression.length - 1 ? <span className="text-white/25">→</span> : null}
+                {index < progression.length - 1 ? (
+                  <span className="text-muted-foreground">→</span>
+                ) : null}
               </div>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-white/40 uppercase">
+          <p className="text-muted-foreground mb-3 font-mono text-[10px] tracking-widest uppercase">
             Guitar diagrams
           </p>
           <div className="flex flex-wrap gap-2">
@@ -145,7 +147,7 @@ export function ChordGraph({
           </div>
         </div>
 
-        <div className="grid gap-4 border-t border-white/10 pt-5 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="border-border grid gap-4 border-t pt-5 md:grid-cols-[1fr_auto] md:items-end">
           {/* Instrument dropdown hidden — backend support coming later; defaults to Piano (0) */}
           {/*
           <label className="flex flex-col gap-2 text-sm text-white/75">
@@ -163,39 +165,20 @@ export function ChordGraph({
             </select>
           </label>
           */}
-          <label className="flex flex-col gap-2 text-sm text-white/75">
-            <span className="flex items-center justify-between font-medium text-white">
-              <span className="text-[10px] tracking-[0.2em] text-white/40 uppercase">Tempo</span>
-              <span>{bpm} BPM</span>
-            </span>
-            <input
-              type="range"
-              min={60}
-              max={160}
-              step={1}
-              value={bpm}
-              onChange={(event) => setBpm(Number(event.target.value))}
-              className="h-1 w-full cursor-pointer accent-[#a879ff]"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={loading || !canPlay}
-            className="h-fit rounded-xl border border-[#a879ff]/60 bg-[#8b5cf6]/25 px-5 py-3 text-sm font-semibold text-white transition hover:border-[#c09aff] hover:bg-[#8b5cf6]/35 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? <Spinner size="sm" label="Rendering" /> : "Play progression"}
-          </button>
+          <Slider label="Tempo" value={bpm} min={60} max={160} unit=" BPM" onChange={setBpm} />
+          <Button onClick={handleGenerate} disabled={loading || !canPlay} loading={loading}>
+            {loading ? "Rendering…" : "Play progression"}
+          </Button>
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-100">
+          <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-3 text-sm text-red-100">
             {error}
           </div>
         ) : null}
 
         {result && audioUrl ? (
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-sm">
+          <div className="border-border bg-background rounded-[var(--radius)] border p-4">
             <audio controls className="w-full" src={audioUrl}>
               Your browser does not support the audio element.
             </audio>
@@ -204,14 +187,11 @@ export function ChordGraph({
                 href={result.midi_download_path ?? `data:audio/midi;base64,${result.midi_b64}`}
                 download={result.midi_filename}
                 aria-label="Download MIDI"
-                className="text-sm font-semibold text-[#c9a9ff] transition hover:text-white"
+                className="text-primary hover:text-foreground font-mono text-sm transition-colors"
               >
                 ↓ MIDI
               </a>
-              <Link
-                href={`/result/${result.job_id}`}
-                className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
-              >
+              <Link href={`/result/${result.job_id}`} className={buttonClass("secondary")}>
                 View &amp; download result
               </Link>
             </div>

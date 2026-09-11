@@ -54,3 +54,19 @@ export function isInPlayableRange(freq: number): boolean {
 // Minimum Pitchy clarity score to treat a reading as real pitched audio (not noise/breath).
 // Shared by the analyzer hook and the histogram display so both stay in sync.
 export const CLARITY_THRESHOLD = 0.85;
+
+/**
+ * Note names for the `count` most-weighted pitch classes in a 12-bin
+ * histogram (as returned by `/api/analyze`'s `pitch_histogram`), highest
+ * first. Pitch classes with zero weight are dropped even if that leaves
+ * fewer than `count` results. Used to render "detected notes" chips without
+ * inventing data the backend didn't return.
+ */
+export function topPitchClasses(histogram: number[], count = 5): string[] {
+  return histogram
+    .map((weight, index) => ({ weight, index }))
+    .filter((entry) => entry.weight > 0)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, count)
+    .map((entry) => NOTE_NAMES[entry.index]);
+}

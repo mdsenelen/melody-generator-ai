@@ -62,17 +62,19 @@ export function UploadButton({
 
   return (
     <div className="flex flex-col items-start gap-4">
-      <label className="group relative flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[1.4rem] border border-dashed border-white/20 bg-[rgba(17,22,32,0.4)] px-6 py-8 text-center transition hover:border-[#8b5cf6]/70 hover:bg-[rgba(22,27,39,0.7)]">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#8b5cf6]/45 bg-[#8b5cf6]/10 text-xl text-[#d8b6ff] shadow-[0_0_12px_rgba(139,92,246,0.25)]">
+      <label className="group border-border hover:border-border-strong relative flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[var(--radius)] border-2 border-dashed bg-transparent px-6 py-8 text-center transition-colors">
+        <div className="border-primary/40 bg-primary/10 text-primary mb-4 flex h-12 w-12 items-center justify-center rounded-full border text-xl">
           ↑
         </div>
 
         {!isLoading ? (
           <>
-            <span className="mb-2 text-[1.05rem] font-semibold text-[#f2f3f7]">
+            <span className="font-display text-foreground mb-2 text-[1.05rem]">
               Drop audio file here
             </span>
-            <span className="text-sm text-[#dfe7f5]/70">MP3 · WAV · FLAC · M4A · up to 50 MB</span>
+            <span className="text-secondary-foreground text-sm">
+              MP3 · WAV · FLAC · M4A · up to 50 MB
+            </span>
           </>
         ) : null}
 
@@ -89,10 +91,10 @@ export function UploadButton({
       </label>
 
       <div className="w-full">
-        <p className="mb-2 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
+        <p className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
           {label.toUpperCase()}
         </p>
-        <p className="min-h-[1.25rem] font-sans text-sm text-[#dfe7f5]/60" aria-live="polite">
+        <p className="text-muted-foreground min-h-[1.25rem] text-sm" aria-live="polite">
           {status}
         </p>
       </div>

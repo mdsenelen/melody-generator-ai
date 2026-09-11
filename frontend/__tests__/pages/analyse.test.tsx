@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AnalysePage from "../../app/analyse/page";
@@ -104,6 +104,24 @@ describe("Analyse page: transcription + clip analysis", () => {
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText(/Mood: happy/)).toBeInTheDocument();
+  });
+
+  it("shows the top detected notes, derived from the pitch histogram", async () => {
+    mockedAnalyzeClip.mockResolvedValue({
+      ...BASE_ANALYSIS,
+      pitch_histogram: [0.7, 0, 0, 0, 0, 0.6, 0, 0, 0, 0.9, 0, 0],
+    });
+
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+    await upload(user, makeFile("riff.wav"));
+
+    await waitFor(() => expect(screen.getByText("Detected notes")).toBeInTheDocument());
+    // highest-weighted pitch classes first: A (0.9), C (0.7), F (0.6)
+    const notesCard = screen.getByText("Detected notes").parentElement!;
+    expect(within(notesCard).getByText("A")).toBeInTheDocument();
+    expect(within(notesCard).getByText("C")).toBeInTheDocument();
+    expect(within(notesCard).getByText("F")).toBeInTheDocument();
   });
 
   it("shows the chord progression in playback order plus a most-used summary", async () => {

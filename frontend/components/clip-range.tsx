@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react";
 
+import { Button } from "./ui/button";
+
 export type ClipWindow = { start: number; end: number };
 
 const MIN_SPAN_SEC = 1;
@@ -68,13 +70,15 @@ export function ClipRange({ sourceDurationSec, value, onCommit, busy = false }: 
       }}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Analysis window</p>
-        <p className="text-sm font-semibold text-white" aria-hidden="true">
+        <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+          Analysis window
+        </p>
+        <p className="text-foreground font-mono text-sm" aria-hidden="true">
           {spanLabel}
         </p>
       </div>
 
-      <label htmlFor={startId} className="block text-xs text-white/55">
+      <label htmlFor={startId} className="text-secondary-foreground block text-xs">
         Start
       </label>
       <input
@@ -88,10 +92,10 @@ export function ClipRange({ sourceDurationSec, value, onCommit, busy = false }: 
         onChange={(event) => setStart(Number(event.target.value))}
         aria-label="Analysis window start"
         aria-valuetext={formatTime(draft.start)}
-        className="w-full accent-[#8b5cf6]"
+        className="accent-primary w-full"
       />
 
-      <label htmlFor={endId} className="block text-xs text-white/55">
+      <label htmlFor={endId} className="text-secondary-foreground block text-xs">
         End
       </label>
       <input
@@ -105,7 +109,7 @@ export function ClipRange({ sourceDurationSec, value, onCommit, busy = false }: 
         onChange={(event) => setEnd(Number(event.target.value))}
         aria-label="Analysis window end"
         aria-valuetext={formatTime(draft.end)}
-        className="w-full accent-[#8b5cf6]"
+        className="accent-primary w-full"
       />
 
       <p aria-live="polite" className="sr-only">
@@ -114,13 +118,9 @@ export function ClipRange({ sourceDurationSec, value, onCommit, busy = false }: 
           : `Analysis window ${spanLabel}.`}
       </p>
 
-      <button
-        type="submit"
-        disabled={!dirty || busy}
-        className="rounded-full border border-[#8b5cf6]/50 bg-[rgba(139,92,246,0.12)] px-4 py-2 text-sm font-semibold text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <Button type="submit" variant="secondary" small disabled={!dirty || busy} loading={busy}>
         {busy ? "Analysing…" : "Analyse this section"}
-      </button>
+      </Button>
     </form>
   );
 }

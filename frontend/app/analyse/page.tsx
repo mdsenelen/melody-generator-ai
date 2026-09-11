@@ -9,6 +9,12 @@ import { ClipRange, type ClipWindow } from "../../components/clip-range";
 import ErrorBoundary from "../../components/error-boundary";
 import { ErrorToast } from "../../components/error-toast";
 import { Spinner } from "../../components/spinner";
+import { buttonClass } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import { ChordSequence } from "../../components/ui/chord-sequence";
+import { MoodBadge, StatusBadge } from "../../components/ui/badge";
+import { PitchHistogram } from "../../components/ui/pitch-histogram";
+import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
 import { useSessionStore } from "../lib/session-store";
@@ -18,6 +24,7 @@ import {
   TranscribeJobSupersededError,
   type TranscriptionResult,
 } from "../lib/transcribeJob";
+import { topPitchClasses } from "../../utils/pitch";
 import { uploadFile } from "../lib/upload";
 
 type Transcription = TranscriptionResult & {
@@ -32,18 +39,7 @@ type AnalysisState =
   | { status: "ready"; data: ClipAnalysis }
   | { status: "error"; error: string };
 
-const PITCH_CLASS_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const DEFAULT_CLIP_SEC = 60;
-
-const moodMeta = {
-  happy: {
-    emoji: "😄",
-    label: "happy",
-    classes: "border-yellow-500 bg-yellow-900/40 text-yellow-100",
-  },
-  sad: { emoji: "😢", label: "sad", classes: "border-blue-500 bg-blue-900/40 text-blue-100" },
-  neutral: { emoji: "😐", label: "neutral", classes: "border-gray-600 bg-gray-800 text-gray-100" },
-} as const;
 
 function formatDuration(seconds: number) {
   const totalSeconds = Math.round(seconds);
@@ -77,14 +73,6 @@ function summariseChords(chords: string[]) {
 function createAudioObjectUrl(base64Audio: string, mimeType: string) {
   const bytes = Uint8Array.from(atob(base64Audio), (character) => character.charCodeAt(0));
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-}
-
-function TranscribingAnimation({ statusMessage }: { statusMessage: string }) {
-  return (
-    <div className="flex items-center justify-center py-14">
-      <Spinner size="lg" label={statusMessage} />
-    </div>
-  );
 }
 
 export default function AnalysePage() {
@@ -315,52 +303,69 @@ export default function AnalysePage() {
 
   const analysisData = analysis.status === "ready" ? analysis.data : null;
   const chordSummary = analysisData ? summariseChords(analysisData.detected_chords) : null;
-  const mood = analysisData ? moodMeta[analysisData.mood_label] : null;
+  const detectedNotes = analysisData ? topPitchClasses(analysisData.pitch_histogram) : [];
 
   return (
     <ErrorBoundary>
       <>
-        <main className="space-y-8 pb-8">
-          <section className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-[1.8rem] border border-white/10 bg-[rgba(17,22,32,0.72)] p-6 shadow-[0_10px_24px_rgba(2,6,23,0.2)] backdrop-blur-md">
-              <div className="mb-5 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
-                Upload audio
-              </div>
+        <div className="mb-8 flex items-start justify-between">
+          <SectionHeading sub="Upload or record a clip to extract key, tempo, pitch content, and chord structure.">
+            Analyse Audio
+          </SectionHeading>
+          <div className="flex items-center gap-3">
+            {showRecorder && !transcription ? (
+              <StatusBadge variant="error" dot>
+                Recording
+              </StatusBadge>
+            ) : null}
+            {isTranscribing ? (
+              <StatusBadge variant="accent" dot>
+                Analysing
+              </StatusBadge>
+            ) : null}
+            {transcription && !isTranscribing ? (
+              <StatusBadge variant="success" dot>
+                Complete
+              </StatusBadge>
+            ) : null}
+          </div>
+        </div>
 
-              <UploadButton
-                onUploadSuccess={handleUploadSuccess}
-                onUploadError={setErrorMessage}
-                label="Upload Audio"
-              />
+        <main className="space-y-8">
+          <section className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <Label>Upload audio</Label>
+              <div className="mt-4">
+                <UploadButton
+                  onUploadSuccess={handleUploadSuccess}
+                  onUploadError={setErrorMessage}
+                  label="Upload Audio"
+                />
+              </div>
 
               {selectedFile ? (
-                <div className="mt-5 rounded-2xl border border-white/10 bg-[rgba(10,14,22,0.5)] p-4 text-sm text-[#dfe7f5]/70">
-                  <p className="text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
-                    Source
-                  </p>
-                  <p className="mt-2 font-medium text-white">{selectedFile.name}</p>
+                <div className="border-border bg-background text-secondary-foreground mt-5 rounded-[var(--radius)] border p-4 text-sm">
+                  <Label>Source</Label>
+                  <p className="text-foreground mt-2">{selectedFile.name}</p>
                 </div>
               ) : null}
-            </div>
+            </Card>
 
-            <div className="rounded-[1.8rem] border border-white/10 bg-[rgba(17,22,32,0.72)] p-6 shadow-[0_10px_24px_rgba(2,6,23,0.2)] backdrop-blur-md">
-              <div className="mb-5 text-[11px] font-medium tracking-[0.22em] text-white/45 uppercase">
-                Record audio
-              </div>
-
+            <Card>
+              <Label>Record audio</Label>
               <button
                 type="button"
                 onClick={() => setShowRecorder((current) => !current)}
-                className="flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[1.4rem] border border-dashed border-[#8b5cf6]/45 bg-[rgba(139,92,246,0.06)] px-6 py-8 text-center text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.12)]"
+                className="border-primary/45 bg-primary/6 text-foreground hover:border-primary/70 hover:bg-primary/12 mt-4 flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[var(--radius)] border-2 border-dashed px-6 py-8 text-center transition-colors"
                 aria-expanded={showRecorder}
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[#d19af7]/50 bg-[#8b5cf6]/15 text-2xl text-[#d19af7] shadow-[0_0_18px_rgba(139,92,246,0.24)]">
+                <span className="border-primary/50 bg-primary/15 text-primary flex h-14 w-14 items-center justify-center rounded-full border text-2xl">
                   ●
                 </span>
-                <span className="text-base font-semibold">
+                <span className="font-display text-base">
                   {showRecorder ? "Hide recorder" : "Record audio"}
                 </span>
-                <span className="text-sm text-white/45">
+                <span className="text-muted-foreground text-sm">
                   {showRecorder
                     ? "Close recording controls"
                     : "Use your microphone to record a clip"}
@@ -372,84 +377,69 @@ export default function AnalysePage() {
                   <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
                 </div>
               ) : null}
-            </div>
+            </Card>
           </section>
 
           <div className="space-y-6">
             {isTranscribing ? (
-              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                <TranscribingAnimation statusMessage={statusMessage} />
-              </section>
+              <Card>
+                <div className="flex items-center justify-center py-14">
+                  <Spinner size="lg" label={statusMessage} />
+                </div>
+              </Card>
             ) : null}
 
             {/* Transcription result -- the full-length MIDI + downloads. */}
             {transcription ? (
-              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
-                <div className="space-y-5">
-                  <div>
-                    <p
-                      className="text-sm font-semibold text-white/75"
-                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                    >
-                      Transcription
-                    </p>
-                    <h2
-                      className="mt-1 text-2xl font-semibold text-white"
-                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                    >
-                      {transcription.sourceName}
-                    </h2>
-                    <p className="mt-2 text-sm text-white/65">
-                      {transcription.n_notes} notes ·{" "}
-                      {formatDuration(transcription.source_duration_sec)} of audio
-                    </p>
-                  </div>
-
-                  {previewAudioUrl ? (
-                    <audio controls className="w-full" src={previewAudioUrl}>
-                      Your browser does not support the audio element.
-                    </audio>
-                  ) : null}
-
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      href={`/result/${transcription.jobId}`}
-                      className="rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300 hover:bg-sky-500/20"
-                    >
-                      View &amp; download result
-                    </Link>
-                  </div>
+              <Card variant="accent" className="space-y-5">
+                <div>
+                  <Label>Transcription</Label>
+                  <h2 className="font-display text-foreground mt-1 text-2xl font-light">
+                    {transcription.sourceName}
+                  </h2>
+                  <p className="text-muted-foreground mt-2 text-sm">
+                    {transcription.n_notes} notes ·{" "}
+                    {formatDuration(transcription.source_duration_sec)} of audio
+                  </p>
                 </div>
-              </section>
+
+                {previewAudioUrl ? (
+                  <audio controls className="w-full" src={previewAudioUrl}>
+                    Your browser does not support the audio element.
+                  </audio>
+                ) : null}
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href={`/result/${transcription.jobId}`}
+                    className={buttonClass("secondary")}
+                  >
+                    View &amp; download result
+                  </Link>
+                </div>
+              </Card>
             ) : null}
 
             {/* Clip analysis -- re-runnable against any window of the source. */}
             {transcription ? (
-              <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur-md">
+              <Card className="space-y-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p
-                      className="text-sm font-semibold text-white/75"
-                      style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                    >
-                      Clip analysis
-                    </p>
-                    <p className="mt-1 text-sm text-white/65">
+                    <Label>Clip analysis</Label>
+                    <p className="text-muted-foreground mt-1 text-sm">
                       Mood, key, tempo and chords for a section of the audio. Pick a window and
                       re-analyse.
                     </p>
                   </div>
-                  {mood ? (
-                    <div
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${mood.classes}`}
-                    >
-                      <span>{mood.emoji}</span>
-                      <span>Mood: {mood.label}</span>
-                    </div>
+                  {analysisData ? (
+                    <MoodBadge
+                      mood={analysisData.mood_label}
+                      label={`Mood: ${analysisData.mood_label}`}
+                    />
                   ) : null}
                 </div>
 
-                <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                <div className="border-border bg-background rounded-[var(--radius)] border p-5">
                   <ClipRange
                     sourceDurationSec={transcription.source_duration_sec}
                     value={clipWindow}
@@ -458,85 +448,67 @@ export default function AnalysePage() {
                   />
                 </div>
 
-                <div aria-live="polite" className="mt-5">
+                <div aria-live="polite">
                   {analysis.status === "loading" ? (
                     <div className="flex items-center justify-center py-10">
                       <Spinner label="Analysing this section..." />
                     </div>
                   ) : analysis.status === "error" ? (
-                    <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
+                    <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
                       {analysis.error}
                     </div>
                   ) : analysisData ? (
                     <div className="space-y-6">
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Key</p>
-                          <p className="mt-3 text-lg font-semibold text-white">
-                            🔑 {analysisData.key}
+                        <Card variant="muted">
+                          <Label>Key</Label>
+                          <p className="font-display text-foreground mt-3 text-lg font-light">
+                            {analysisData.key}
                           </p>
-                        </div>
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                            Notes in window
-                          </p>
-                          <p className="mt-3 text-lg font-semibold text-white">
+                        </Card>
+                        <Card variant="muted">
+                          <Label>Notes in window</Label>
+                          <p className="font-display text-foreground mt-3 text-lg font-light">
                             {analysisData.n_notes}
                           </p>
-                        </div>
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">Tempo</p>
-                          <p className="mt-3 text-lg font-semibold text-white">
+                        </Card>
+                        <Card variant="muted">
+                          <Label>Tempo</Label>
+                          <p className="font-display text-foreground mt-3 text-lg font-light">
                             {analysisData.tempo_bpm} BPM
                           </p>
-                        </div>
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                          <p className="text-xs tracking-[0.2em] text-white/45 uppercase">
-                            Average pitch
-                          </p>
-                          <p className="mt-3 text-lg font-semibold text-white">
+                        </Card>
+                        <Card variant="muted">
+                          <Label>Average pitch</Label>
+                          <p className="font-display text-foreground mt-3 text-lg font-light">
                             {analysisData.average_pitch}
                           </p>
-                        </div>
+                        </Card>
                       </div>
 
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                        <p
-                          className="text-sm font-semibold text-white"
-                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                        >
-                          Pitch histogram
-                        </p>
-                        <p className="mt-1 text-sm text-white/65">
+                      {detectedNotes.length > 0 ? (
+                        <Card variant="muted">
+                          <Label>Detected notes</Label>
+                          <div className="mt-3">
+                            <ChordSequence chords={detectedNotes} />
+                          </div>
+                        </Card>
+                      ) : null}
+
+                      <Card variant="muted">
+                        <Label>Pitch histogram</Label>
+                        <p className="text-muted-foreground mt-1 text-sm">
                           Pitch-class balance across {formatDuration(analysisData.clip_start_sec)}–
                           {formatDuration(analysisData.clip_end_sec)}.
                         </p>
-                        <div className="mt-5 grid grid-cols-12 gap-2">
-                          {PITCH_CLASS_LABELS.map((label, index) => {
-                            const value = analysisData.pitch_histogram[index] ?? 0;
-                            return (
-                              <div key={label} className="flex flex-col items-center gap-2">
-                                <div className="flex h-28 w-full items-end rounded-2xl border border-white/10 bg-black/20 p-2">
-                                  <div
-                                    className="w-full rounded-xl bg-gradient-to-t from-purple-500 via-fuchsia-400 to-sky-300"
-                                    style={{ height: `${Math.max(value * 100, 8)}%` }}
-                                  />
-                                </div>
-                                <span className="text-[11px] text-white/60">{label}</span>
-                              </div>
-                            );
-                          })}
+                        <div className="mt-5">
+                          <PitchHistogram values={analysisData.pitch_histogram} />
                         </div>
-                      </div>
+                      </Card>
 
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                        <p
-                          className="text-sm font-semibold text-white"
-                          style={{ textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}
-                        >
-                          Chord progression
-                        </p>
-                        <p className="mt-2 text-sm text-white/65">
+                      <Card variant="muted">
+                        <Label>Chord progression</Label>
+                        <p className="text-muted-foreground mt-2 text-sm">
                           The chords in playback order. Hover one to preview a guitar fingering.
                         </p>
 
@@ -547,7 +519,7 @@ export default function AnalysePage() {
                                 <div key={`${chord}-${index}`} className="flex items-center gap-2">
                                   <ChordDiagram chord={chord} />
                                   {index < chordSummary.sequence.length - 1 ? (
-                                    <span aria-hidden="true" className="text-white/35">
+                                    <span aria-hidden="true" className="text-muted-foreground">
                                       →
                                     </span>
                                   ) : null}
@@ -555,27 +527,27 @@ export default function AnalysePage() {
                               ))}
                             </div>
 
-                            <p className="mt-4 text-sm text-white/65">
+                            <p className="text-muted-foreground mt-4 text-sm">
                               Most used:{" "}
                               {chordSummary.mostCommon.slice(0, 3).map((entry, index) => (
                                 <span key={entry.chord}>
                                   {index > 0 ? ", " : ""}
-                                  <span className="font-semibold text-white">{entry.chord}</span>
-                                  <span className="text-white/45"> ×{entry.count}</span>
+                                  <span className="text-foreground">{entry.chord}</span>
+                                  <span className="text-muted-foreground"> ×{entry.count}</span>
                                 </span>
                               ))}
                             </p>
                           </>
                         ) : (
-                          <p className="mt-4 text-sm text-white/60">
+                          <p className="text-muted-foreground mt-4 text-sm">
                             No chord labels were detected for this window.
                           </p>
                         )}
-                      </div>
+                      </Card>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-4 py-10 text-center">
-                      <p className="text-sm text-white/55">
+                      <p className="text-muted-foreground text-sm">
                         Analysis for this window hasn&apos;t run yet.
                       </p>
                       <button
@@ -583,14 +555,14 @@ export default function AnalysePage() {
                         onClick={() =>
                           transcription && void runAnalysis(transcription.jobId, clipWindow)
                         }
-                        className="rounded-full border border-[#8b5cf6]/50 bg-[rgba(139,92,246,0.12)] px-4 py-2 text-sm font-semibold text-[#f1e9ff] transition hover:border-[#b18aff] hover:bg-[rgba(139,92,246,0.2)]"
+                        className={buttonClass("secondary", { small: true })}
                       >
                         Analyse this clip
                       </button>
                     </div>
                   )}
                 </div>
-              </section>
+              </Card>
             ) : null}
           </div>
         </main>

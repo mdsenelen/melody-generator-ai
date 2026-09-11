@@ -27,7 +27,7 @@ export function Spinner({ size = "md", label, className = "" }: SpinnerProps) {
     >
       <span
         aria-hidden="true"
-        className={`inline-block animate-spin rounded-full border-purple-400 border-t-transparent motion-reduce:animate-none motion-reduce:border-t-purple-400 ${SIZE_CLASSES[size]}`}
+        className={`border-primary/40 motion-reduce:border-t-primary/40 inline-block animate-spin rounded-full border-t-transparent motion-reduce:animate-none ${SIZE_CLASSES[size]}`}
       />
       <span id={labelId}>{label}</span>
     </span>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import GenerateVariantsPage from "../../app/generate-variants/page";
@@ -58,9 +58,60 @@ describe("GenerateVariantsPage", () => {
 
   it("lets the user pick a variant count between 1 and 8", () => {
     render(<GenerateVariantsPage />);
-    const slider = screen.getByRole("slider");
+    const slider = screen.getByRole("slider", { name: "Number of variants" });
     expect(slider).toHaveAttribute("min", "1");
     expect(slider).toHaveAttribute("max", "8");
+  });
+
+  it("shows one temperature slider per variant, seeded from the defaults", () => {
+    render(<GenerateVariantsPage />);
+    // default count is 4 -> 4 temperature sliders, on top of the count slider
+    const temperatureSliders = screen.getAllByRole("slider", { name: /^α|^β|^γ|^δ/ });
+    expect(temperatureSliders).toHaveLength(4);
+  });
+
+  it("adjusting a variant's temperature changes only that variant's request value", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          n_variants: 4,
+          temperatures: [0.7, 0.9, 1.0, 1.3],
+          mood_idx: 0,
+          mood_label: "happy",
+          model_status: {
+            cvae: { path: "cvae", exists: true, size_mb: 1, loaded: true },
+            iddm_ppo: { path: "iddm", exists: true, size_mb: 1, loaded: true },
+            device: "cpu",
+            load_error: null,
+            fluidsynth_available: true,
+          },
+          variants: [],
+          job_id: "job-variants-2",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+
+    const betaSlider = screen.getByRole("slider", { name: "β" });
+    fireEvent.change(betaSlider, { target: { value: "1.5" } });
+
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    const call = (global.fetch as jest.Mock).mock.calls[0];
+    const body = call[1].body as FormData;
+    expect(JSON.parse(body.get("temperatures") as string)).toEqual([0.7, 1.5, 1.0, 1.3]);
   });
 
   it("links the generated result to its job-id result page instead of an inline download button", async () => {

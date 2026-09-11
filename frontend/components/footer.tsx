@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer className="mt-auto w-full pt-2 pb-6 text-center text-[12px] text-white/30">
+    <footer className="border-border text-muted-foreground mt-auto w-full border-t py-6 text-center font-mono text-[11px] tracking-wide">
       <span>
         &copy; {new Date().getFullYear()} Merve Deniz Senelen
         {" · "}
@@ -8,7 +8,7 @@ export default function Footer() {
           href="https://www.linkedin.com/in/mdenizsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition hover:text-white/60"
+          className="hover:text-primary transition-colors"
         >
           LinkedIn
         </a>
@@ -17,7 +17,7 @@ export default function Footer() {
           href="https://www.youtube.com/@mdsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition hover:text-white/60"
+          className="hover:text-primary transition-colors"
         >
           YouTube
         </a>
