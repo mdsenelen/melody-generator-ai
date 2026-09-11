@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import inspect
 import io
 import os
 import shutil
@@ -978,3 +979,37 @@ def test_midi_to_wav_returns_none_when_fluidsynth_fails_and_prefer_only(monkeypa
     )
 
     assert wav_b64 is None
+
+
+# ── generation path: no server-side WAV render ──────────────────────────────
+# The browser synthesizes the melody now (Tone.js). The generation path builds
+# MIDI only -- FluidSynth isn't installed in prod anyway, so it was just logging
+# a failure per request and falling back to a sine WAV nobody wanted.
+
+
+def test_variant_entry_omits_wav_render(monkeypatch, tmp_path):
+    monkeypatch.setattr(inference, "OUTPUT_DIR", tmp_path)
+
+    midi_bytes = _real_midi_bytes(pitch=64, duration=0.4)
+    entry = inference._variant_entry(0, 0.7, midi_bytes)
+
+    assert entry["wav_b64"] is None
+    assert entry["wav_filename"] == ""
+    assert entry["wav_download_path"] == ""
+
+    assert base64.b64decode(entry["midi_b64"]) == midi_bytes
+    assert entry["midi_filename"].startswith("variant_1")
+    assert entry["midi_filename"].endswith(".mid")
+    assert entry["midi_download_path"] == f"/api/download/{entry['midi_filename']}"
+    assert entry["index"] == 0
+    assert entry["temperature"] == 0.7
+    # the MIDI was actually written to the (redirected) output dir
+    assert (tmp_path / entry["midi_filename"]).read_bytes() == midi_bytes
+
+
+def test_generate_iddm_variants_does_not_render_wav():
+    """Regression guard: the full function needs torch + weights (not worth
+    mocking), but its source must never call the FluidSynth renderer again."""
+    src = inspect.getsource(inference.generate_iddm_variants)
+    assert "_midi_bytes_to_wav_b64" not in src
+    assert "_variant_entry" in src

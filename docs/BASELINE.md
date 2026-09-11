@@ -48,8 +48,25 @@ Repo carried ~253MB of tracked binaries, almost all unreferenced by any source f
 | `frontend/public/background.mp4` | 13M | **Yes** — `app/layout.tsx:40` | Left tracked — see below |
 | `backend/app/soundfonts/GeneralUser-GS.sf2` | 31M | **Yes** — `backend/app/inference.py:999-1000`, default `SOUNDFONT_PATH` | Left tracked — see below |
 | `frontend/public/demo/musical-playground-demo.wav` | 284K | No | Left alone (under the 5MB large-file threshold; noted, not acted on) |
+| `frontend/public/audio/piano/*.mp3` (9 files) | ~0.65M total | **Yes** — `hooks/use-midi-player.ts` (`Tone.Sampler`) | Committed on purpose — see "Committed audio assets" below |
 
 11 files (~191MB) untracked. Untracking only removes them from git's index going forward — the blobs still exist in prior commits' history, and the files remain on disk locally. This is not a history rewrite.
+
+### Committed audio assets
+
+CLAUDE.md's scope rule says "never commit audio files ... soundfonts". Three
+things are tracked anyway, each a live, referenced production asset the deploy
+pulls from git (no separate asset store is wired up): `background.mp4` (13M),
+`GeneralUser-GS.sf2` (31M), and — added with the client-side melody player —
+`frontend/public/audio/piano/*.mp3` (~0.65M, 9 files).
+
+The piano samples are a minimal subset of the Salamander Grand Piano V3
+(Alexander Holm, CC-BY 3.0), one note every tritone C2–C6; `Tone.Sampler`
+pitch-shifts to fill the gaps. They're committed rather than fetched from a CDN
+at runtime **by design** — the melody a user generates must be audible without
+depending on a third party staying up. At ~0.65 MB this is well under the
+`background.mp4` / `.sf2` precedent and doesn't move the "shrink `.git/`" needle
+(item 3 below). Attribution: `frontend/public/audio/piano/README.md`.
 
 `.gitignore` already had `frontend/public/*.mp4`, which is why untracked files won't resurface as untracked-new; it just never affected files already committed before the pattern was added. Added `*.sf2` to `.gitignore` for the same reason (soundfont directory had no ignore coverage at all). Note added inline in `.gitignore` explaining why `background.mp4` and `GeneralUser-GS.sf2` are still tracked despite matching these patterns.
 

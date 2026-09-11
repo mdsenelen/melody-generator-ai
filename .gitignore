@@ -17,6 +17,9 @@ backend/venv/
 frontend/node_modules/
 backend/resampy/
 
+# Playwright MCP scratch output (snapshots, console/network logs)
+.playwright-mcp/
+
 # Unrelated tooling artifacts (accidentally committed)
 .sfdx/
 

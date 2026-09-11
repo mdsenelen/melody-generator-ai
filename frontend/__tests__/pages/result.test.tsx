@@ -8,6 +8,16 @@ jest.mock("../../app/lib/transcribeJob", () => {
   return { ...actual, getTranscribeJob: jest.fn() };
 });
 
+// The browser MIDI player owns Tone.js + AudioContext, neither of which exists
+// in jsdom -- stub it to a static "ready to play" state.
+jest.mock("../../hooks/use-midi-player", () => ({
+  useMidiPlayer: () => ({
+    state: { status: "idle", durationSec: 3 },
+    toggle: jest.fn(),
+    stop: jest.fn(),
+  }),
+}));
+
 const mockedGetJob = getTranscribeJob as jest.Mock;
 
 function statusResponse(overrides: Record<string, unknown>) {
@@ -116,6 +126,8 @@ describe("ResultView", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Variant 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Variant 2" })).toBeInTheDocument();
+    // the melody is playable in the browser, and still downloadable as MIDI
+    expect(screen.getByRole("button", { name: /play melody/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /download midi/i })).toHaveAttribute(
       "href",
       "/api/download/variant_1.mid",

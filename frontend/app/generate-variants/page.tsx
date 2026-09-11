@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
+import { MidiPlayer } from "../../components/midi-player";
 import { Spinner } from "../../components/spinner";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { requestJson } from "../lib/request";
@@ -302,8 +303,12 @@ export default function GenerateVariantsPage() {
             <div>
               <h2 className="text-2xl font-semibold text-white">Rendered variants</h2>
               <p className="mt-2 text-sm text-gray-400">
-                Device: {result.model_status.device}. FluidSynth available:{" "}
-                {result.model_status.fluidsynth_available ? "yes" : "no"}.
+                Generated on {result.model_status.device}. Play each melody below, or download the
+                MIDI.
+              </p>
+              <p className="mt-1 text-xs text-white/40">
+                Running a full transcription right after generating may take a little longer while
+                the server recycles memory.
               </p>
             </div>
             {mood ? (
@@ -361,20 +366,11 @@ export default function GenerateVariantsPage() {
                   {result.variants[activeVariant].temperature}
                 </span>
               </p>
-              {result.variants[activeVariant].wav_b64 ? (
-                <audio
-                  controls
-                  className="mt-4 w-full"
-                  src={`data:audio/wav;base64,${result.variants[activeVariant].wav_b64}`}
-                >
-                  Your browser does not support the audio element.
-                </audio>
-              ) : (
-                <p className="mt-4 text-sm text-gray-400">
-                  WAV preview is unavailable because FluidSynth could not render this variant in the
-                  current backend environment.
-                </p>
-              )}
+              <MidiPlayer
+                key={result.variants[activeVariant].index}
+                midiB64={result.variants[activeVariant].midi_b64}
+                className="mt-4"
+              />
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   href={`/result/${result.job_id}`}

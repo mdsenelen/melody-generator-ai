@@ -17,8 +17,9 @@ const nextConfig = {
   // next/jest's default node_modules transform-ignore blocks them during
   // component tests -- pitchy via hooks/use-audio-analyzer.ts (e.g.
   // AudioRecorder), react-error-boundary via components/error-boundary.tsx
-  // (pulled in by any test that renders app/analyse/page.tsx).
-  transpilePackages: ["pitchy", "react-error-boundary"],
+  // (pulled in by any test that renders app/analyse/page.tsx). tone ships
+  // pure ESM too -- it's dynamically imported in hooks/use-midi-player.ts.
+  transpilePackages: ["pitchy", "react-error-boundary", "tone"],
 };
 
 module.exports = nextConfig;

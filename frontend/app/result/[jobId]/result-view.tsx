@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { MidiPlayer } from "../../../components/midi-player";
 import { Spinner } from "../../../components/spinner";
 import { useJobResult } from "../../../hooks/use-job-result";
 import { isProgressionJobResult, isVariantsJobResult } from "../../lib/jobResult";
@@ -101,15 +102,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
               <p className="text-sm text-white/65">
                 Temperature: <span className="font-semibold text-white">{variant.temperature}</span>
               </p>
-              {variant.wav_b64 ? (
-                <audio
-                  controls
-                  className="mt-4 w-full"
-                  src={`data:audio/wav;base64,${variant.wav_b64}`}
-                >
-                  Your browser does not support the audio element.
-                </audio>
-              ) : null}
+              <MidiPlayer midiB64={variant.midi_b64} className="mt-4" />
               <div className="mt-4 flex flex-wrap gap-3">
                 <a
                   href={variant.midi_download_path || downloadPathFor(variant.midi_filename)}
@@ -118,15 +111,6 @@ export default function ResultView({ jobId }: { jobId: string }) {
                 >
                   Download MIDI
                 </a>
-                {variant.wav_filename ? (
-                  <a
-                    href={variant.wav_download_path || downloadPathFor(variant.wav_filename)}
-                    download={variant.wav_filename}
-                    className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20"
-                  >
-                    Download WAV
-                  </a>
-                ) : null}
               </div>
             </div>
           ) : null}

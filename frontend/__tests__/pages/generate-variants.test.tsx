@@ -4,6 +4,16 @@ import userEvent from "@testing-library/user-event";
 import GenerateVariantsPage from "../../app/generate-variants/page";
 import { useSessionStore } from "../../app/lib/session-store";
 
+// The browser MIDI player owns Tone.js + AudioContext, neither of which exists
+// in jsdom -- stub it to a static "ready to play" state.
+jest.mock("../../hooks/use-midi-player", () => ({
+  useMidiPlayer: () => ({
+    state: { status: "idle", durationSec: 3 },
+    toggle: jest.fn(),
+    stop: jest.fn(),
+  }),
+}));
+
 describe("GenerateVariantsPage", () => {
   beforeEach(() => {
     useSessionStore.setState({ lastUpload: null });
@@ -78,9 +88,9 @@ describe("GenerateVariantsPage", () => {
               midi_b64: "AAA=",
               midi_filename: "variant_1.mid",
               midi_download_path: "/api/download/variant_1.mid",
-              wav_b64: "AAA=",
-              wav_filename: "variant_1.wav",
-              wav_download_path: "/api/download/variant_1.wav",
+              wav_b64: null,
+              wav_filename: "",
+              wav_download_path: "",
             },
           ],
           job_id: "job-variants-1",
@@ -103,5 +113,9 @@ describe("GenerateVariantsPage", () => {
     const resultLink = await screen.findByRole("link", { name: /view & download result/i });
     expect(resultLink).toHaveAttribute("href", "/result/job-variants-1");
     expect(screen.queryByRole("button", { name: /download midi/i })).not.toBeInTheDocument();
+    // the melody is playable inline, without a round-trip to the result page
+    expect(screen.getByRole("button", { name: /play melody/i })).toBeInTheDocument();
+    // calm heads-up about the post-generation memory floor (not an alarm banner)
+    expect(screen.getByText(/full transcription right after generating/i)).toBeInTheDocument();
   });
 });

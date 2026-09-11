@@ -2060,6 +2060,25 @@ def _generate_progression_payload(progression: list[str], bpm: float, instrument
     }
 
 
+def _variant_entry(index: int, temperature: float, midi_bytes: bytes) -> dict[str, Any]:
+    """Assemble one generated-variant result row. MIDI only -- the browser
+    synthesizes playback (Tone.js), so nothing here renders audio. The
+    ``wav_*`` keys stay in the shape (nullable, already handled everywhere on
+    the frontend) so the response contract is unchanged.
+    """
+    midi_filename, _ = _save_bytes(midi_bytes, f"variant_{index + 1}", ".mid")
+    return {
+        "index": index,
+        "temperature": float(temperature),
+        "midi_b64": base64.b64encode(midi_bytes).decode("utf-8"),
+        "midi_filename": midi_filename,
+        "midi_download_path": f"/api/download/{midi_filename}",
+        "wav_b64": None,
+        "wav_filename": "",
+        "wav_download_path": "",
+    }
+
+
 def generate_iddm_variants(
     audio_bytes: bytes,
     n_variants: int,
@@ -2084,7 +2103,6 @@ def generate_iddm_variants(
         n_moods = int(cfg.get("n_moods", 3))
         seq_len = int(cfg.get("seq_len", 129))
         n_bar_bins = int(cfg.get("n_bar_bins", 8))
-        sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
         variants: list[dict[str, Any]] = []
 
         # Build seed tokens from transcription MIDI (used for base_mu and chord/bar conditioning)
@@ -2135,31 +2153,7 @@ def generate_iddm_variants(
                     gen_tokens.squeeze(0).detach().cpu().tolist(),
                     bpm=120.0,
                 )
-                midi_filename, _ = _save_bytes(
-                    midi_bytes, f"variant_{index + 1}", ".mid")
-                wav_b64 = _midi_bytes_to_wav_b64(
-                    midi_bytes,
-                    sample_rate=sample_rate,
-                    note_events=None,
-                    prefer_fluidsynth_only=False,
-                )
-                wav_filename = ""
-                wav_download_path = ""
-                if wav_b64 is not None:
-                    wav_bytes = base64.b64decode(wav_b64)
-                    wav_filename, _ = _save_bytes(
-                        wav_bytes, f"variant_{index + 1}", ".wav")
-                    wav_download_path = f"/api/download/{wav_filename}"
-                variants.append({
-                    "index": index,
-                    "temperature": temp,
-                    "midi_b64": base64.b64encode(midi_bytes).decode("utf-8"),
-                    "midi_filename": midi_filename,
-                    "midi_download_path": f"/api/download/{midi_filename}",
-                    "wav_b64": wav_b64,
-                    "wav_filename": wav_filename,
-                    "wav_download_path": wav_download_path,
-                })
+                variants.append(_variant_entry(index, temp, midi_bytes))
 
         return {
             "n_variants": n_variants,
