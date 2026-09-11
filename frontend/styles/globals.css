@@ -1,65 +1,54 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
+@theme {
+  --color-background: #0a0a0b;
+  --color-foreground: #f0ede8;
+  --color-card: #111114;
+  --color-card-foreground: #f0ede8;
+  --color-primary: #ac20e8;
+  --color-primary-foreground: #0a0a0b;
+  --color-secondary: #1a1a1f;
+  --color-secondary-foreground: #a09a90;
+  --color-muted: #161618;
+  --color-muted-foreground: #6b6560;
+  --color-accent: #ac20e8;
+  --color-accent-foreground: #0a0a0b;
+  --color-border: #1e1e22;
+  --color-border-strong: #2e2e34;
+  --color-ring: #ac20e8;
+
+  --radius: 4px;
+
+  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-fraunces), "Fraunces", Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
 :root {
-  --font-sans: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", serif;
-  --font-display-compact: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", serif;
-  --melodia-bg: #070b14;
-  --melodia-bg-alt: #0b1220;
-  --melodia-panel: rgba(12, 18, 29, 0.78);
-  --melodia-panel-strong: rgba(16, 22, 34, 0.94);
-  --melodia-border: rgba(148, 163, 184, 0.18);
-  --melodia-border-strong: rgba(167, 177, 194, 0.28);
-  --melodia-text: #eef3ff;
-  --melodia-text-soft: rgba(220, 227, 240, 0.78);
-  --melodia-text-muted: rgba(148, 163, 184, 0.8);
-  --melodia-accent: #8b5cf6;
-  --melodia-accent-strong: #a78bfa;
-  --melodia-accent-2: #38bdf8;
-  --melodia-accent-3: #fbbf24;
-  --melodia-glow: rgba(139, 92, 246, 0.26);
-  --melodia-shadow: 0 22px 60px rgba(2, 6, 23, 0.6);
+  color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html {
-  background: var(--melodia-bg);
-  color-scheme: dark;
+html,
+body {
+  height: 100%;
 }
 
 body {
-  font-family: var(--font-sans);
-  overscroll-behavior: none;
-  min-height: 100vh;
   margin: 0;
-  color: var(--melodia-text);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(139, 92, 246, 0.2), transparent 24%),
-    radial-gradient(circle at 88% 8%, rgba(56, 189, 248, 0.12), transparent 24%),
-    linear-gradient(135deg, #04080d 0%, #0a111b 36%, #0d1421 64%, #060b12 100%);
-  background-attachment: fixed;
+  min-height: 100vh;
+  overscroll-behavior: none;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: radial-gradient(circle at center, black 38%, transparent 100%);
-}
-
-::selection {
-  background: rgba(139, 92, 246, 0.38);
-  color: #f8faff;
 }
 
 img {
@@ -67,19 +56,17 @@ img {
   max-width: 100%;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
+::selection {
+  background: rgba(172, 32, 232, 0.38);
+  color: #f8faff;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+* {
+  scrollbar-width: none;
 }
-
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.22);
-  border-radius: 9999px;
+*::-webkit-scrollbar {
+  display: none;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.35);
+*:hover {
+  scrollbar-width: thin;
 }
