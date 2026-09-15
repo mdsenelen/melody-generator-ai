@@ -248,12 +248,14 @@ export default function AnalysePage() {
       setStatusMessage(`Transcription ready for ${file.name}.`);
 
       // generate-variants / choose-progression reference the upload by id.
+      // jobId lets generate-variants skip re-transcribing this same audio.
       // The transcription summary is filled by runAnalysis right after (from
       // /api/analyze) -- the transcribe result no longer carries it.
       useSessionStore.getState().setLastUpload({
         uploadId: stored.id,
         filename: stored.filename,
         sourceName: file.name,
+        jobId: created.job_id,
         transcription: { chords: [], key: "", moodLabel: "neutral", pitchHistogram: [] },
       });
 

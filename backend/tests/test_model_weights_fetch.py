@@ -8,6 +8,7 @@ torch) and degrade to the existing 503 when the download can't happen.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import sys
 from pathlib import Path
@@ -138,3 +139,29 @@ def test_load_cvae_iddm_503s_without_caching_when_the_download_failed(tmp_path, 
     assert exc.value.status_code == 503
     # NOT cached -- so the next generation attempt re-tries the fetch
     assert inference._CVAE_IDDM_BUNDLE is None
+
+
+# --- warm_up_model_weights: prefetch at boot, out of the request path ------
+
+
+def test_warm_up_model_weights_calls_ensure_joint_weights():
+    calls = []
+    orig = inference._ensure_joint_weights
+    inference._ensure_joint_weights = lambda: calls.append(1)
+    try:
+        asyncio.run(inference.warm_up_model_weights())
+    finally:
+        inference._ensure_joint_weights = orig
+    assert calls == [1]
+
+
+def test_warm_up_model_weights_swallows_a_failed_fetch():
+    def _boom():
+        raise OSError("network is down")
+
+    orig = inference._ensure_joint_weights
+    inference._ensure_joint_weights = _boom
+    try:
+        asyncio.run(inference.warm_up_model_weights())  # must not raise
+    finally:
+        inference._ensure_joint_weights = orig

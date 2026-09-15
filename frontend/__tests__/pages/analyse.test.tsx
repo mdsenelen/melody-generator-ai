@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 
 import AnalysePage from "../../app/analyse/page";
 import { analyzeClip } from "../../app/lib/analyzeClip";
+import { useSessionStore } from "../../app/lib/session-store";
 import { createTranscribeJob, pollTranscribeJob } from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
 
@@ -104,6 +105,14 @@ describe("Analyse page: transcription + clip analysis", () => {
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText(/Mood: happy/)).toBeInTheDocument();
+  });
+
+  it("stores the completed job's id in the session, for generate-variants to reuse", async () => {
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+    await upload(user, makeFile("my-riff.wav"));
+
+    await waitFor(() => expect(useSessionStore.getState().lastUpload?.jobId).toBe("job-1"));
   });
 
   it("shows the top detected notes, derived from the pitch histogram", async () => {

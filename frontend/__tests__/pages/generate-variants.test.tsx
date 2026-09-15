@@ -56,6 +56,91 @@ describe("GenerateVariantsPage", () => {
     expect(screen.getByRole("button", { name: /generate variants/i })).toBeEnabled();
   });
 
+  it("sends job_id (not filename/upload_id) when the stored upload has a completed transcribe job", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          n_variants: 1,
+          temperatures: [0.7],
+          mood_idx: 0,
+          mood_label: "happy",
+          model_status: {
+            cvae: { path: "cvae", exists: true, size_mb: 1, loaded: true },
+            iddm_ppo: { path: "iddm", exists: true, size_mb: 1, loaded: true },
+            device: "cpu",
+            load_error: null,
+            fluidsynth_available: true,
+          },
+          variants: [],
+          job_id: "job-variants-3",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      jobId: "job-1",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    const call = (global.fetch as jest.Mock).mock.calls[0];
+    const body = call[1].body as FormData;
+    expect(body.get("job_id")).toBe("job-1");
+    expect(body.get("filename")).toBeNull();
+    expect(body.get("upload_id")).toBeNull();
+  });
+
+  it("falls back to filename/upload_id when the stored upload has no transcribe job", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          n_variants: 1,
+          temperatures: [0.7],
+          mood_idx: 0,
+          mood_label: "happy",
+          model_status: {
+            cvae: { path: "cvae", exists: true, size_mb: 1, loaded: true },
+            iddm_ppo: { path: "iddm", exists: true, size_mb: 1, loaded: true },
+            device: "cpu",
+            load_error: null,
+            fluidsynth_available: true,
+          },
+          variants: [],
+          job_id: "job-variants-4",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    const call = (global.fetch as jest.Mock).mock.calls[0];
+    const body = call[1].body as FormData;
+    expect(body.get("job_id")).toBeNull();
+    expect(body.get("filename")).toBe("upload_abc123.wav");
+    expect(body.get("upload_id")).toBe("abc123");
+  });
+
   it("lets the user pick a variant count between 1 and 8", () => {
     render(<GenerateVariantsPage />);
     const slider = screen.getByRole("slider", { name: "Number of variants" });

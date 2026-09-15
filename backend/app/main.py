@@ -79,6 +79,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(inference.warm_up_basic_pitch()) if RUN_WORKER_IN_PROCESS else None
     )
 
+    # Model weights, unlike Basic Pitch, are needed by generation -- which
+    # always runs in the web process regardless of RUN_WORKER_IN_PROCESS --
+    # so this prefetch is unconditional. Moves the (tiny, ~1.4MB) download
+    # off the first generation request's critical path; a failed/slow fetch
+    # here just means that request pays the same retry it always has.
+    weights_warm_up_task = asyncio.create_task(inference.warm_up_model_weights())
+
     worker_stop_event = threading.Event()
     worker_thread: Optional[threading.Thread] = None
     if RUN_WORKER_IN_PROCESS:
@@ -101,12 +108,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         cleanup_task.cancel()
         if warm_up_task is not None:
             warm_up_task.cancel()
+        weights_warm_up_task.cancel()
         worker_stop_event.set()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
         if warm_up_task is not None:
             with contextlib.suppress(asyncio.CancelledError):
                 await warm_up_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await weights_warm_up_task
         if worker_thread is not None:
             worker_thread.join(timeout=DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
 

@@ -127,6 +127,10 @@ export default function GenerateVariantsPage() {
       const formData = new FormData();
       if (selectedFile) {
         formData.append("file", selectedFile);
+      } else if (lastUpload?.jobId) {
+        // Already transcribed (via /analyse) -- skip re-transcribing the
+        // same audio server-side.
+        formData.append("job_id", lastUpload.jobId);
       } else if (lastUpload) {
         formData.append("filename", lastUpload.filename);
         formData.append("upload_id", lastUpload.uploadId);

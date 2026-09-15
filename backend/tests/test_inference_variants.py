@@ -391,11 +391,63 @@ def test_transcribe_and_mood_returns_shared_analysis(monkeypatch):
     assert len(result["pitch_histogram"]) == 12
 
 
+def test_transcription_summary_from_note_events_builds_real_midi_and_mood():
+    """generate-variants can be told a job's note_events instead of
+    re-running Basic Pitch -- this must produce a real, decodable MIDI seed
+    and a valid mood, purely from the notes."""
+    import pretty_midi
+
+    note_events = [
+        {"start": 0.0, "end": 0.4, "pitch": 64, "velocity": 90},
+        {"start": 0.4, "end": 0.8, "pitch": 67, "velocity": 90},
+        {"start": 0.8, "end": 1.4, "pitch": 71, "velocity": 90},
+    ]
+
+    result = inference._transcription_summary_from_note_events(note_events)
+
+    assert set(result.keys()) == {"midi_bytes", "mood_idx", "mood_label"}
+    assert result["mood_label"] in ("happy", "sad", "neutral")
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as handle:
+        handle.write(result["midi_bytes"])
+        midi_path = Path(handle.name)
+    try:
+        midi = pretty_midi.PrettyMIDI(str(midi_path))
+    finally:
+        midi_path.unlink(missing_ok=True)
+    pitches = sorted(
+        note.pitch for instrument in midi.instruments for note in instrument.notes
+    )
+    assert pitches == [64, 67, 71]
+
+
+def test_transcription_summary_from_note_events_slices_to_the_window():
+    note_events = [
+        {"start": 0.0, "end": 1.0, "pitch": 50, "velocity": 90},
+        {"start": 5.0, "end": 6.0, "pitch": 80, "velocity": 90},
+    ]
+
+    only_low = inference._transcription_summary_from_note_events(note_events, 0.0, 2.0)
+    only_high = inference._transcription_summary_from_note_events(note_events, 4.0, 7.0)
+
+    assert only_low != only_high  # different windows produce different seeds
+
+
+def test_transcription_summary_from_note_events_empty_window_is_neutral_not_a_crash():
+    note_events = [{"start": 0.0, "end": 1.0, "pitch": 60, "velocity": 90}]
+    result = inference._transcription_summary_from_note_events(note_events, 100.0, 110.0)
+
+    assert result["mood_label"] == "neutral"
+    assert result["midi_bytes"]  # still a well-formed (empty) MIDI, not None/crash
+
+
 def test_generate_variants_route_accepts_formdata(monkeypatch):
     captured = {}
 
     def fake_generate_iddm_variants(
-        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None, **kwargs
     ):
         captured["audio_bytes"] = audio_bytes
         captured["n_variants"] = n_variants
@@ -438,7 +490,7 @@ def test_generate_variants_route_forwards_seed(monkeypatch):
     captured = {}
 
     def fake_generate_iddm_variants(
-        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None, **kwargs
     ):
         captured["seed"] = seed
         return {
@@ -483,7 +535,7 @@ def test_generate_variants_route_accepts_prior_upload_reference(tmp_path, monkey
     captured = {}
 
     def fake_generate_iddm_variants(
-        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None
+        audio_bytes: bytes, n_variants: int, temperatures: list[float], seed=None, **kwargs
     ):
         captured["audio_bytes"] = audio_bytes
         return {
@@ -533,6 +585,105 @@ def test_generate_variants_route_404s_when_no_file_and_no_prior_upload(tmp_path,
     assert exc.value.status_code == 404
 
 
+def _completed_transcribe_job(tmp_path, note_events, raw_audio=b"stored-job-audio"):
+    """A completed transcribe job with note_events, plus its raw audio
+    sitting in object storage under the job's storage_key -- mirrors
+    test_analyze.py's _completed_job_with_notes, extended with the object
+    storage write generate-variants' job_id path also needs."""
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    store = job_service.get_job_store()
+    job, _ = store.create_job(source_filename="clip.wav", storage_key="transcribe-jobs/1/input.wav")
+    store.mark_creation_ready(job.id)
+    job_service.get_object_storage().write_bytes(job.storage_key, raw_audio)
+    claimed = store.claim_job(job.id, lease_seconds=120.0)
+    result = {"n_notes": len(note_events), "note_events": note_events, "midi_b64": "AAA="}
+    assert store.mark_completed(job.id, result, lease_token=claimed.lease_token)
+    return store.get_job(job.id)
+
+
+def test_generate_variants_route_with_job_id_skips_internal_transcription(tmp_path, monkeypatch):
+    """The whole point: given a job_id, generate-variants must not re-run
+    Basic Pitch on the same audio a second time."""
+    monkeypatch.setattr(
+        inference, "_transcribe_and_mood",
+        lambda *a, **k: pytest.fail("must not re-transcribe when a job_id is given"),
+    )
+    note_events = [{"start": 0.0, "end": 0.5, "pitch": 64, "velocity": 90}]
+    job = _completed_transcribe_job(tmp_path, note_events)
+
+    captured = {}
+
+    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None, **kwargs):
+        captured["audio_bytes"] = audio_bytes
+        captured["known_note_events"] = kwargs.get("known_note_events")
+        return {
+            "n_variants": n_variants,
+            "temperatures": temperatures,
+            "mood_idx": 0,
+            "mood_label": "happy",
+            "model_status": {
+                "cvae": {"path": "cvae", "exists": True, "size_mb": 1.0, "loaded": True},
+                "iddm_ppo": {"path": "iddm", "exists": True, "size_mb": 1.0, "loaded": True},
+                "device": "cpu",
+                "load_error": None,
+                "fluidsynth_available": False,
+            },
+            "variants": [],
+        }
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+
+    response = asyncio.run(
+        inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures="[0.7]")
+    )
+
+    assert response["mood_label"] == "happy"
+    assert captured["audio_bytes"] == b"stored-job-audio"
+    assert captured["known_note_events"] == note_events
+
+
+def test_generate_variants_route_job_id_404_for_unknown_job(tmp_path):
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            inference.generate_variants_route(job_id="does-not-exist", n_variants=1, temperatures=None)
+        )
+    assert exc.value.status_code == 404
+
+
+def test_generate_variants_route_job_id_409_when_job_not_complete(tmp_path):
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    store = job_service.get_job_store()
+    job, _ = store.create_job(source_filename="clip.wav", storage_key="transcribe-jobs/1/input.wav")
+    store.mark_creation_ready(job.id)  # still "queued", never completed
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures=None)
+        )
+    assert exc.value.status_code == 409
+
+
+def test_generate_variants_route_job_id_409_when_no_note_events(tmp_path):
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    store = job_service.get_job_store()
+    job, _ = store.create_job(source_filename="clip.wav", storage_key="transcribe-jobs/1/input.wav")
+    store.mark_creation_ready(job.id)
+    claimed = store.claim_job(job.id, lease_seconds=120.0)
+    store.mark_completed(job.id, {"n_notes": 0, "midi_b64": "AAA="}, lease_token=claimed.lease_token)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures=None)
+        )
+    assert exc.value.status_code == 409
+
+
 def test_generate_variants_route_rejects_temperature_length_mismatch(monkeypatch):
     monkeypatch.setattr(inference, "generate_iddm_variants", lambda *args, **kwargs: pytest.fail("should not be called"))
 
@@ -554,7 +705,7 @@ def test_generate_variants_route_attaches_a_downloadable_result_job_id(monkeypat
     a link to a job-id result page, so this response must carry a job_id
     that resolves to a completed job holding this exact result."""
 
-    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None):
+    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None, **kwargs):
         return {
             "n_variants": n_variants,
             "temperatures": temperatures,

@@ -460,6 +460,22 @@ def _ensure_joint_weights() -> None:
         # clean 503 rather than a torch-import-then-crash.
 
 
+async def warm_up_model_weights() -> None:
+    """Fetch the joint checkpoint at boot instead of on the first generation
+    request -- same rationale as warm_up_basic_pitch below, moving an I/O
+    cost off the request path. No-op if MODEL_WEIGHTS_URL is unset or the
+    file already exists (_ensure_joint_weights's own guards). Runs
+    unconditionally (unlike warm_up_basic_pitch, not gated by
+    RUN_WORKER_IN_PROCESS): generation always runs in the web process,
+    regardless of where the transcribe worker runs. A failed/slow fetch here
+    just means the first real generation request pays the same retry
+    _load_cvae_iddm_locked already does -- no regression."""
+    try:
+        await run_in_threadpool(_ensure_joint_weights)
+    except Exception:
+        logger.exception("Startup model-weights prefetch failed; a generation request will retry")
+
+
 def _load_cvae_iddm() -> dict[str, Any]:
     if _CVAE_IDDM_BUNDLE is not None:
         if _CVAE_IDDM_BUNDLE.get("load_error"):
@@ -1060,6 +1076,23 @@ def _trim_note_events(
     return trimmed
 
 
+def _slice_note_events(
+    note_events: list[dict[str, float | int]],
+    start: float,
+    end: Optional[float],
+) -> list[dict[str, float | int]]:
+    """Notes that overlap ``[start, end)``. ``end=None`` keeps everything from
+    ``start`` onward (the full remaining span) -- shared by ``analyze_clip``
+    and ``_transcription_summary_from_note_events`` so both windowing paths
+    agree on what "in this clip" means."""
+    span_end = end if end is not None else max(
+        (float(n["end"]) for n in note_events), default=start)
+    return [
+        n for n in note_events
+        if float(n["end"]) > start and float(n["start"]) < span_end
+    ]
+
+
 def analyze_clip(
     note_events: list[dict[str, float | int]],
     clip_start_sec: float = 0.0,
@@ -1077,10 +1110,7 @@ def analyze_clip(
         if clip_end_sec is not None
         else max((float(n["end"]) for n in note_events), default=clip_start_sec)
     )
-    clip = [
-        n for n in note_events
-        if float(n["end"]) > clip_start_sec and float(n["start"]) < span_end
-    ]
+    clip = _slice_note_events(note_events, clip_start_sec, span_end)
 
     if not clip:
         return {
@@ -1970,6 +2000,37 @@ def _transcribe_and_mood(
     }
 
 
+def _transcription_summary_from_note_events(
+    note_events: list[dict[str, float | int]],
+    clip_start_sec: float = 0.0,
+    clip_end_sec: Optional[float] = None,
+) -> dict[str, Any]:
+    """The {midi_bytes, mood_idx, mood_label} generate_iddm_variants needs,
+    built straight from an existing transcription's note events -- no audio
+    decode, no Basic Pitch, no HEAVY_WORK_LOCK. Used when a generate-variants
+    request references an already-completed transcribe job (job_id) instead
+    of re-transcribing the same audio a second time. Same windowing and
+    tempo/mood arithmetic as analyze_clip (_slice_note_events,
+    heuristic_mood_from_metrics) -- just also returns MIDI bytes for the
+    seed-token step generation needs, which analyze_clip's response doesn't.
+    """
+    clip = _slice_note_events(note_events, max(0.0, float(clip_start_sec)), clip_end_sec)
+    if not clip:
+        return {
+            "midi_bytes": _tokens_to_midi_bytes([], bpm=90.0, instrument=0),
+            "mood_idx": 2,
+            "mood_label": MOOD_LABELS[2],
+        }
+
+    rough_tempo = _estimate_tempo(clip)
+    midi_bytes = _tokens_to_midi_bytes(clip, bpm=rough_tempo, instrument=0)
+    tempo_bpm = float(_estimate_tempo(clip, midi_bytes))
+    avg_pitch = float(np.mean([int(n["pitch"]) for n in clip]))
+    key = _key_from_histogram(_pitch_histogram(clip))
+    mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
+    return {"midi_bytes": midi_bytes, "mood_idx": int(mood_idx), "mood_label": mood_label}
+
+
 def _randn_like(tensor: torch.Tensor, generator: Optional[torch.Generator]) -> torch.Tensor:
     """torch.randn_like doesn't accept a generator, so route through
     torch.randn explicitly when the caller wants reproducible sampling;
@@ -2084,6 +2145,9 @@ def generate_iddm_variants(
     n_variants: int,
     temperatures: list[float],
     seed: Optional[int] = None,
+    known_note_events: Optional[list[dict[str, float | int]]] = None,
+    clip_start_sec: float = 0.0,
+    clip_end_sec: Optional[float] = None,
 ) -> dict[str, Any]:
     build_mood_onehot = _lazy_model("build_mood_onehot")  # torch-backed, gen path only
 
@@ -2096,7 +2160,16 @@ def generate_iddm_variants(
         # meant two full copies of the same clip (plus a Basic Pitch
         # inference) resident at once on a memory-constrained instance.
         decoded = _read_audio_bytes(audio_bytes, NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"])
-        transcription = _transcribe_and_mood(audio_bytes, decoded=decoded)
+        if known_note_events is not None:
+            # The caller already has a completed transcription (job_id) --
+            # skip re-running Basic Pitch on the same audio a second time.
+            # The audio still gets decoded above: _audio_to_iddm_mel below
+            # needs it for style conditioning, which only a real decode
+            # provides -- only the redundant Basic Pitch pass is skipped.
+            transcription = _transcription_summary_from_note_events(
+                known_note_events, clip_start_sec, clip_end_sec)
+        else:
+            transcription = _transcribe_and_mood(audio_bytes, decoded=decoded)
         mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"], audio=decoded[0])
         cfg = bundle["cfg"]
         latent_dim = int(cfg.get("latent_dim", 32))
@@ -2452,6 +2525,7 @@ async def generate_variants_route(
     file: Optional[UploadFile] = File(None),
     upload_id: Optional[str] = Form(None),
     filename: Optional[str] = Form(None),
+    job_id: Optional[str] = Form(None),
     n_variants: int = Form(4),
     temperatures: Optional[str] = Form(None),
     seed: Optional[int] = Form(None),
@@ -2459,8 +2533,35 @@ async def generate_variants_route(
     clip_end_sec: Optional[float] = Form(None),
 ) -> dict[str, Any]:
     count = max(1, min(8, int(n_variants)))
+    known_note_events: Optional[list[dict[str, float | int]]] = None
 
-    if file is not None:
+    # Direct callers (tests) leave Form params as their FieldInfo default
+    # rather than None -- same coercion as clip_start_sec/seed below.
+    if isinstance(job_id, str) and job_id:
+        # Caller already has a completed transcribe job for this audio --
+        # reuse its stored note_events instead of re-running Basic Pitch a
+        # second time on the same clip (see docs/PROGRESS.md's cold-start
+        # memory investigation). 404/409 mirror /api/analyze's checks
+        # exactly (jobs/routes.py's analyze_clip_route) for consistency.
+        from app.jobs.models import COMPLETED
+        from app.jobs.service import get_job_store, get_object_storage
+
+        job = await run_in_threadpool(get_job_store().get_job, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status != COMPLETED or not job.result:
+            raise HTTPException(
+                status_code=409, detail="Transcription is not complete for this job yet"
+            )
+        known_note_events = job.result.get("note_events")
+        if not known_note_events:
+            raise HTTPException(
+                status_code=409,
+                detail="This transcription has no stored note data — upload audio directly instead.",
+            )
+        raw = await run_in_threadpool(get_object_storage().read_bytes, job.storage_key)
+        source_name = job.source_filename
+    elif file is not None:
         raw = await _read_upload_bytes(file)
         source_name = file.filename or "audio"
     else:
@@ -2503,6 +2604,9 @@ async def generate_variants_route(
         n_variants=count,
         temperatures=_parse_variant_temperatures(temperatures, count),
         seed=seed,
+        known_note_events=known_note_events,
+        clip_start_sec=float(clip_start_sec or 0.0),
+        clip_end_sec=float(clip_end_sec) if clip_end_sec is not None else None,
     )
     # See generate_progression_route above -- same job-id-for-a-result-page
     # mechanism (GP3).

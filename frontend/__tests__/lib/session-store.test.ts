@@ -33,6 +33,27 @@ describe("useSessionStore", () => {
     expect(parsed.state.lastUpload).toEqual(session);
   });
 
+  it("round-trips an optional jobId through persisted storage", () => {
+    const session = {
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-clip.wav",
+      jobId: "job-xyz",
+      transcription: {
+        chords: [],
+        key: "C major",
+        moodLabel: "happy" as const,
+        pitchHistogram: [],
+      },
+    };
+
+    useSessionStore.getState().setLastUpload(session);
+
+    expect(useSessionStore.getState().lastUpload?.jobId).toBe("job-xyz");
+    const parsed = JSON.parse(window.sessionStorage.getItem("melody-session") as string);
+    expect(parsed.state.lastUpload.jobId).toBe("job-xyz");
+  });
+
   it("clears the last upload", () => {
     useSessionStore.getState().setLastUpload({
       uploadId: "x",

@@ -1081,6 +1081,52 @@ def test_warm_up_runs_when_run_worker_in_process_is_true(store, storage, queue, 
         importlib.reload(main_module)
 
 
+@pytest.mark.parametrize("run_worker_in_process", ["true", "false"])
+def test_weights_warm_up_runs_at_boot_regardless_of_run_worker_in_process(
+    run_worker_in_process, store, storage, queue, tmp_path, monkeypatch
+):
+    """Unlike Basic Pitch's warm-up (gated on RUN_WORKER_IN_PROCESS -- only
+    a process actually running the transcribe worker needs it), model
+    weights are needed by generate-variants, which always runs in the web
+    process -- so this prefetch must fire either way."""
+    monkeypatch.setenv("RUN_WORKER_IN_PROCESS", run_worker_in_process)
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.db"))
+    import importlib
+
+    from app import main as main_module
+
+    importlib.reload(main_module)
+    try:
+        weights_calls = []
+
+        async def fake_weights_warm_up():
+            weights_calls.append(1)
+
+        async def fake_basic_pitch_warm_up():
+            pass
+
+        monkeypatch.setattr(main_module.inference, "warm_up_basic_pitch", fake_basic_pitch_warm_up)
+        monkeypatch.setattr(main_module.inference, "warm_up_model_weights", fake_weights_warm_up)
+        monkeypatch.setattr(main_module, "get_job_store", lambda: store)
+        monkeypatch.setattr(main_module, "get_job_queue", lambda: queue)
+        monkeypatch.setattr(main_module, "get_object_storage", lambda: storage)
+        monkeypatch.setattr(
+            main_module, "run_worker_loop", lambda **kwargs: kwargs["stop_event"].wait()
+        )
+
+        async def _drive_lifespan():
+            async with main_module.lifespan(main_module.app):
+                # Let the fire-and-forget task actually run before the
+                # context manager's `finally` cancels it.
+                await asyncio.sleep(0.05)
+
+        asyncio.run(_drive_lifespan())
+        assert weights_calls == [1]
+    finally:
+        monkeypatch.delenv("RUN_WORKER_IN_PROCESS", raising=False)
+        importlib.reload(main_module)
+
+
 # --- legacy synchronous endpoint is retired ---------------------------------
 
 

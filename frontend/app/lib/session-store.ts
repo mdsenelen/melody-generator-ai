@@ -15,6 +15,11 @@ export type UploadSession = {
   filename: string;
   sourceName: string;
   transcription: TranscriptionSummary;
+  // The completed transcribe job this upload produced, when there is one --
+  // lets generate-variants skip re-transcribing the same audio (see
+  // app/generate-variants/page.tsx). Optional: a direct upload on
+  // generate-variants itself (no prior /analyse trip) has no job to point at.
+  jobId?: string;
 };
 
 type SessionState = {

@@ -92,6 +92,22 @@ def test_analyze_clip_empty_window_is_neutral_not_a_crash():
     assert out["key"] in ("Unknown", "")
 
 
+def test_slice_note_events_keeps_only_notes_overlapping_the_window():
+    events = _notes([(0.0, 1.0, 60), (5.0, 6.0, 64), (9.5, 10.5, 67)])
+    sliced = inference._slice_note_events(events, 5.0, 10.0)
+    assert [n["pitch"] for n in sliced] == [64, 67]
+
+
+def test_slice_note_events_defaults_to_the_full_span_when_end_is_none():
+    events = _notes([(0.0, 1.0, 60), (5.0, 6.0, 64)])
+    assert inference._slice_note_events(events, 0.0, None) == events
+
+
+def test_slice_note_events_empty_window_returns_nothing():
+    events = _notes([(0.0, 1.0, 60)])
+    assert inference._slice_note_events(events, 100.0, 110.0) == []
+
+
 def test_analyze_clip_never_touches_audio_helpers(monkeypatch):
     def _boom(*a, **k):  # pragma: no cover - only fires on regression
         raise AssertionError("analyze_clip must not decode audio or run Basic Pitch")
