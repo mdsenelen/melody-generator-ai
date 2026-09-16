@@ -1057,6 +1057,71 @@ def test_read_audio_bytes_does_not_truncate_clips_within_max_duration():
     assert audio.size == pytest.approx(source_duration_sec * 22050, abs=1)
 
 
+def test_warm_up_basic_pitch_sync_uses_real_decode_path_not_silence(monkeypatch):
+    """The boot warm-up must decode a real clip through _read_audio_bytes --
+    the same function every real /api/analyze and single-pass /api/transcribe
+    call goes through -- instead of writing pre-decoded floats straight to
+    disk and skipping decode entirely (docs/PROGRESS.md 2026-09-15/16: the
+    librosa resample path's first-call JIT cost, +66.7 MB, is only paid when
+    this function actually runs)."""
+    calls = []
+    real_read_audio_bytes = inference._read_audio_bytes
+
+    def _spy(raw, target_sr, *args, **kwargs):
+        calls.append((raw, target_sr))
+        return real_read_audio_bytes(raw, target_sr, *args, **kwargs)
+
+    monkeypatch.setattr(inference, "_read_audio_bytes", _spy)
+    monkeypatch.setattr(inference, "_run_basic_pitch_predict", lambda path: (None, []))
+
+    inference._warm_up_basic_pitch_sync()
+
+    assert len(calls) == 1
+    raw, target_sr = calls[0]
+    assert isinstance(raw, bytes) and len(raw) > 0
+    assert target_sr == inference.NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+
+
+def test_warm_up_basic_pitch_sync_feeds_non_silent_audio_to_basic_pitch(monkeypatch):
+    """Today's warm-up writes literal np.zeros (silence) to the temp WAV, so
+    Basic Pitch's real-content code paths (TFLite buffers sized by actual
+    signal, +48.8 MB first-call cost per docs/PROGRESS.md) never run. The
+    fixed version must hand it real, non-silent audio."""
+    captured = {}
+
+    def _capture(audio_path):
+        # Read now -- the caller unlinks this temp file in its `finally`
+        # block once this call returns.
+        captured["samples"], captured["sr"] = sf.read(audio_path)
+        return None, []
+
+    monkeypatch.setattr(inference, "_run_basic_pitch_predict", _capture)
+
+    inference._warm_up_basic_pitch_sync()
+
+    assert "samples" in captured
+    assert np.abs(captured["samples"]).max() > 0.0
+
+
+def test_warm_up_basic_pitch_sync_resamples_to_target_rate(monkeypatch):
+    """The synthesized clip must have a native rate different from the
+    target decode rate, so librosa.load's resample path (resampy JIT) is
+    actually exercised -- not skipped because source and target rates
+    already match."""
+    target_sr = inference.NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+    captured = {}
+
+    def _capture(audio_path):
+        captured["sr"] = sf.info(audio_path).samplerate
+        return None, []
+
+    monkeypatch.setattr(inference, "_run_basic_pitch_predict", _capture)
+
+    inference._warm_up_basic_pitch_sync()
+
+    assert captured["sr"] == target_sr
+
+
 def test_transcribe_falls_back_to_real_pyin_when_basic_pitch_unavailable(monkeypatch):
     """When basic_pitch isn't installed/available, _transcribe_and_mood must
     fall back to _fallback_note_events_from_audio, which runs real

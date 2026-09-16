@@ -902,12 +902,29 @@ async def run_periodic_cleanup() -> None:
 
 
 def _warm_up_basic_pitch_sync() -> None:
-    sample_rate = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
-    silence = np.zeros(sample_rate, dtype=np.float32)  # 1s, same path real requests take
+    """Synthesize a short, real (non-silent) tone at a native rate that
+    differs from the target decode rate, then run it through the same
+    _read_audio_bytes decode _run_basic_pitch_predict pipeline a real
+    request uses. Silence written straight to disk (the previous approach)
+    skips both of the first-call JIT costs a real request actually pays:
+    librosa/resampy's resample kernels (only compiled when a resample
+    actually happens) and Basic Pitch/TFLite's real-content code paths
+    (only exercised by non-zero input) -- see docs/PROGRESS.md's
+    2026-09-15/16 entry (+66.7 MB and +48.8 MB respectively, measured)."""
+    target_sr = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
+    native_sr = 44100  # a realistic upload/mic rate, deliberately != target_sr
+    duration_sec = 1.0
+    t = np.linspace(0.0, duration_sec, int(native_sr * duration_sec), endpoint=False)
+    tone = (0.5 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+    raw_buf = io.BytesIO()
+    sf.write(raw_buf, tone, native_sr, format="WAV")
+
+    audio, _source_duration_sec, _truncated = _read_audio_bytes(raw_buf.getvalue(), target_sr)
+
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
         temp_path = Path(handle.name)
     try:
-        sf.write(str(temp_path), silence, sample_rate)
+        sf.write(str(temp_path), audio, target_sr)
         _run_basic_pitch_predict(str(temp_path))
     finally:
         temp_path.unlink(missing_ok=True)
