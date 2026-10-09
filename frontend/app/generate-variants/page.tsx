@@ -190,7 +190,7 @@ export default function GenerateVariantsPage() {
 
             {showRecorder ? (
               <div className="mt-4">
-                <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+                <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
               </div>
             ) : null}
 

@@ -14,9 +14,67 @@ jest.mock("../../hooks/use-midi-player", () => ({
   }),
 }));
 
+// Real pitch detection needs a Web Audio AudioContext, which jsdom doesn't
+// provide -- stub a fixed analyzer reading, same approach as use-midi-player
+// above. AudioRecorder only calls this hook at all when showLivePitch is on.
+jest.mock("../../hooks/use-audio-analyzer", () => ({
+  useAudioAnalyzer: () => ({
+    currentNote: "A4",
+    currentFrequency: 440,
+    pitchClass: 9,
+    clarity: 0.9,
+    noteHistogram: new Array(12).fill(0),
+  }),
+}));
+
+class FakeMediaRecorder {
+  static isTypeSupported() {
+    return true;
+  }
+
+  state: "inactive" | "recording" = "inactive";
+  mimeType = "audio/webm";
+  ondataavailable: ((event: { data: Blob }) => void) | null = null;
+  onstop: (() => void) | null = null;
+
+  constructor(_stream: MediaStream) {
+    void _stream;
+  }
+
+  start() {
+    this.state = "recording";
+  }
+
+  stop() {
+    this.state = "inactive";
+    this.onstop?.();
+  }
+}
+
+function fakeStream(): MediaStream {
+  return { getTracks: () => [] } as unknown as MediaStream;
+}
+
 describe("GenerateVariantsPage", () => {
   beforeEach(() => {
     useSessionStore.setState({ lastUpload: null });
+    (global as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeMediaRecorder;
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      value: { getUserMedia: jest.fn().mockResolvedValue(fakeStream()) },
+      configurable: true,
+    });
+  });
+
+  it("shows a live pitch display while recording audio for a variant source", async () => {
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+
+    await user.click(screen.getByRole("button", { name: /record audio/i }));
+    await user.click(screen.getByRole("button", { name: /record from microphone/i }));
+
+    await screen.findByText(/recording/i);
+    expect(screen.getByText(/live pitch/i)).toBeInTheDocument();
+    expect(screen.getByText("A4")).toBeInTheDocument();
   });
 
   it("disables Generate until an audio source is selected", () => {
