@@ -109,9 +109,7 @@ export function ChordGraph({
             {description ? (
               <p className="text-muted-foreground mt-2 text-sm">{description}</p>
             ) : null}
-            <p className="text-muted-foreground mt-3 max-w-md text-sm leading-6">
-              A versatile chord movement for building melodies, hooks, and richer harmonic ideas.
-            </p>
+            <p className="text-muted-foreground mt-3 max-w-md text-sm leading-6"></p>
           </div>
           <span className="text-muted-foreground hidden font-mono text-xs sm:block">
             {progression.length} chords
