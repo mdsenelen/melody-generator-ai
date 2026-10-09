@@ -405,8 +405,9 @@ def test_transcription_summary_from_note_events_builds_real_midi_and_mood():
 
     result = inference._transcription_summary_from_note_events(note_events)
 
-    assert set(result.keys()) == {"midi_bytes", "mood_idx", "mood_label"}
+    assert set(result.keys()) == {"midi_bytes", "mood_idx", "mood_label", "tempo_bpm"}
     assert result["mood_label"] in ("happy", "sad", "neutral")
+    assert isinstance(result["tempo_bpm"], float)
 
     import tempfile
 
@@ -441,6 +442,7 @@ def test_transcription_summary_from_note_events_empty_window_is_neutral_not_a_cr
 
     assert result["mood_label"] == "neutral"
     assert result["midi_bytes"]  # still a well-formed (empty) MIDI, not None/crash
+    assert result["tempo_bpm"] == 90.0
 
 
 def test_generate_variants_route_accepts_formdata(monkeypatch):
@@ -1229,3 +1231,10 @@ def test_generate_iddm_variants_does_not_render_wav():
     src = inspect.getsource(inference.generate_iddm_variants)
     assert "_midi_bytes_to_wav_b64" not in src
     assert "_variant_entry" in src
+
+
+def test_generate_iddm_variants_uses_estimated_tempo_not_hardcoded():
+    """Regression guard: the rendered variant MIDI must use the tempo
+    estimated from the transcription, not a hardcoded constant."""
+    src = inspect.getsource(inference.generate_iddm_variants)
+    assert "bpm=120.0" not in src

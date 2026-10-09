@@ -2037,6 +2037,7 @@ def _transcription_summary_from_note_events(
             "midi_bytes": _tokens_to_midi_bytes([], bpm=90.0, instrument=0),
             "mood_idx": 2,
             "mood_label": MOOD_LABELS[2],
+            "tempo_bpm": 90.0,
         }
 
     rough_tempo = _estimate_tempo(clip)
@@ -2045,7 +2046,12 @@ def _transcription_summary_from_note_events(
     avg_pitch = float(np.mean([int(n["pitch"]) for n in clip]))
     key = _key_from_histogram(_pitch_histogram(clip))
     mood_idx, mood_label = heuristic_mood_from_metrics(tempo_bpm, avg_pitch, key)
-    return {"midi_bytes": midi_bytes, "mood_idx": int(mood_idx), "mood_label": mood_label}
+    return {
+        "midi_bytes": midi_bytes,
+        "mood_idx": int(mood_idx),
+        "mood_label": mood_label,
+        "tempo_bpm": tempo_bpm,
+    }
 
 
 def _randn_like(tensor: torch.Tensor, generator: Optional[torch.Generator]) -> torch.Tensor:
@@ -2216,6 +2222,7 @@ def generate_iddm_variants(
 
         seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=_resolve_device()).unsqueeze(0)
         mood_idx = int(transcription["mood_idx"])
+        tempo_bpm = float(transcription.get("tempo_bpm", 120.0))
         chord_idx_val = tokens_to_chord_idx(seed_tokens)
         bar_idx_val = tokens_to_bar_idx(seed_tokens, n_bins=n_bar_bins)
 
@@ -2241,7 +2248,7 @@ def generate_iddm_variants(
                 )
                 midi_bytes = _token_ids_to_midi_bytes(
                     gen_tokens.squeeze(0).detach().cpu().tolist(),
-                    bpm=120.0,
+                    bpm=tempo_bpm,
                 )
                 variants.append(_variant_entry(index, temp, midi_bytes))
 
