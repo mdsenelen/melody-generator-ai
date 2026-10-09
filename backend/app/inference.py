@@ -284,15 +284,19 @@ _BASIC_PITCH_LOAD_LOCK = threading.Lock()
 _BASIC_PITCH_MODEL: Optional[Any] = None
 
 # Serializes every heavy pipeline process-wide: the transcribe worker
-# (run_basic_pitch) and every generation route (via _run_generation) both
-# acquire this before doing real work. _BASIC_PITCH_LOAD_LOCK above only
-# serializes Basic Pitch against itself -- it does nothing to stop a
-# /generate-variants request (which separately loads torch, ~200-250MB) from
-# running concurrently with an in-flight transcribe job on this single
-# 512MiB instance. Found during the OOM investigation (docs/PROGRESS.md):
-# the two pipelines had no shared lock at all. Costs one request queuing
-# behind another; on this instance that's a better trade than a second
-# OOM-triggered restart.
+# (run_basic_pitch), every generation route (via _run_generation), and the
+# Basic Pitch boot warm-up (_warm_up_basic_pitch_sync) all acquire this
+# before doing real work. _BASIC_PITCH_LOAD_LOCK above only serializes Basic
+# Pitch against itself -- it does nothing to stop a /generate-variants
+# request (which separately loads torch, ~200-250MB) from running
+# concurrently with an in-flight transcribe job on this single 512MiB
+# instance. Found during the OOM investigation (docs/PROGRESS.md): the two
+# pipelines had no shared lock at all. Costs one request queuing behind
+# another; on this instance that's a better trade than a second
+# OOM-triggered restart. The warm-up case was found later (2026-09-16's
+# "run 3" 504 regression): warm-up didn't hold this lock either, so a
+# generation request landing mid-warm-up ran concurrently with it and lost
+# the CPU race against GENERATION_TIMEOUT_SECONDS.
 HEAVY_WORK_LOCK = threading.Lock()
 # The generation HTTP routes 429 immediately if they can't get the lock (see
 # _run_generation). The transcribe worker, being a single thread with jobs
@@ -910,7 +914,20 @@ def _warm_up_basic_pitch_sync() -> None:
     librosa/resampy's resample kernels (only compiled when a resample
     actually happens) and Basic Pitch/TFLite's real-content code paths
     (only exercised by non-zero input) -- see docs/PROGRESS.md's
-    2026-09-15/16 entry (+66.7 MB and +48.8 MB respectively, measured)."""
+    2026-09-15/16 entry (+66.7 MB and +48.8 MB respectively, measured).
+
+    Holds HEAVY_WORK_LOCK while doing the actual decode/predict work. Without
+    it (the 2026-09-16 "run 3" regression, same doc), a /generate-variants
+    request landing while this warm-up was still in flight ran concurrently
+    with it on the free tier's single throttled CPU core -- this does real,
+    non-trivial CPU-bound work, unlike the old silence-based warm-up -- and
+    the resulting CPU contention made the generation itself blow through
+    GENERATION_TIMEOUT_SECONDS, surfacing to the user as "Generation timed
+    out after 60s" even though nothing was actually stuck. Taking the lock
+    here means a request arriving mid-warm-up instead gets
+    _run_generation's existing fast, clear 429 ("server is busy, try
+    again") instead of a slow hang that times out anyway.
+    """
     target_sr = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
     native_sr = 44100  # a realistic upload/mic rate, deliberately != target_sr
     duration_sec = 1.0
@@ -919,15 +936,20 @@ def _warm_up_basic_pitch_sync() -> None:
     raw_buf = io.BytesIO()
     sf.write(raw_buf, tone, native_sr, format="WAV")
 
-    audio, _source_duration_sec, _truncated = _read_audio_bytes(raw_buf.getvalue(), target_sr)
+    with HEAVY_WORK_LOCK:
+        try:
+            audio, _source_duration_sec, _truncated = _read_audio_bytes(
+                raw_buf.getvalue(), target_sr)
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
-        temp_path = Path(handle.name)
-    try:
-        sf.write(str(temp_path), audio, target_sr)
-        _run_basic_pitch_predict(str(temp_path))
-    finally:
-        temp_path.unlink(missing_ok=True)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+                temp_path = Path(handle.name)
+            try:
+                sf.write(str(temp_path), audio, target_sr)
+                _run_basic_pitch_predict(str(temp_path))
+            finally:
+                temp_path.unlink(missing_ok=True)
+        finally:
+            _release_memory_to_os()
 
 
 async def warm_up_basic_pitch() -> None:

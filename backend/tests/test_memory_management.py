@@ -20,6 +20,7 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -163,6 +164,100 @@ def test_transcribe_and_generation_never_run_concurrently(monkeypatch, tmp_path)
     assert not overlap_detected.is_set(), (
         "transcribe and generation ran their heavy work at the same time -- "
         "HEAVY_WORK_LOCK isn't actually serializing them"
+    )
+
+
+def test_warm_up_basic_pitch_sync_holds_heavy_work_lock(monkeypatch):
+    """The boot warm-up does real CPU-bound work (a librosa resample plus a
+    real Basic Pitch predict, docs/PROGRESS.md's 2026-09-15/16 entry) but
+    historically never took HEAVY_WORK_LOCK -- so a /generate-variants
+    request landing mid-warm-up ran concurrently with it on the free tier's
+    single throttled CPU core, starving the generation of CPU until it blew
+    through GENERATION_TIMEOUT_SECONDS (the 2026-09-16 "run 3" 504
+    regression: client-facing timeout at the 60s mark while memory kept
+    climbing in the background). Warm-up must hold the same lock so a
+    request arriving during it gets _run_generation's existing fast 429
+    instead.
+    """
+    lock_states: list[bool] = []
+
+    def fake_read_audio_bytes(raw_bytes, target_sr):
+        lock_states.append(inference.HEAVY_WORK_LOCK.locked())
+        return np.zeros(target_sr, dtype=np.float32), 1.0, False
+
+    def fake_run_basic_pitch_predict(path):
+        lock_states.append(inference.HEAVY_WORK_LOCK.locked())
+        return None, []
+
+    monkeypatch.setattr(inference, "_read_audio_bytes", fake_read_audio_bytes)
+    monkeypatch.setattr(inference, "_run_basic_pitch_predict", fake_run_basic_pitch_predict)
+
+    assert not inference.HEAVY_WORK_LOCK.locked()
+    inference._warm_up_basic_pitch_sync()
+    assert lock_states == [True, True], "warm-up must hold HEAVY_WORK_LOCK while it works"
+    assert not inference.HEAVY_WORK_LOCK.locked(), "must release the lock afterward"
+
+
+def test_warm_up_and_generation_never_run_concurrently(monkeypatch):
+    """The 2026-09-16 "run 3" regression, reproduced: without a shared lock,
+    the boot warm-up and a real generation request could run their heavy
+    work at the same time, each starving the other of the free tier's one
+    CPU core until the generation blew through GENERATION_TIMEOUT_SECONDS."""
+    concurrent_count = 0
+    count_lock = threading.Lock()
+    overlap_detected = threading.Event()
+
+    def enter_critical_section() -> None:
+        nonlocal concurrent_count
+        with count_lock:
+            concurrent_count += 1
+            if concurrent_count > 1:
+                overlap_detected.set()
+        time.sleep(0.15)
+
+    def exit_critical_section() -> None:
+        nonlocal concurrent_count
+        with count_lock:
+            concurrent_count -= 1
+
+    def fake_read_audio_bytes(raw_bytes, target_sr):
+        enter_critical_section()
+        try:
+            return np.zeros(target_sr, dtype=np.float32), 1.0, False
+        finally:
+            exit_critical_section()
+
+    def fake_run_basic_pitch_predict(path):
+        return None, []
+
+    def fake_generation_func():
+        enter_critical_section()
+        try:
+            return "ok"
+        finally:
+            exit_critical_section()
+
+    monkeypatch.setattr(inference, "_read_audio_bytes", fake_read_audio_bytes)
+    monkeypatch.setattr(inference, "_run_basic_pitch_predict", fake_run_basic_pitch_predict)
+
+    def run_warm_up() -> None:
+        inference._warm_up_basic_pitch_sync()
+
+    def run_generation() -> None:
+        asyncio.run(inference._run_generation(fake_generation_func))
+
+    t1 = threading.Thread(target=run_warm_up)
+    t2 = threading.Thread(target=run_generation)
+    t1.start()
+    time.sleep(0.02)  # give t1 a head start so it claims the lock first
+    t2.start()
+    t1.join(timeout=5)
+    t2.join(timeout=5)
+
+    assert not t1.is_alive() and not t2.is_alive(), "a thread deadlocked"
+    assert not overlap_detected.is_set(), (
+        "warm-up and generation ran their heavy work at the same time -- "
+        "warm-up isn't holding HEAVY_WORK_LOCK"
     )
 
 
