@@ -9,7 +9,7 @@ import { Spinner } from "../../components/spinner";
 import { MoodBadge } from "../../components/ui/badge";
 import { buttonClass } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { EmptyState } from "../../components/ui/feedback";
+import { EmptyState, WarningBanner } from "../../components/ui/feedback";
 import { Pills } from "../../components/ui/pills";
 import { Slider, TemperatureInput } from "../../components/ui/slider";
 import { Label } from "../../components/ui/text";
@@ -47,6 +47,12 @@ type VariantsResponse = {
 
 const GREEK = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ"];
 
+// Discriminated so a transient, retryable condition (the backend's
+// HEAVY_WORK_LOCK 429 -- only one heavy audio task runs at a time on this
+// tier) renders distinctly from an actual failure, instead of both falling
+// into the same generic "something went wrong" banner.
+type GenerationError = { kind: "busy"; message: string } | { kind: "failed"; message: string };
+
 function buildDefaultTemperatures(count: number) {
   if (count === 4) {
     return [0.7, 0.9, 1.0, 1.3];
@@ -66,7 +72,7 @@ export default function GenerateVariantsPage() {
   const [selectedScale, setSelectedScale] = useState("Original");
   const [temperatures, setTemperatures] = useState<number[]>(buildDefaultTemperatures(4));
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GenerationError | null>(null);
   const [result, setResult] = useState<VariantsResponse | null>(null);
   const [activeVariant, setActiveVariant] = useState(0);
 
@@ -115,9 +121,14 @@ export default function GenerateVariantsPage() {
     setError(null);
   };
 
+  const handleUploadError = (message: string) => setError({ kind: "failed", message });
+
   const generateVariants = async () => {
     if (!selectedFile && !useStoredUpload) {
-      setError("Choose or record an audio clip before generating variants.");
+      setError({
+        kind: "failed",
+        message: "Choose or record an audio clip before generating variants.",
+      });
       return;
     }
 
@@ -149,9 +160,16 @@ export default function GenerateVariantsPage() {
       setResult(data);
       setActiveVariant(0);
     } catch (generationError) {
-      setError(
-        generationError instanceof Error ? generationError.message : "Variant generation failed",
-      );
+      const status =
+        generationError instanceof Error
+          ? (generationError as Error & { status?: number }).status
+          : undefined;
+      const message =
+        generationError instanceof Error ? generationError.message : "Variant generation failed";
+      // HEAVY_WORK_LOCK's 429 ("only one heavy audio task at a time on this
+      // tier") is transient and retryable -- render it distinctly from an
+      // actual failure instead of the same generic banner.
+      setError({ kind: status === 429 ? "busy" : "failed", message });
     } finally {
       setLoading(false);
     }
@@ -176,7 +194,7 @@ export default function GenerateVariantsPage() {
             <div className="mt-3 space-y-3">
               <UploadButton
                 onUploadSuccess={handleUploadSuccess}
-                onUploadError={setError}
+                onUploadError={handleUploadError}
                 label="Upload audio"
               />
               <button
@@ -284,8 +302,19 @@ export default function GenerateVariantsPage() {
       </div>
 
       {error ? (
-        <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
-          {error}
+        <div aria-live="polite">
+          {error.kind === "busy" ? (
+            <div data-testid="generation-error-busy">
+              <WarningBanner title="Server is busy — try again" body={error.message} />
+            </div>
+          ) : (
+            <div
+              className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100"
+              data-testid="generation-error-failed"
+            >
+              {error.message}
+            </div>
+          )}
         </div>
       ) : null}
 

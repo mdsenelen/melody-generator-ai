@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import GenerateVariantsPage from "../../app/generate-variants/page";
@@ -311,5 +311,67 @@ describe("GenerateVariantsPage", () => {
     expect(screen.getByRole("button", { name: /play melody/i })).toBeInTheDocument();
     // calm heads-up about the post-generation memory floor (not an alarm banner)
     expect(screen.getByText(/full transcription right after generating/i)).toBeInTheDocument();
+  });
+
+  it("shows a clear, distinct retry message when the server is busy (429)", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          detail:
+            "The server is busy with another audio task and can only run one at a time on this tier. Please try again in a moment.",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    // rendered as the distinct, retryable "busy" banner, not the plain
+    // failure banner -- same wording would otherwise still pass this test
+    // via the generic error box, so assert the actual rendering path.
+    const banner = await screen.findByTestId("generation-error-busy");
+    expect(screen.queryByTestId("generation-error-failed")).not.toBeInTheDocument();
+    expect(within(banner).getByText("Server is busy — try again")).toBeInTheDocument();
+    expect(
+      within(banner).getByText(
+        "The server is busy with another audio task and can only run one at a time on this tier. Please try again in a moment.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("still shows the plain failure banner for a non-retryable error", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () => JSON.stringify({ detail: "Variant generation failed" }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    expect(await screen.findByTestId("generation-error-failed")).toBeInTheDocument();
+    expect(screen.queryByTestId("generation-error-busy")).not.toBeInTheDocument();
+    expect(screen.getByText("Variant generation failed")).toBeInTheDocument();
   });
 });
