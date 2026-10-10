@@ -25,7 +25,20 @@ function tryParseJson<T>(raw: string): T | null {
 }
 
 export async function requestJson<T>(input: RequestInfo | URL, options: RequestJsonOptions = {}) {
-  const response = await fetch(input, options);
+  let response: Response;
+  try {
+    response = await fetch(input, options);
+  } catch (error) {
+    // Browsers reject fetch with a TypeError ("Failed to fetch") on network
+    // or CORS failures. Anything else (e.g. an AbortError) is the caller's.
+    if (!(error instanceof TypeError)) {
+      throw error;
+    }
+    // Say what the user can actually check instead of the opaque message.
+    throw new Error(
+      "Couldn't reach the server. Check your connection and try again; if it keeps happening the server may be down or waking up.",
+    );
+  }
   const contentType = response.headers.get("content-type") ?? "";
   const rawBody = await response.text();
   const parsedBody = isJsonContentType(contentType)
