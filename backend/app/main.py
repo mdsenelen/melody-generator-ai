@@ -176,18 +176,20 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+# Starlette's add_middleware inserts each new middleware ahead of the previous
+# ones, so the last one added is outermost. The body-size cap is added first
+# and CORS last: the cap's 413 for an oversized upload is sent directly from
+# the middleware, and if CORS sat inside it that response would carry no
+# Access-Control-Allow-Origin header -- the browser would hide it behind an
+# opaque "Failed to fetch" instead of showing the real "too large" message.
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_UPLOAD_BYTES)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Added after CORSMiddleware so it ends up outermost (Starlette's
-# add_middleware inserts each new middleware ahead of the previous ones) --
-# a body over the cap should be rejected before any other request handling,
-# not just before the route body reads it.
-app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_UPLOAD_BYTES)
 
 
 @app.exception_handler(RequestBodyTooLarge)
