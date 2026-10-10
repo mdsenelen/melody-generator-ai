@@ -122,3 +122,24 @@ def test_non_http_scope_passes_through_untouched():
     asyncio.run(middleware(scope, receive, send))
 
     assert inner.called is True
+
+
+def test_oversized_upload_413_carries_cors_headers():
+    """The browser hides a 413 that lacks Access-Control-Allow-Origin behind an
+    opaque "Failed to fetch"; the cap's response must go out through CORS."""
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_BYTES)
+    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"])
+
+    response = TestClient(app).post(
+        "/upload",
+        content=b"x" * (MAX_BYTES + 1),
+        headers={"Origin": "http://localhost:3000"},
+    )
+
+    assert response.status_code == 413
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
