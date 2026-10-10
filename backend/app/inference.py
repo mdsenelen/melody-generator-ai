@@ -284,19 +284,27 @@ _BASIC_PITCH_LOAD_LOCK = threading.Lock()
 _BASIC_PITCH_MODEL: Optional[Any] = None
 
 # Serializes every heavy pipeline process-wide: the transcribe worker
-# (run_basic_pitch), every generation route (via _run_generation), and the
-# Basic Pitch boot warm-up (_warm_up_basic_pitch_sync) all acquire this
-# before doing real work. _BASIC_PITCH_LOAD_LOCK above only serializes Basic
-# Pitch against itself -- it does nothing to stop a /generate-variants
-# request (which separately loads torch, ~200-250MB) from running
-# concurrently with an in-flight transcribe job on this single 512MiB
-# instance. Found during the OOM investigation (docs/PROGRESS.md): the two
-# pipelines had no shared lock at all. Costs one request queuing behind
+# (run_basic_pitch) and every generation route (via _run_generation) both
+# acquire this before doing real work. _BASIC_PITCH_LOAD_LOCK above only
+# serializes Basic Pitch against itself -- it does nothing to stop a
+# /generate-variants request (which separately loads torch, ~200-250MB) from
+# running concurrently with an in-flight transcribe job on this single
+# 512MiB instance. Found during the OOM investigation (docs/PROGRESS.md): the
+# two pipelines had no shared lock at all. Costs one request queuing behind
 # another; on this instance that's a better trade than a second
-# OOM-triggered restart. The warm-up case was found later (2026-09-16's
-# "run 3" 504 regression): warm-up didn't hold this lock either, so a
-# generation request landing mid-warm-up ran concurrently with it and lost
-# the CPU race against GENERATION_TIMEOUT_SECONDS.
+# OOM-triggered restart.
+#
+# The Basic Pitch boot warm-up (_warm_up_basic_pitch_sync) deliberately does
+# NOT acquire this lock, even though it does real CPU-bound work that can
+# contend with a concurrent heavy request (the 2026-09-16 "run 3" 504
+# regression, docs/PROGRESS.md). An earlier fix made warm-up take this lock
+# -- reverted (2026-10-10): asyncio.wait_for cannot forcibly stop a running
+# thread, and neither can anything else in CPython, so a warm-up that ever
+# hung (slow disk, OS stall, whatever) would hold this lock forever with no
+# way to release it, permanently 429ing every later request until a manual
+# restart. See WARMUP_MAX_SECONDS below for the actual fix: a time-bounded,
+# self-expiring advisory state that heavy endpoints check instead of a lock
+# warm-up holds.
 HEAVY_WORK_LOCK = threading.Lock()
 # The generation HTTP routes 429 immediately if they can't get the lock (see
 # _run_generation). The transcribe worker, being a single thread with jobs
@@ -304,6 +312,151 @@ HEAVY_WORK_LOCK = threading.Lock()
 # generation to finish before giving up and letting the job be re-queued --
 # comfortably above GENERATION_TIMEOUT_SECONDS.
 WORKER_HEAVY_WORK_WAIT_SEC = float(os.environ.get("WORKER_HEAVY_WORK_WAIT_SEC", "180"))
+
+# Tracks who currently holds HEAVY_WORK_LOCK, purely for logging (a bare
+# threading.Lock doesn't expose an owner). Written only by the holder itself,
+# right after acquiring and right before releasing -- readers (the 429 path)
+# just take a snapshot, so a stale/torn read in the narrow race window is
+# merely a slightly-off log line, never a correctness issue.
+_LOCK_HOLDER_STATE_GUARD = threading.Lock()
+_LOCK_HOLDER: Optional[dict[str, Any]] = None  # {"label": str, "acquired_at": float (monotonic)}
+
+
+def _mark_lock_acquired(label: str) -> None:
+    global _LOCK_HOLDER
+    with _LOCK_HOLDER_STATE_GUARD:
+        _LOCK_HOLDER = {"label": label, "acquired_at": time.monotonic()}
+    logger.info("HEAVY_WORK_LOCK acquired by %s", label)
+
+
+def _mark_lock_released(label: str) -> None:
+    global _LOCK_HOLDER
+    with _LOCK_HOLDER_STATE_GUARD:
+        held_for = (
+            time.monotonic() - _LOCK_HOLDER["acquired_at"] if _LOCK_HOLDER is not None else None
+        )
+        _LOCK_HOLDER = None
+    if held_for is not None:
+        logger.info("HEAVY_WORK_LOCK released by %s (held %.2fs)", label, held_for)
+    else:
+        logger.info("HEAVY_WORK_LOCK released by %s", label)
+
+
+def _describe_lock_holder() -> str:
+    """Human-readable snapshot of who holds HEAVY_WORK_LOCK and for how
+    long, for the 429 log line below."""
+    with _LOCK_HOLDER_STATE_GUARD:
+        holder = dict(_LOCK_HOLDER) if _LOCK_HOLDER is not None else None
+    if holder is None:
+        return "unknown (released just as this was logged)"
+    held_for = time.monotonic() - holder["acquired_at"]
+    return f"{holder['label']} (held {held_for:.2f}s so far)"
+
+
+def _acquire_heavy_work_lock_nonblocking(label: str) -> bool:
+    acquired = HEAVY_WORK_LOCK.acquire(blocking=False)
+    if acquired:
+        _mark_lock_acquired(label)
+    return acquired
+
+
+def _acquire_heavy_work_lock_blocking(label: str, timeout: float) -> bool:
+    acquired = HEAVY_WORK_LOCK.acquire(timeout=timeout)
+    if acquired:
+        _mark_lock_acquired(label)
+    return acquired
+
+
+def _release_heavy_work_lock(label: str) -> None:
+    _mark_lock_released(label)
+    HEAVY_WORK_LOCK.release()
+
+
+# Advisory, time-bounded replacement for warm-up holding HEAVY_WORK_LOCK (see
+# the lock's own comment above for why warm-up must not hold it). Heavy
+# endpoints check this instead: a fresh warming marker gets a fast, distinct
+# "starting up" rejection; a stale one (older than WARMUP_MAX_SECONDS) is
+# ignored and the request proceeds as normal -- so a warm-up that never
+# clears this (a hang, a crash before the finally, anything) can only ever
+# block traffic for this long, never indefinitely.
+WARMUP_MAX_SECONDS = float(os.environ.get("WARMUP_MAX_SECONDS", "90"))
+
+_WARMING_STATE_GUARD = threading.Lock()
+_WARMING_STARTED_AT: Optional[float] = None  # monotonic seconds; None = not warming
+
+
+def _mark_warming_started() -> None:
+    global _WARMING_STARTED_AT
+    with _WARMING_STATE_GUARD:
+        _WARMING_STARTED_AT = time.monotonic()
+
+
+def _mark_warming_finished() -> None:
+    global _WARMING_STARTED_AT
+    with _WARMING_STATE_GUARD:
+        _WARMING_STARTED_AT = None
+
+
+def _warming_elapsed_seconds() -> Optional[float]:
+    """None if no warm-up is currently marked in progress."""
+    with _WARMING_STATE_GUARD:
+        started_at = _WARMING_STARTED_AT
+    return None if started_at is None else time.monotonic() - started_at
+
+
+def _is_warming_up() -> bool:
+    """True only while a warm-up marker exists AND is within
+    WARMUP_MAX_SECONDS. Powers /health's runtime.warming_up."""
+    elapsed = _warming_elapsed_seconds()
+    return elapsed is not None and elapsed < WARMUP_MAX_SECONDS
+
+
+WARMING_UP_ERROR_CODE = "warming_up"
+BUSY_ERROR_CODE = "server_busy"
+
+
+def _reject_if_warming_up() -> None:
+    """Used by _run_generation (every generation HTTP route). Raises a
+    distinct, retryable error while warm-up is fresh; logs and does nothing
+    once the marker is stale, so a stuck warm-up can't block requests past
+    WARMUP_MAX_SECONDS."""
+    elapsed = _warming_elapsed_seconds()
+    if elapsed is None:
+        return
+    if elapsed < WARMUP_MAX_SECONDS:
+        logger.info(
+            "Rejecting request: boot warm-up in progress (%.1fs elapsed, max %.0fs)",
+            elapsed, WARMUP_MAX_SECONDS,
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="The server is starting up. Please try again in about a minute.",
+            headers={"Retry-After": "60", "X-Error-Code": WARMING_UP_ERROR_CODE},
+        )
+    logger.info(
+        "Ignoring stale warm-up marker (%.1fs old, max %.0fs) -- proceeding",
+        elapsed, WARMUP_MAX_SECONDS,
+    )
+
+
+def _warming_up_still_blocking() -> bool:
+    """Same check as _reject_if_warming_up, for the non-HTTP worker path
+    (run_basic_pitch) -- the caller raises a retryable RuntimeError instead
+    of an HTTPException on True."""
+    elapsed = _warming_elapsed_seconds()
+    if elapsed is None:
+        return False
+    if elapsed < WARMUP_MAX_SECONDS:
+        logger.info(
+            "Rejecting transcription: boot warm-up in progress (%.1fs elapsed, max %.0fs)",
+            elapsed, WARMUP_MAX_SECONDS,
+        )
+        return True
+    logger.info(
+        "Ignoring stale warm-up marker (%.1fs old, max %.0fs) -- proceeding",
+        elapsed, WARMUP_MAX_SECONDS,
+    )
+    return False
 
 
 def _release_memory_to_os() -> None:
@@ -402,22 +555,31 @@ async def _run_generation(func, *args, **kwargs) -> Any:
     is acquired inside the threadpool-run callable, not here, so this
     never stalls the asyncio event loop. Memory is released to the OS
     afterward — see _release_memory_to_os.
+
+    Checks the boot warm-up's time-bounded marker first (_reject_if_warming_up)
+    -- see HEAVY_WORK_LOCK's own comment for why that's a marker and not the
+    lock itself. A fresh marker rejects fast, before ever touching the lock
+    or the threadpool; a stale one is ignored.
     """
+    _reject_if_warming_up()
+
     def _locked_call():
-        if not HEAVY_WORK_LOCK.acquire(blocking=False):
+        label = getattr(func, "__name__", "generation")
+        if not _acquire_heavy_work_lock_nonblocking(label):
+            logger.info("429: HEAVY_WORK_LOCK busy -- held by %s", _describe_lock_holder())
             raise HTTPException(
                 status_code=429,
                 detail=(
                     "The server is busy with another audio task and can only run one "
                     "at a time on this tier. Please try again in a moment."
                 ),
-                headers={"Retry-After": "30"},
+                headers={"Retry-After": "30", "X-Error-Code": BUSY_ERROR_CODE},
             )
         try:
             return func(*args, **kwargs)
         finally:
             _release_memory_to_os()
-            HEAVY_WORK_LOCK.release()
+            _release_heavy_work_lock(label)
 
     try:
         return await asyncio.wait_for(
@@ -673,6 +835,10 @@ def get_runtime_status() -> dict[str, Any]:
         "basic_pitch_available": basic_pitch_predict is not None,
         "pretty_midi_available": pretty_midi is not None,
         "variant_status": _variant_model_status(),
+        # True only while the boot warm-up's marker is fresh (within
+        # WARMUP_MAX_SECONDS) -- see _is_warming_up. For the frontend to use
+        # later; not consumed anywhere yet.
+        "warming_up": _is_warming_up(),
     }
 
 
@@ -916,17 +1082,13 @@ def _warm_up_basic_pitch_sync() -> None:
     (only exercised by non-zero input) -- see docs/PROGRESS.md's
     2026-09-15/16 entry (+66.7 MB and +48.8 MB respectively, measured).
 
-    Holds HEAVY_WORK_LOCK while doing the actual decode/predict work. Without
-    it (the 2026-09-16 "run 3" regression, same doc), a /generate-variants
-    request landing while this warm-up was still in flight ran concurrently
-    with it on the free tier's single throttled CPU core -- this does real,
-    non-trivial CPU-bound work, unlike the old silence-based warm-up -- and
-    the resulting CPU contention made the generation itself blow through
-    GENERATION_TIMEOUT_SECONDS, surfacing to the user as "Generation timed
-    out after 60s" even though nothing was actually stuck. Taking the lock
-    here means a request arriving mid-warm-up instead gets
-    _run_generation's existing fast, clear 429 ("server is busy, try
-    again") instead of a slow hang that times out anyway.
+    Does real, non-trivial CPU-bound work but deliberately does NOT hold
+    HEAVY_WORK_LOCK (see that lock's own comment for why -- a hang here must
+    never be able to wedge the lock forever). warm_up_basic_pitch, its only
+    caller, sets/clears the time-bounded WARMUP_MAX_SECONDS marker instead;
+    heavy endpoints check that marker, not this function or the lock, to
+    avoid CPU-contending with it (the 2026-09-16 "run 3" regression,
+    docs/PROGRESS.md).
     """
     target_sr = NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"]
     native_sr = 44100  # a realistic upload/mic rate, deliberately != target_sr
@@ -936,20 +1098,19 @@ def _warm_up_basic_pitch_sync() -> None:
     raw_buf = io.BytesIO()
     sf.write(raw_buf, tone, native_sr, format="WAV")
 
-    with HEAVY_WORK_LOCK:
-        try:
-            audio, _source_duration_sec, _truncated = _read_audio_bytes(
-                raw_buf.getvalue(), target_sr)
+    try:
+        audio, _source_duration_sec, _truncated = _read_audio_bytes(
+            raw_buf.getvalue(), target_sr)
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
-                temp_path = Path(handle.name)
-            try:
-                sf.write(str(temp_path), audio, target_sr)
-                _run_basic_pitch_predict(str(temp_path))
-            finally:
-                temp_path.unlink(missing_ok=True)
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+            temp_path = Path(handle.name)
+        try:
+            sf.write(str(temp_path), audio, target_sr)
+            _run_basic_pitch_predict(str(temp_path))
         finally:
-            _release_memory_to_os()
+            temp_path.unlink(missing_ok=True)
+    finally:
+        _release_memory_to_os()
 
 
 async def warm_up_basic_pitch() -> None:
@@ -959,14 +1120,31 @@ async def warm_up_basic_pitch() -> None:
     ready to serve traffic. On a cold host, first-load can take long enough
     to blow through GENERATION_TIMEOUT_SECONDS on its own; a failed or slow
     warm-up here just means the first real request pays that cost instead,
-    same as before this existed."""
+    same as before this existed.
+
+    Sets the WARMUP_MAX_SECONDS marker (_mark_warming_started) before doing
+    any work and clears it (_mark_warming_finished) in a finally, so it's
+    cleared on success, on a caught exception, or (per Python's normal
+    finally semantics) if this coroutine itself is cancelled. It is NOT
+    cleared if the underlying thread just never returns -- nothing can force
+    that; WARMUP_MAX_SECONDS's own deadline is what bounds that case, not
+    this finally.
+    """
     if basic_pitch_predict is None:
         return
+    _mark_warming_started()
+    start = time.monotonic()
+    logger.info("Basic Pitch warm-up starting")
     try:
         await run_in_threadpool(_warm_up_basic_pitch_sync)
-        logger.info("Basic Pitch model warm-up complete")
+        logger.info("Basic Pitch model warm-up complete (%.2fs)", time.monotonic() - start)
     except Exception:
-        logger.exception("Basic Pitch model warm-up failed; first request will load it instead")
+        logger.exception(
+            "Basic Pitch model warm-up failed after %.2fs; first request will load it instead",
+            time.monotonic() - start,
+        )
+    finally:
+        _mark_warming_finished()
 
 
 def _save_bytes(raw: bytes, prefix: str, extension: str) -> tuple[str, Path]:
@@ -2335,13 +2513,20 @@ def run_basic_pitch(
     on_progress: Optional[Callable[[int], bool]] = None,
 ) -> dict[str, Any]:
     _ = original_filename
+    # Checks the boot warm-up's time-bounded marker first, same as
+    # _run_generation -- see HEAVY_WORK_LOCK's own comment for why this is a
+    # marker check and not the lock itself. Raising here (rather than
+    # waiting) lets the job be re-queued immediately instead of tying up
+    # the single worker thread for WORKER_HEAVY_WORK_WAIT_SEC first.
+    if _warming_up_still_blocking():
+        raise RuntimeError("boot warm-up still in progress; job will be retried")
     # Serialized against every generation route too (HEAVY_WORK_LOCK, see its
     # definition) -- this is the only entry point the async job worker calls,
     # so this is also where the worker-side lock acquisition lives. The
     # worker is a single thread, so it can afford to wait a bounded while
     # for an in-flight generation to finish; if the wait runs out, raise so
     # the worker re-queues the job (retryable) instead of blocking forever.
-    if not HEAVY_WORK_LOCK.acquire(timeout=WORKER_HEAVY_WORK_WAIT_SEC):
+    if not _acquire_heavy_work_lock_blocking("transcribe_worker", WORKER_HEAVY_WORK_WAIT_SEC):
         raise RuntimeError("work lock still held after waiting; another heavy task is running")
     try:
         # Full-audio chunked transcription -- the only path now (the flag and
@@ -2373,7 +2558,7 @@ def run_basic_pitch(
         return result
     finally:
         _release_memory_to_os()
-        HEAVY_WORK_LOCK.release()
+        _release_heavy_work_lock("transcribe_worker")
 
 
 async def handle_generate_request(
