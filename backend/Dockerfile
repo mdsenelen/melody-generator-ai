@@ -1,5 +1,11 @@
 FROM python:3.10-slim
 
+# Without this, stdout/stderr are fully block-buffered once they're not a
+# TTY (as in a container) -- output can sit unflushed and, on a hard kill
+# (this project has had real OOM kills before), be lost outright rather
+# than just delayed.
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 COPY . /app/
 

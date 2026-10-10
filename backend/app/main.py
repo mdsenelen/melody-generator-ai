@@ -5,6 +5,7 @@ import contextlib
 import json
 import logging
 import os
+import sys
 import threading
 import uuid
 from contextlib import asynccontextmanager
@@ -22,6 +23,47 @@ from app.jobs.service import get_job_queue, get_job_store, get_object_storage
 from app.jobs.worker import run_worker_loop
 from app.request_limits import MaxBodySizeMiddleware, RequestBodyTooLarge
 from app.schemas import ProcessRequest
+
+# Every app.* module just does logging.getLogger(__name__) with no handler
+# of its own, and nothing here ever called logging.basicConfig/dictConfig --
+# uvicorn configures its OWN loggers (uvicorn/uvicorn.access) but its config
+# has no "root" entry, so it never touches the root logger either. Net
+# result, confirmed directly against both a real local run and the live
+# Render log stream: every logger.info() call in this codebase (22 of them
+# at the time this was found) was silently dropped -- not delayed, not
+# buffered, just never handled anywhere up to Python's logging.lastResort,
+# which only fires at WARNING+. This must run before `app` and the FastAPI
+# lifespan below are defined, so it's in place before uvicorn's own
+# configure_logging() runs later at server start (which doesn't touch the
+# root logger either, so this survives it rather than being overwritten).
+#
+# force=True is required, not optional: basic_pitch's own __init__.py calls
+# logging.basicConfig() itself at import time (confirmed by testing, not
+# guessed -- that's also why its "X is not installed" lines already print
+# in the bare "WARNING:root:..." format), and basicConfig() is a documented
+# no-op once the root logger already has a handler. Without force=True,
+# this call above would silently do nothing whenever anything that pulls in
+# basic_pitch gets imported first, which `from app import inference` above
+# already does -- i.e. always, in this file.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
+    force=True,
+)
+
+# A handful of third-party libraries emit their own INFO-level noise that
+# would otherwise compete with our own log lines in Render's stream.
+# Checked each of numba/librosa/resampy/soundfile/basic_pitch directly
+# (static source scan + exercising the real decode/predict warm-up path
+# with level=INFO) -- none of them actually emit at INFO in this app's real
+# code paths (numba's few INFO call sites are CUDA/tracing/AOT-compile only,
+# none of which this CPU-only deploy ever touches; TensorFlow isn't even
+# installed). botocore is the one that is: it logs "Found credentials in
+# environment variables" at INFO every time a boto3 client is constructed
+# (jobs/storage.py's B2/S3 client, built from JOB_STORAGE_* env vars) --
+# confirmed firing, and confirmed silenced by this.
+logging.getLogger("botocore").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
