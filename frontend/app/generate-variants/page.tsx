@@ -15,7 +15,7 @@ import { Slider, TemperatureInput } from "../../components/ui/slider";
 import { Label } from "../../components/ui/text";
 import { VariantPicker } from "../../components/ui/variant-picker";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
-import { requestJson } from "../lib/request";
+import { requestJson, type RequestError } from "../lib/request";
 import { useSessionStore } from "../lib/session-store";
 
 type Variant = {
@@ -47,11 +47,22 @@ type VariantsResponse = {
 
 const GREEK = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ"];
 
-// Discriminated so a transient, retryable condition (the backend's
-// HEAVY_WORK_LOCK 429 -- only one heavy audio task runs at a time on this
-// tier) renders distinctly from an actual failure, instead of both falling
-// into the same generic "something went wrong" banner.
-type GenerationError = { kind: "busy"; message: string } | { kind: "failed"; message: string };
+// Discriminated so each transient, retryable condition renders distinctly
+// from an actual failure (and from each other), instead of all three
+// falling into the same generic "something went wrong" banner:
+// - "busy": HEAVY_WORK_LOCK is held by another heavy audio task.
+// - "warming_up": the boot warm-up grace window (WARMUP_MAX_SECONDS) is
+//   still in effect -- a different condition from "busy" even though the
+//   backend returns the same 429 status for both; x-error-code tells them
+//   apart (see app/lib/request.ts).
+type GenerationError =
+  | { kind: "busy"; message: string; retryAfterSeconds?: number }
+  | { kind: "warming_up"; message: string; retryAfterSeconds?: number }
+  | { kind: "failed"; message: string };
+
+function appendRetryHint(message: string, retryAfterSeconds: number | undefined): string {
+  return retryAfterSeconds ? `${message} (retry in ~${retryAfterSeconds}s)` : message;
+}
 
 function buildDefaultTemperatures(count: number) {
   if (count === 4) {
@@ -160,16 +171,18 @@ export default function GenerateVariantsPage() {
       setResult(data);
       setActiveVariant(0);
     } catch (generationError) {
-      const status =
-        generationError instanceof Error
-          ? (generationError as Error & { status?: number }).status
-          : undefined;
-      const message =
-        generationError instanceof Error ? generationError.message : "Variant generation failed";
-      // HEAVY_WORK_LOCK's 429 ("only one heavy audio task at a time on this
-      // tier") is transient and retryable -- render it distinctly from an
-      // actual failure instead of the same generic banner.
-      setError({ kind: status === 429 ? "busy" : "failed", message });
+      const requestError =
+        generationError instanceof Error ? (generationError as RequestError) : undefined;
+      const message = requestError?.message ?? "Variant generation failed";
+      const retryAfterSeconds = requestError?.retryAfterSeconds;
+
+      if (requestError?.code === "warming_up") {
+        setError({ kind: "warming_up", message, retryAfterSeconds });
+      } else if (requestError?.status === 429) {
+        setError({ kind: "busy", message, retryAfterSeconds });
+      } else {
+        setError({ kind: "failed", message });
+      }
     } finally {
       setLoading(false);
     }
@@ -303,9 +316,19 @@ export default function GenerateVariantsPage() {
 
       {error ? (
         <div aria-live="polite">
-          {error.kind === "busy" ? (
+          {error.kind === "warming_up" ? (
+            <div data-testid="generation-error-warming_up">
+              <WarningBanner
+                title="Server is starting up"
+                body={appendRetryHint(error.message, error.retryAfterSeconds)}
+              />
+            </div>
+          ) : error.kind === "busy" ? (
             <div data-testid="generation-error-busy">
-              <WarningBanner title="Server is busy — try again" body={error.message} />
+              <WarningBanner
+                title="Server is busy — try again"
+                body={appendRetryHint(error.message, error.retryAfterSeconds)}
+              />
             </div>
           ) : (
             <div

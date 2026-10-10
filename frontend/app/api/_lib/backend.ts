@@ -7,6 +7,11 @@ const RESPONSE_HEADER_ALLOWLIST = [
   "content-type",
   "etag",
   "last-modified",
+  // retry-after: how long to wait before retrying a 429/503 (HEAVY_WORK_LOCK
+  // busy, or the boot warm-up grace window). x-error-code: distinguishes
+  // those two 429 cases from each other (both share the same status code).
+  "retry-after",
+  "x-error-code",
 ];
 
 function isPlaceholderBackendUrl(value: string) {

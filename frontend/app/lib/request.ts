@@ -2,6 +2,16 @@ type RequestJsonOptions = RequestInit & {
   expectedContentType?: string;
 };
 
+// Thrown by requestJson on a non-ok response. `code` and `retryAfterSeconds`
+// are read from response headers (x-error-code, retry-after) rather than
+// the JSON body, so `detail` stays a plain string everywhere -- no change
+// to the shape of any existing error response.
+export type RequestError = Error & {
+  status?: number;
+  code?: string;
+  retryAfterSeconds?: number;
+};
+
 function isJsonContentType(contentType: string) {
   return contentType.toLowerCase().includes("application/json");
 }
@@ -34,10 +44,17 @@ export async function requestJson<T>(input: RequestInfo | URL, options: RequestJ
         rawBody,
       });
     }
-    const error = new Error(detail || `Request failed (${response.status})`) as Error & {
-      status?: number;
-    };
+    const error = new Error(detail || `Request failed (${response.status})`) as RequestError;
     error.status = response.status;
+    const code = response.headers.get("x-error-code");
+    if (code) {
+      error.code = code;
+    }
+    const retryAfterRaw = response.headers.get("retry-after");
+    const retryAfterSeconds = retryAfterRaw ? Number(retryAfterRaw) : NaN;
+    if (Number.isFinite(retryAfterSeconds)) {
+      error.retryAfterSeconds = retryAfterSeconds;
+    }
     throw error;
   }
 

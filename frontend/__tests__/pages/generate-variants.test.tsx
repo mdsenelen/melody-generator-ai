@@ -350,6 +350,47 @@ describe("GenerateVariantsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a distinct startup message (not the busy message) when the server is warming up, including the retry wait", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-error-code": "warming_up",
+        "retry-after": "60",
+      }),
+      text: async () =>
+        JSON.stringify({
+          detail: "The server is starting up. Please try again in about a minute.",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    // Both "busy" and "warming_up" share the same 429 status -- the banner
+    // must still render as the distinct warming_up case, not fall back to
+    // the "busy" wording, and not the plain failure banner either.
+    const banner = await screen.findByTestId("generation-error-warming_up");
+    expect(screen.queryByTestId("generation-error-busy")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("generation-error-failed")).not.toBeInTheDocument();
+    expect(within(banner).getByText("Server is starting up")).toBeInTheDocument();
+    expect(
+      within(banner).getByText(
+        "The server is starting up. Please try again in about a minute. (retry in ~60s)",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("still shows the plain failure banner for a non-retryable error", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
