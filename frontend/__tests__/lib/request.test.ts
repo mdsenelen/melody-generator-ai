@@ -44,4 +44,19 @@ describe("requestJson error metadata", () => {
     expect(caught?.code).toBeUndefined();
     expect(caught?.retryAfterSeconds).toBeUndefined();
   });
+
+  it("passes an AbortError through unchanged instead of the network message", async () => {
+    const abortError = new DOMException("The operation was aborted.", "AbortError");
+    global.fetch = jest.fn().mockRejectedValue(abortError) as unknown as typeof fetch;
+
+    await expect(requestJson("/api/upload")).rejects.toBe(abortError);
+  });
+
+  it("replaces a network-level TypeError with a readable message", async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
+
+    await expect(requestJson("/api/upload")).rejects.toThrow(/couldn't reach the server/i);
+  });
 });
