@@ -379,7 +379,24 @@ def _release_heavy_work_lock(label: str) -> None:
 # ignored and the request proceeds as normal -- so a warm-up that never
 # clears this (a hang, a crash before the finally, anything) can only ever
 # block traffic for this long, never indefinitely.
-WARMUP_MAX_SECONDS = float(os.environ.get("WARMUP_MAX_SECONDS", "90"))
+#
+# Default 240s (was 90s): a real warm-up on Render's free-tier CPU was
+# measured at ~147s (docs/PROGRESS.md) -- almost entirely the first-ever
+# librosa resample + numba JIT compile, not Basic Pitch's own inference,
+# which finishes in ~2s once it actually starts. 90s expired mid-warm-up on
+# that measurement, reopening the exact CPU-contention window this marker
+# exists to close, for the last ~57s of every single cold start. 240s gives
+# real margin above the one real measurement on hand; see
+# warm_up_basic_pitch's own overage warning below if that margin ever turns
+# out to be wrong again.
+#
+# The only place this value is set is this code default -- there's no
+# render.yaml in this repo (Render is dashboard-configured) and the
+# Dockerfile doesn't reference it either. A WARMUP_MAX_SECONDS env var set
+# by hand on the Render dashboard overrides this unconditionally; nothing
+# here can detect or warn about that, so check the dashboard directly if
+# warm-up still looks capped at the old 90s after this deploys.
+WARMUP_MAX_SECONDS = float(os.environ.get("WARMUP_MAX_SECONDS", "240"))
 
 _WARMING_STATE_GUARD = threading.Lock()
 _WARMING_STARTED_AT: Optional[float] = None  # monotonic seconds; None = not warming
@@ -1137,7 +1154,20 @@ async def warm_up_basic_pitch() -> None:
     logger.info("Basic Pitch warm-up starting")
     try:
         await run_in_threadpool(_warm_up_basic_pitch_sync)
-        logger.info("Basic Pitch model warm-up complete (%.2fs)", time.monotonic() - start)
+        elapsed = time.monotonic() - start
+        logger.info("Basic Pitch model warm-up complete (%.2fs)", elapsed)
+        if elapsed > WARMUP_MAX_SECONDS:
+            # Caught here, not just left to the "ignore stale marker" log
+            # line elsewhere: that one only fires if a request actually
+            # lands during the overrun, so a quiet cold start with no
+            # traffic would otherwise hide this completely. This is the
+            # thing to watch for if WARMUP_MAX_SECONDS ever needs raising
+            # again (see its own definition for the last time this happened).
+            logger.warning(
+                "Basic Pitch warm-up took %.2fs, exceeding WARMUP_MAX_SECONDS (%.0fs) -- "
+                "requests may have contended with it near the end",
+                elapsed, WARMUP_MAX_SECONDS,
+            )
     except Exception:
         logger.exception(
             "Basic Pitch model warm-up failed after %.2fs; first request will load it instead",

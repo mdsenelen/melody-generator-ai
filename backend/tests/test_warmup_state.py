@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -93,6 +94,58 @@ def test_failing_warm_up_clears_the_warming_state(monkeypatch):
     assert inference._warming_elapsed_seconds() is None
     asyncio.run(inference.warm_up_basic_pitch())
     assert inference._warming_elapsed_seconds() is None, "marker must be cleared after a failure"
+
+
+def test_warmup_max_seconds_default_is_240():
+    # A real warm-up on Render was measured at ~147s (docs/PROGRESS.md) --
+    # the old 90s default expired mid-warm-up, reopening the CPU-contention
+    # window this marker exists to close. Guards against silently drifting
+    # back down.
+    if "WARMUP_MAX_SECONDS" in os.environ:
+        pytest.skip("WARMUP_MAX_SECONDS overridden in the environment")
+    assert inference.WARMUP_MAX_SECONDS == 240.0
+
+
+def test_warm_up_logs_a_warning_when_it_exceeds_warmup_max_seconds(monkeypatch, caplog):
+    """So a too-low WARMUP_MAX_SECONDS is visible in the logs, not just
+    silently eaten by the "ignore stale marker" fallback."""
+    monkeypatch.setattr(inference, "basic_pitch_predict", object())
+    monkeypatch.setattr(inference, "WARMUP_MAX_SECONDS", 90.0)
+
+    real_monotonic = time.monotonic
+    call_count = {"n": 0}
+
+    def fake_sync():
+        # First call (the `start = time.monotonic()` before this function
+        # runs) already happened; jump far enough forward that elapsed
+        # exceeds the 90s budget once warm_up_basic_pitch measures it.
+        call_count["n"] += 1
+
+    def fake_monotonic():
+        call_count_snapshot = call_count["n"]
+        base = real_monotonic()
+        return base + (150.0 if call_count_snapshot >= 1 else 0.0)
+
+    monkeypatch.setattr(inference, "_warm_up_basic_pitch_sync", fake_sync)
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+
+    with caplog.at_level(logging.WARNING, logger="app.inference"):
+        asyncio.run(inference.warm_up_basic_pitch())
+
+    warnings = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any("WARMUP_MAX_SECONDS" in w and "90" in w for w in warnings), warnings
+
+
+def test_warm_up_does_not_warn_when_within_budget(monkeypatch, caplog):
+    monkeypatch.setattr(inference, "basic_pitch_predict", object())
+    monkeypatch.setattr(inference, "WARMUP_MAX_SECONDS", 90.0)
+    monkeypatch.setattr(inference, "_warm_up_basic_pitch_sync", lambda: None)
+
+    with caplog.at_level(logging.WARNING, logger="app.inference"):
+        asyncio.run(inference.warm_up_basic_pitch())
+
+    warnings = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+    assert not any("WARMUP_MAX_SECONDS" in w for w in warnings), warnings
 
 
 def test_health_runtime_reports_warming_up():
