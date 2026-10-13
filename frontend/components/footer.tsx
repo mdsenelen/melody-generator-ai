@@ -14,12 +14,12 @@ export default function Footer() {
         </a>
         {" · "}
         <a
-          href="https://www.youtube.com/@mdsenelen"
+          href="https://github.com/mdsenelen"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-primary transition-colors"
         >
-          YouTube
+          Github
         </a>
       </span>
     </footer>
