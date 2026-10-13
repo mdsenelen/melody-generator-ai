@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
-from .models import COMPLETED, CREATING, FAILED, PROCESSING, QUEUED, Job
+from .models import COMPLETED, CREATING, FAILED, PROCESSING, QUEUED, WAITING_REASON_WARMING_UP, Job
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +31,19 @@ CREATE TABLE IF NOT EXISTS transcription_jobs (
     error TEXT,
     lease_token TEXT,
     lease_expires_at TEXT,
-    next_attempt_at TEXT
+    next_attempt_at TEXT,
+    waiting_reason TEXT
 )
 """
-# Additive migration for a local dev DB created before lease_token /
-# lease_expires_at / next_attempt_at existed. Nothing is deployed to
-# production yet (no live data), so this only needs to handle a developer's
-# existing backend/data/jobs.db -- each ADD COLUMN is attempted and a
-# "duplicate column" failure is swallowed.
+# Additive migration for a DB created before a given column existed --
+# each ADD COLUMN is attempted and a "duplicate column" failure is
+# swallowed, so this is safe to run against both a fresh local dev DB and
+# the live production Postgres instance (see jobs/service.py).
 _MIGRATION_COLUMNS = (
     ("lease_token", "TEXT"),
     ("lease_expires_at", "TEXT"),
     ("next_attempt_at", "TEXT"),
+    ("waiting_reason", "TEXT"),
 )
 _STATUS_INDEX = (
     "CREATE INDEX IF NOT EXISTS ix_transcription_jobs_status "
@@ -104,6 +105,10 @@ class JobStore(Protocol):
         self, job_id: str, error: str, *, retry: bool, lease_token: Optional[str] = None
     ) -> bool: ...
 
+    def requeue_after_warmup(
+        self, job_id: str, *, lease_token: str, delay_seconds: float
+    ) -> bool: ...
+
     def reclaim_stale_processing_jobs(self) -> list[str]: ...
 
     def get_queued_job_ids(self) -> list[str]: ...
@@ -120,7 +125,7 @@ def _row_to_job(row: tuple) -> Job:
         id_, status, source_filename, storage_key, upload_id, idempotency_key,
         attempt_count, max_attempts, progress, created_at, updated_at,
         started_at, completed_at, result_json, error,
-        lease_token, lease_expires_at, next_attempt_at,
+        lease_token, lease_expires_at, next_attempt_at, waiting_reason,
     ) = row
     return Job(
         id=id_,
@@ -141,6 +146,7 @@ def _row_to_job(row: tuple) -> Job:
         lease_token=lease_token,
         lease_expires_at=lease_expires_at,
         next_attempt_at=next_attempt_at,
+        waiting_reason=waiting_reason,
     )
 
 
@@ -148,7 +154,7 @@ _COLUMNS = (
     "id, status, source_filename, storage_key, upload_id, idempotency_key, "
     "attempt_count, max_attempts, progress, created_at, updated_at, "
     "started_at, completed_at, result, error, "
-    "lease_token, lease_expires_at, next_attempt_at"
+    "lease_token, lease_expires_at, next_attempt_at, waiting_reason"
 )
 
 
@@ -321,7 +327,8 @@ class SQLJobStore:
                 self._q(
                     "UPDATE transcription_jobs "
                     "SET status = ?, started_at = ?, updated_at = ?, progress = 50, "
-                    "lease_token = ?, lease_expires_at = ?, next_attempt_at = NULL "
+                    "lease_token = ?, lease_expires_at = ?, next_attempt_at = NULL, "
+                    "waiting_reason = NULL "
                     "WHERE id = ? AND status = ?"
                 ),
                 (PROCESSING, now, now, lease_token, lease_expires_at, job_id, QUEUED),
@@ -421,7 +428,8 @@ class SQLJobStore:
                         "UPDATE transcription_jobs "
                         "SET status = ?, attempt_count = ?, updated_at = ?, "
                         "started_at = NULL, error = ?, progress = 0, "
-                        "lease_token = NULL, lease_expires_at = NULL, next_attempt_at = ? "
+                        "lease_token = NULL, lease_expires_at = NULL, next_attempt_at = ?, "
+                        "waiting_reason = NULL "
                         f"WHERE id = ?{lease_clause}"
                     ),
                     (QUEUED, attempt_count, now, error, next_attempt_at, job_id, *params_prefix),
@@ -432,11 +440,57 @@ class SQLJobStore:
                         "UPDATE transcription_jobs "
                         "SET status = ?, attempt_count = ?, updated_at = ?, "
                         "completed_at = ?, error = ?, lease_token = NULL, "
-                        "lease_expires_at = NULL, next_attempt_at = NULL "
+                        "lease_expires_at = NULL, next_attempt_at = NULL, waiting_reason = NULL "
                         f"WHERE id = ?{lease_clause}"
                     ),
                     (FAILED, attempt_count, now, now, error, job_id, *params_prefix),
                 )
+            conn.commit()
+            return cur.rowcount == 1
+        finally:
+            conn.close()
+
+    def requeue_after_warmup(
+        self, job_id: str, *, lease_token: str, delay_seconds: float
+    ) -> bool:
+        """Puts a job claimed by this attempt back into 'queued' without
+        counting it as a failed attempt (attempt_count untouched) -- used
+        when run_basic_pitch raises WarmingUpError (see jobs/worker.py), a
+        not-actually-a-failure condition. Deliberately separate from
+        mark_failed: that method always bumps attempt_count and can
+        eventually exhaust max_attempts, which would wrongly turn "the
+        server is still waking up" into a permanent, user-visible failure.
+
+        Reuses the same backoff-then-idle-tick-sweep mechanism a real
+        failure's retry already relies on (next_attempt_at +
+        get_ready_retry_job_ids), just with a short fixed delay instead of
+        exponential backoff. waiting_reason is what to_status_payload (see
+        models.Job) surfaces to the client while the job sits in this
+        state -- cleared on the next claim_job, and defensively on
+        mark_failed / reclaim_stale_processing_jobs too.
+
+        lease_token is required (unlike mark_failed's optional one): this
+        is only ever called from the worker's own in-flight attempt, which
+        always has one -- a write with a stale token is a no-op, same
+        fencing guarantee as every other transition here.
+        """
+        now = _now()
+        next_attempt_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        ).isoformat()
+        conn = self._connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                self._q(
+                    "UPDATE transcription_jobs "
+                    "SET status = ?, updated_at = ?, started_at = NULL, progress = 0, "
+                    "waiting_reason = ?, lease_token = NULL, lease_expires_at = NULL, "
+                    "next_attempt_at = ? "
+                    "WHERE id = ? AND lease_token = ?"
+                ),
+                (QUEUED, now, WAITING_REASON_WARMING_UP, next_attempt_at, job_id, lease_token),
+            )
             conn.commit()
             return cur.rowcount == 1
         finally:
@@ -476,7 +530,8 @@ class SQLJobStore:
                             "UPDATE transcription_jobs "
                             "SET status = ?, attempt_count = ?, updated_at = ?, "
                             "started_at = NULL, error = ?, progress = 0, "
-                            "lease_token = NULL, lease_expires_at = NULL, next_attempt_at = ? "
+                            "lease_token = NULL, lease_expires_at = NULL, next_attempt_at = ?, "
+                            "waiting_reason = NULL "
                             "WHERE id = ? AND status = ? AND lease_expires_at < ?"
                         ),
                         (QUEUED, attempt_count, now,
@@ -491,7 +546,8 @@ class SQLJobStore:
                             "UPDATE transcription_jobs "
                             "SET status = ?, attempt_count = ?, updated_at = ?, "
                             "completed_at = ?, error = ?, lease_token = NULL, "
-                            "lease_expires_at = NULL, next_attempt_at = NULL "
+                            "lease_expires_at = NULL, next_attempt_at = NULL, "
+                            "waiting_reason = NULL "
                             "WHERE id = ? AND status = ? AND lease_expires_at < ?"
                         ),
                         (FAILED, attempt_count, now, now,
