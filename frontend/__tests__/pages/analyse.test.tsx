@@ -197,6 +197,34 @@ describe("Analyse page: transcription + clip analysis", () => {
     );
   });
 
+  it("shows a calm startup message, not an error, while the job waits out the warm-up window", async () => {
+    const pending = deferred<typeof BASE_RESULT>();
+    mockedPollJob.mockImplementation((jobId: string, options: { onStatusChange?: Function }) => {
+      options.onStatusChange?.(
+        {
+          job_id: jobId,
+          status: "queued",
+          progress: 0,
+          result: null,
+          error: null,
+          waiting_reason: "warming_up",
+        },
+        1000,
+      );
+      return pending.promise;
+    });
+
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+    await upload(user, makeFile("my-riff.wav"));
+
+    await waitFor(() => expect(screen.getByText(/starting up/i)).toBeInTheDocument());
+    expect(screen.getByText(/2 to 4 minutes/i)).toBeInTheDocument();
+    // Not an error -- the calm text only, no red ErrorToast (which would
+    // show this exact sanitized message for a real terminal failure).
+    expect(screen.queryByText(/transcription failed/i)).not.toBeInTheDocument();
+  });
+
   it("shows the transcription error when the job fails, and no analysis card", async () => {
     mockedPollJob.mockRejectedValue(new Error("Could not decode audio"));
 

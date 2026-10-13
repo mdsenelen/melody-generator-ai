@@ -203,6 +203,38 @@ describe("pollTranscribeJob", () => {
     await expectation;
   });
 
+  it("keeps polling through a warming_up wait without timing out, until the job completes", async () => {
+    // The backend can bounce a job queued for up to WARMUP_MAX_SECONDS
+    // (240s, backend/app/inference.py) without ever marking it failed --
+    // the client-side poll must survive that whole window, well short of
+    // POLL_MAX_TOTAL_MS (900s, see the timeout test below).
+    mockFetch()
+      .mockResolvedValueOnce(
+        jsonResponse(200, statusResponse({ status: "queued", waiting_reason: "warming_up" })),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, statusResponse({ status: "queued", waiting_reason: "warming_up" })),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, statusResponse({ status: "completed", result: COMPLETED_RESULT })),
+      );
+
+    const onStatusChange = jest.fn();
+    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false, onStatusChange });
+
+    for (let i = 0; i < 3; i += 1) {
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(5000);
+    }
+
+    const result = await promise;
+    expect(result.n_notes).toBe(4);
+    expect(onStatusChange).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "queued", waiting_reason: "warming_up" }),
+      expect.any(Number),
+    );
+  });
+
   it("throws TranscribeJobTimeoutError once the total poll budget is exceeded", async () => {
     mockFetch().mockResolvedValue(jsonResponse(200, statusResponse({ status: "processing" })));
 

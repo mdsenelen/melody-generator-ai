@@ -30,12 +30,18 @@ export type TranscribeJobStatus = "queued" | "processing" | "completed" | "faile
 // getTranscribeJob below) also serves generate-variants and
 // generate-progression results now (see jobs/service.create_completed_job,
 // GP3) -- the store doesn't discriminate by job kind, only by id.
+// Allowlisted on the backend (see jobs/models.py's _ALLOWED_WAITING_REASONS)
+// -- the only value this is ever actually set to is "warming_up", while a
+// job sits 'queued' because the boot warm-up marker is still fresh.
+// Optional (not just nullable) since generate-variants/progression jobs
+// (see the comment above) predate this field.
 export type JobStatusResponse<TResult> = {
   job_id: string;
   status: TranscribeJobStatus;
   progress: number;
   result: TResult | null;
   error: string | null;
+  waiting_reason?: "warming_up" | null;
 };
 
 export type TranscribeJobStatusResponse = JobStatusResponse<TranscriptionResult>;

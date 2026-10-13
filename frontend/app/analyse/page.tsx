@@ -218,6 +218,18 @@ export default function AnalysePage() {
           if (requestId !== transcribeReqRef.current || !mountedRef.current) {
             return;
           }
+          // The worker bounces a job queued for up to WARMUP_MAX_SECONDS
+          // without ever marking it failed (see backend/app/jobs/worker.py)
+          // -- a calm, specific status, not the generic "still queued"
+          // wording, and never the red ErrorToast (that's reserved for a
+          // real terminal failure, in the catch block below).
+          if (status.status === "queued" && status.waiting_reason === "warming_up") {
+            setStatusMessage(
+              "The server is starting up. Your clip will be transcribed automatically, " +
+                "this can take about 2 to 4 minutes.",
+            );
+            return;
+          }
           const stillWaking = elapsedMs > 8000;
           if (status.status === "queued") {
             setStatusMessage(
