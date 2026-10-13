@@ -2,6 +2,7 @@ import {
   createTranscribeJob,
   getTranscribeJob,
   pollTranscribeJob,
+  TranscribeJobLostError,
   TranscribeJobSupersededError,
   TranscribeJobTimeoutError,
   type TranscribeJobStatusResponse,
@@ -13,6 +14,17 @@ function jsonResponse(status: number, body: unknown) {
     status,
     headers: { get: (name: string) => (name === "content-type" ? "application/json" : "") },
     text: async () => JSON.stringify(body),
+  } as Response;
+}
+
+// A bare HTTP error with no JSON body -- matches Render's own raw platform
+// 502 (nothing listening yet) more closely than a crafted JSON error would.
+function bareErrorResponse(status: number) {
+  return {
+    ok: false,
+    status,
+    headers: { get: () => "" },
+    text: async () => "",
   } as Response;
 }
 
@@ -191,16 +203,56 @@ describe("pollTranscribeJob", () => {
     expect(result.n_notes).toBe(4);
   });
 
-  it("gives up after too many consecutive poll failures", async () => {
-    mockFetch().mockRejectedValue(new Error("network down"));
+  it("gives up after too many consecutive poll failures that aren't the restart signature", async () => {
+    // 500 isn't 502/503/a network error -- it's our own catch-all handler
+    // reporting a genuine unexpected failure, not a Render restart, so this
+    // must still hit the fast consecutive-failure cutoff rather than retry
+    // for the full POLL_MAX_TOTAL_MS budget.
+    mockFetch().mockResolvedValue(bareErrorResponse(500));
 
     const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
-    const expectation = expect(promise).rejects.toThrow("network down");
+    const expectation = expect(promise).rejects.toThrow("Request failed (500)");
     for (let i = 0; i < 5; i += 1) {
       await Promise.resolve();
       await jest.advanceTimersByTimeAsync(5000);
     }
     await expectation;
+  });
+
+  it("treats 502s, 503s, and network errors as a restart and keeps polling without exhausting the retry budget", async () => {
+    mockFetch()
+      .mockResolvedValueOnce(bareErrorResponse(502))
+      .mockResolvedValueOnce(bareErrorResponse(503))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(bareErrorResponse(502))
+      .mockResolvedValueOnce(
+        jsonResponse(200, statusResponse({ status: "completed", result: COMPLETED_RESULT })),
+      );
+
+    const onRestarting = jest.fn();
+    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false, onRestarting });
+
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(5000);
+    }
+
+    const result = await promise;
+    expect(result.n_notes).toBe(4);
+    // All four transient failures hit onRestarting -- none of them counted
+    // toward POLL_MAX_CONSECUTIVE_FAILURES (3), which this sequence would
+    // otherwise have tripped.
+    expect(onRestarting).toHaveBeenCalledTimes(4);
+  });
+
+  it("fails fast with TranscribeJobLostError on a 404, without retrying", async () => {
+    const fetchMock = mockFetch().mockResolvedValueOnce(bareErrorResponse(404));
+
+    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    await Promise.resolve();
+
+    await expect(promise).rejects.toBeInstanceOf(TranscribeJobLostError);
+    expect(fetchMock.mock.calls.length).toBe(1);
   });
 
   it("keeps polling through a warming_up wait without timing out, until the job completes", async () => {

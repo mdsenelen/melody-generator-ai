@@ -1,5 +1,5 @@
 import { getPublicBackendApiUrl } from "./backendUrl";
-import { requestJson } from "./request";
+import { requestJson, type RequestError } from "./request";
 
 export type NoteEvent = {
   start: number;
@@ -109,6 +109,20 @@ export class TranscribeJobTimeoutError extends Error {
   }
 }
 
+// Thrown when the job can no longer be found (404) -- on this project's
+// free-tier instance, a restart can happen mid-job (see CLAUDE.md's
+// "poisoned floor"). Production job state lives in Postgres, so a restart
+// alone shouldn't 404 an existing job id; this is for the genuine edge case
+// (e.g. a truly expired/evicted row) where it does. Deliberately a distinct
+// error from a generic failure so the caller can show a calm "upload again"
+// message instead of a red error toast.
+export class TranscribeJobLostError extends Error {
+  constructor() {
+    super("The server restarted and lost your clip. Please upload it again.");
+    this.name = "TranscribeJobLostError";
+  }
+}
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
@@ -123,6 +137,14 @@ export async function pollTranscribeJob(
   options: {
     isSuperseded: () => boolean;
     onStatusChange?: (status: TranscribeJobStatusResponse, elapsedMs: number) => void;
+    // Called instead of onStatusChange when a poll hits a 502/503 or a
+    // network error -- the signature of a free-tier restart (raw platform
+    // 502 while nothing's listening yet, our own 503 while warming back up,
+    // or a dropped connection mid-restart). Doesn't count toward the
+    // consecutive-failure cutoff below: the job survives in Postgres across
+    // a restart, so the right move is to keep polling within the normal
+    // POLL_MAX_TOTAL_MS budget, not give up after a handful of attempts.
+    onRestarting?: (elapsedMs: number) => void;
   },
 ): Promise<TranscriptionResult> {
   const startedAt = Date.now();
@@ -143,9 +165,22 @@ export async function pollTranscribeJob(
       status = await getTranscribeJob(jobId);
       consecutiveFailures = 0;
     } catch (pollError) {
-      consecutiveFailures += 1;
-      if (consecutiveFailures >= POLL_MAX_CONSECUTIVE_FAILURES) {
-        throw pollError;
+      const httpStatus = (pollError as RequestError).status;
+      if (httpStatus === 404) {
+        // The job row itself is gone -- not worth retrying indefinitely,
+        // unlike a transient restart below.
+        throw new TranscribeJobLostError();
+      }
+      // undefined (network/CORS failure -- see request.ts) or 502/503 is
+      // the restart signature, not a real failure of the job itself.
+      const isRestarting = httpStatus === undefined || httpStatus === 502 || httpStatus === 503;
+      if (isRestarting) {
+        options.onRestarting?.(Date.now() - startedAt);
+      } else {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= POLL_MAX_CONSECUTIVE_FAILURES) {
+          throw pollError;
+        }
       }
       await sleep(delay);
       delay = Math.min(delay * POLL_BACKOFF_FACTOR, POLL_MAX_DELAY_MS);

@@ -21,6 +21,7 @@ import { useSessionStore } from "../lib/session-store";
 import {
   createTranscribeJob,
   pollTranscribeJob,
+  TranscribeJobLostError,
   TranscribeJobSupersededError,
   type TranscriptionResult,
 } from "../lib/transcribeJob";
@@ -245,6 +246,18 @@ export default function AnalysePage() {
             );
           }
         },
+        onRestarting: () => {
+          if (requestId !== transcribeReqRef.current || !mountedRef.current) {
+            return;
+          }
+          // Not the red ErrorToast -- the job survives the restart in
+          // Postgres, so this is still a normal in-progress state, just a
+          // calmer explanation than a generic "still transcribing" while
+          // we keep polling underneath.
+          setStatusMessage(
+            "The server restarted and is coming back up. Your clip is safe -- we'll keep checking automatically.",
+          );
+        },
       });
 
       if (requestId !== transcribeReqRef.current || !mountedRef.current) {
@@ -282,10 +295,17 @@ export default function AnalysePage() {
       }
       console.error("[analysis] failed", { file: file.name, error: transcribeError });
       if (requestId === transcribeReqRef.current && mountedRef.current) {
-        setErrorMessage(
-          transcribeError instanceof Error ? transcribeError.message : "Transcription failed",
-        );
-        setStatusMessage("We couldn't transcribe that audio clip.");
+        if (transcribeError instanceof TranscribeJobLostError) {
+          // Calm status text, not the red ErrorToast -- a restart losing
+          // the job is a known, explainable server event, not a failure
+          // on the user's end.
+          setStatusMessage(transcribeError.message);
+        } else {
+          setErrorMessage(
+            transcribeError instanceof Error ? transcribeError.message : "Transcription failed",
+          );
+          setStatusMessage("We couldn't transcribe that audio clip.");
+        }
       }
     } finally {
       if (requestId === transcribeReqRef.current && mountedRef.current) {
