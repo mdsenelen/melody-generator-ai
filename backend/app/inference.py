@@ -511,6 +511,23 @@ def _release_memory_to_os() -> None:
         pass
 
 
+def _log_memory_rss(label: str, **extra: Any) -> None:
+    """Best-effort RSS snapshot for diagnosing the 512MiB tier's memory
+    ceiling (see CLAUDE.md's "poisoned floor" section) -- never raises into
+    a caller, and is a silent no-op if psutil isn't installed."""
+    try:
+        import psutil
+
+        rss_mb = psutil.Process().memory_info().rss / (1024 * 1024)
+        if extra:
+            detail = " ".join(f"{k}={v}" for k, v in extra.items())
+            logger.info("RSS %s: %.1f MB (%s)", label, rss_mb, detail)
+        else:
+            logger.info("RSS %s: %.1f MB", label, rss_mb)
+    except Exception:
+        pass
+
+
 def _load_audio_cfg() -> dict[str, Any]:
     global _AUDIO_CFG
     if _AUDIO_CFG is None:
@@ -603,10 +620,12 @@ async def _run_generation(func, *args, **kwargs) -> Any:
                 ),
                 headers={"Retry-After": "30", "X-Error-Code": BUSY_ERROR_CODE},
             )
+        _log_memory_rss("before generate", func=label)
         try:
             return func(*args, **kwargs)
         finally:
             _release_memory_to_os()
+            _log_memory_rss("after generate + release_memory_to_os", func=label)
             _release_heavy_work_lock(label)
 
     try:
@@ -1163,10 +1182,12 @@ async def warm_up_basic_pitch() -> None:
     _mark_warming_started()
     start = time.monotonic()
     logger.info("Basic Pitch warm-up starting")
+    _log_memory_rss("boot (before warm-up)")
     try:
         await run_in_threadpool(_warm_up_basic_pitch_sync)
         elapsed = time.monotonic() - start
         logger.info("Basic Pitch model warm-up complete (%.2fs)", elapsed)
+        _log_memory_rss("after warm-up")
         if elapsed > WARMUP_MAX_SECONDS:
             # Caught here, not just left to the "ignore stale marker" log
             # line elsewhere: that one only fires if a request actually
@@ -2569,6 +2590,7 @@ def run_basic_pitch(
     # the worker re-queues the job (retryable) instead of blocking forever.
     if not _acquire_heavy_work_lock_blocking("transcribe_worker", WORKER_HEAVY_WORK_WAIT_SEC):
         raise RuntimeError("work lock still held after waiting; another heavy task is running")
+    _log_memory_rss("before transcribe", input_bytes=len(file_bytes))
     try:
         # Full-audio chunked transcription -- the only path now (the flag and
         # the old truncating single-pass branch were removed in plan step 4).
@@ -2596,9 +2618,11 @@ def run_basic_pitch(
         }
         if "n_chunks" in transcription:
             result["n_chunks"] = int(transcription["n_chunks"])
+        _log_memory_rss("after transcribe", duration_sec=result["duration_sec"])
         return result
     finally:
         _release_memory_to_os()
+        _log_memory_rss("after transcribe + release_memory_to_os")
         _release_heavy_work_lock("transcribe_worker")
 
 

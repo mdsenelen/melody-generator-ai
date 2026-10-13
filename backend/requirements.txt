@@ -27,3 +27,7 @@ pretty_midi
 psycopg[binary]
 redis
 boto3
+
+# RSS diagnostics on the 512MiB tier (see inference._log_memory_rss) --
+# pure-C, <1MB resident, no transitive deps.
+psutil
