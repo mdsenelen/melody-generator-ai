@@ -6,6 +6,17 @@ FROM python:3.10-slim
 # than just delayed.
 ENV PYTHONUNBUFFERED=1
 
+# glibc's malloc keeps one arena per thread by default -- with Basic
+# Pitch/torch's internal thread pools that fragments the heap across
+# arenas, each with its own retained-but-unused pages _release_memory_to_os's
+# malloc_trim can't reach (it only trims the main arena). Capping arenas
+# caps that fragmentation on the 512MiB tier. OMP_NUM_THREADS=1 similarly
+# caps OpenMP (used by numpy/scipy under the hood) from spawning one thread
+# per core -- irrelevant to correctness on the free tier's 0.1 CPU, but
+# each extra thread has its own stack + thread-local allocator state.
+ENV MALLOC_ARENA_MAX=2
+ENV OMP_NUM_THREADS=1
+
 WORKDIR /app
 COPY . /app/
 
