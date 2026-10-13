@@ -30,6 +30,14 @@ DEFAULT_POLL_TIMEOUT_SECONDS = 5.0
 # a slow chunk never looks like a dead worker, while a genuinely dead worker
 # is reclaimed within ~one chunk-time instead of the full DEFAULT_LEASE_SECONDS.
 HEARTBEAT_LEASE_SECONDS = 180.0
+# How long a job waits before being re-tried after inference.WarmingUpError
+# (the boot warm-up marker was still fresh). Deliberately short and fixed,
+# not exponential backoff like a real failure's -- this isn't a failure, so
+# there's no reason to back off, only to give the warm-up a little more
+# time before trying again. Termination is bounded by WARMUP_MAX_SECONDS
+# itself (inference.py), not by anything here or by attempt_count, which
+# this path never increments.
+WARMUP_REQUEUE_DELAY_SECONDS = 10.0
 
 
 def process_one_job(
@@ -98,6 +106,25 @@ def process_one_job(
         _mark_failed_and_maybe_requeue(
             store, queue, job.id, str(exc.detail), retry=retryable, lease_token=lease_token
         )
+    except inference.WarmingUpError:
+        # Not a failure -- the boot warm-up marker was still fresh when
+        # this attempt tried to run. Put the job back in 'queued' with a
+        # short fixed delay, WITHOUT counting it as a failed attempt (see
+        # store.requeue_after_warmup's own docstring for why that's a
+        # separate method from mark_failed). Termination is bounded by
+        # WARMUP_MAX_SECONDS itself, not by anything here.
+        logger.info(
+            "Job %s requeued: boot warm-up still in progress (retrying in %.0fs, "
+            "attempt not counted)",
+            job.id, WARMUP_REQUEUE_DELAY_SECONDS,
+        )
+        if not store.requeue_after_warmup(
+            job.id, lease_token=lease_token, delay_seconds=WARMUP_REQUEUE_DELAY_SECONDS
+        ):
+            logger.warning(
+                "Job %s warm-up requeue write discarded; lease %s no longer current",
+                job.id, lease_token,
+            )
     except Exception:
         # Unexpected/transient failure: retry up to the job's max_attempts,
         # and never leak internals (stack trace, exception text) to the
