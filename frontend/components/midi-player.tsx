@@ -82,6 +82,18 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
           {formatTime(positionSec)} / {formatTime(durationSec)}
         </p>
       </div>
+      <p className="text-muted-foreground w-full basis-full text-[10px]">
+        Piano samples: Salamander Grand Piano by Alexander Holm, licensed{" "}
+        <a
+          href="https://creativecommons.org/licenses/by/3.0/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:no-underline"
+        >
+          CC BY 3.0
+        </a>
+        .
+      </p>
     </div>
   );
 }

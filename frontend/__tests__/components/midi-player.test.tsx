@@ -70,3 +70,18 @@ it("renders a progress bar that does not animate under reduced motion", () => {
   // the moving fill opts out of transitions when the user asked for less motion
   expect(bar.querySelector(".motion-reduce\\:transition-none")).not.toBeNull();
 });
+
+it("credits the Salamander Grand Piano samples with a CC BY 3.0 link, since playback uses them", () => {
+  renderWith({ status: "idle", durationSec: 4 });
+
+  const link = screen.getByRole("link", { name: /CC BY 3\.0/i });
+  expect(link).toHaveAttribute("href", "https://creativecommons.org/licenses/by/3.0/");
+  expect(screen.getByText(/Salamander Grand Piano/i)).toBeInTheDocument();
+  expect(screen.getByText(/Alexander Holm/i)).toBeInTheDocument();
+});
+
+it("does not show the sample credit when there is nothing to play", () => {
+  renderWith({ status: "empty" });
+
+  expect(screen.queryByText(/Salamander Grand Piano/i)).not.toBeInTheDocument();
+});
