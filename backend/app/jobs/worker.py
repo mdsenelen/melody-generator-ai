@@ -13,23 +13,35 @@ from .store import JobStore
 logger = logging.getLogger(__name__)
 
 # How long a claimed job's lease is valid before the worker loop assumes
-# its worker died and reclaims it. No longer bounded by
-# GENERATION_TIMEOUT_SECONDS -- transcription jobs aren't a synchronous HTTP
-# request anymore, so what this actually needs margin above is
-# inference.MAX_ANALYSIS_DURATION_SEC (240s as of this default): at
-# "roughly realtime speed" Basic Pitch inference on a 240s clip plus decode/
-# resample/chord-and-key analysis overhead could itself approach 240s, so
-# the lease needs real headroom above that, not just above the old 60s
-# request timeout. 900s (15 minutes) keeps a legitimately-slow job from
-# ever being reclaimed as if its worker had died.
-DEFAULT_LEASE_SECONDS = 900.0
+# its worker died and reclaims it. This is now a short "is the worker
+# process still alive" window, not a budget sized to cover a whole job's
+# compute time end to end: the background heartbeat thread started in
+# process_one_job below renews it on a fixed clock for as long as the main
+# thread is actually alive, so a legitimately slow job is never mistaken
+# for a dead one no matter how long processing takes (see
+# HEARTBEAT_INTERVAL_SECONDS).
+#
+# What this value actually bounds is the worst case for detecting a
+# genuinely dead worker (e.g. an OOM kill) that dies the instant after
+# claiming a job, before its heartbeat thread gets a chance to run even
+# once. 120s (plus ~DEFAULT_POLL_TIMEOUT_SECONDS for the next idle tick to
+# notice) keeps that worst case around two minutes. It used to be 900s,
+# because the lease was only ever renewed from inside the main processing
+# thread, at transcription-chunk boundaries (inference.py's on_progress
+# callback, called only *after* each ~30s chunk finishes) -- a worker that
+# died before reaching the end of its first chunk (including a long wait
+# on HEAVY_WORK_LOCK, WORKER_HEAVY_WORK_WAIT_SEC=180s, before any chunk
+# work even starts) got no renewal at all and sat on the full 900s.
+DEFAULT_LEASE_SECONDS = 120.0
 DEFAULT_STUCK_CREATING_AFTER_SECONDS = 30.0
 DEFAULT_POLL_TIMEOUT_SECONDS = 5.0
-# Lease window renewed on each heartbeat (per transcription chunk). Generous
-# margin over one chunk's compute (~30s of audio at ~realtime + overhead) so
-# a slow chunk never looks like a dead worker, while a genuinely dead worker
-# is reclaimed within ~one chunk-time instead of the full DEFAULT_LEASE_SECONDS.
-HEARTBEAT_LEASE_SECONDS = 180.0
+# How often the background heartbeat thread (started in process_one_job)
+# renews the lease while a job is being processed. ~3x margin under
+# DEFAULT_LEASE_SECONDS (120s / 40s) so a renewal delayed by GIL scheduling
+# jitter or a slow DB round-trip still lands well before the lease would
+# actually expire -- renews 3 times within one lease window even if two
+# consecutive renewals are missed.
+HEARTBEAT_INTERVAL_SECONDS = 40.0
 # How long a job waits before being re-tried after inference.WarmingUpError
 # (the boot warm-up marker was still fresh). Deliberately short and fixed,
 # not exponential backoff like a real failure's -- this isn't a failure, so
@@ -46,6 +58,7 @@ def process_one_job(
     storage: ObjectStorage,
     queue: JobQueue,
     lease_seconds: float = DEFAULT_LEASE_SECONDS,
+    heartbeat_interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
 ) -> None:
     """Claim and run a single job. A claim miss (already claimed/handled by
     another worker, or no longer queued) is not an error -- just a no-op."""
@@ -63,23 +76,46 @@ def process_one_job(
 
     logger.info("Processing transcription job %s (%s)", job.id, job.source_filename)
 
-    def _heartbeat(progress: int) -> bool:
-        """Called per transcription chunk. Returns False if the lease was
-        reclaimed -- inference logs it and carries on; the mark_completed
-        lease check below is the real guard against a double-run overwrite."""
-        ok = store.heartbeat(
-            job.id,
-            lease_token=lease_token,
-            progress=max(0, min(99, int(progress))),
-            lease_seconds=HEARTBEAT_LEASE_SECONDS,
-        )
-        if not ok:
-            logger.warning("Job %s heartbeat rejected -- lease %s no longer current", job.id, lease_token)
-        return ok
+    # Progress is recorded here, from the main thread, at each
+    # transcription-chunk boundary (inference.py's on_progress callback);
+    # the heartbeat thread below reads it on its own clock, independent of
+    # chunk timing -- a plain dict behind a lock since the two threads
+    # touch it on different schedules.
+    progress_state = {"value": 0}
+    progress_lock = threading.Lock()
+
+    def _record_progress(progress: int) -> bool:
+        with progress_lock:
+            progress_state["value"] = max(0, min(99, int(progress)))
+        return True
+
+    stop_heartbeat = threading.Event()
+
+    def _heartbeat_loop() -> None:
+        # wait() returns True only when stop_heartbeat is set, so this
+        # renews on a fixed interval and exits promptly once the main
+        # thread is done, without an extra tick after the last real one.
+        while not stop_heartbeat.wait(timeout=heartbeat_interval_seconds):
+            with progress_lock:
+                current_progress = progress_state["value"]
+            ok = store.heartbeat(
+                job.id,
+                lease_token=lease_token,
+                progress=current_progress,
+                lease_seconds=lease_seconds,
+            )
+            if not ok:
+                logger.warning(
+                    "Job %s heartbeat rejected -- lease %s no longer current", job.id, lease_token,
+                )
+                return
+
+    heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
 
     try:
         raw = storage.read_bytes(job.storage_key)
-        result = inference.run_basic_pitch(raw, job.source_filename, on_progress=_heartbeat)
+        result = inference.run_basic_pitch(raw, job.source_filename, on_progress=_record_progress)
         _upload_generated_files(result, storage)
         if not store.mark_completed(job.id, result, lease_token=lease_token):
             # Our lease was reclaimed (this attempt ran too long, another
@@ -134,6 +170,12 @@ def process_one_job(
             store, queue, job.id, "Transcription failed unexpectedly",
             retry=True, lease_token=lease_token,
         )
+    finally:
+        # Event.set() wakes the thread immediately (wait() doesn't block
+        # out its remaining timeout), so this join is just a safety bound,
+        # not a real wait in practice.
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=5.0)
 
 
 def _mark_failed_and_maybe_requeue(
@@ -189,6 +231,7 @@ def run_worker_loop(
     stop_event: threading.Event,
     poll_timeout: float = DEFAULT_POLL_TIMEOUT_SECONDS,
     lease_seconds: float = DEFAULT_LEASE_SECONDS,
+    heartbeat_interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
     stuck_creating_after_seconds: float = DEFAULT_STUCK_CREATING_AFTER_SECONDS,
 ) -> None:
     """Runs until stop_event is set. Safe to run as a daemon thread (dev, or
@@ -219,7 +262,11 @@ def run_worker_loop(
             job_id = None
         if job_id:
             try:
-                process_one_job(job_id, store, storage, queue, lease_seconds=lease_seconds)
+                process_one_job(
+                    job_id, store, storage, queue,
+                    lease_seconds=lease_seconds,
+                    heartbeat_interval_seconds=heartbeat_interval_seconds,
+                )
             except Exception:
                 # process_one_job already catches pipeline errors into
                 # mark_failed; this is a last-resort guard so one broken

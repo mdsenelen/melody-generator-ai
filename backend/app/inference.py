@@ -172,9 +172,11 @@ GENERATION_TIMEOUT_SECONDS = float(os.environ.get("GENERATION_TIMEOUT_SECONDS", 
 # proportional -- so this mainly bounds the worst case (a long real upload)
 # rather than the everyday one, but every MB of margin matters at this
 # ceiling, and a portfolio demo clip has no real reason to need more than a
-# minute. See jobs/worker.py's DEFAULT_LEASE_SECONDS, which is sized with
-# margin above this value so a legitimately slow job is never mistaken for
-# a dead one.
+# minute. The async chunked worker path (jobs/worker.py) isn't bounded by
+# this value at all -- it has its own, continuously-renewed lease
+# (DEFAULT_LEASE_SECONDS + a background heartbeat thread) that no longer
+# needs margin above any single duration constant to avoid mistaking a
+# legitimately slow job for a dead one.
 MAX_ANALYSIS_DURATION_SEC = float(os.environ.get("MAX_ANALYSIS_DURATION_SEC", "60"))
 # Hard ceiling on the uploaded audio the chunked transcription path will
 # process. Full /api/upload-time enforcement lands in step 2 of

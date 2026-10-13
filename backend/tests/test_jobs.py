@@ -19,6 +19,7 @@ from app.jobs import service  # noqa: E402
 from app.jobs.models import COMPLETED, CREATING, FAILED, PROCESSING, QUEUED  # noqa: E402
 from app.jobs.queue import InProcessJobQueue  # noqa: E402
 from app.jobs.storage import LocalFilesystemStorage, ObjectStorage  # noqa: E402
+from app.jobs import store as store_module  # noqa: E402
 from app.jobs.store import create_sqlite_job_store  # noqa: E402
 from app.jobs.worker import process_one_job, run_worker_loop  # noqa: E402
 
@@ -867,6 +868,189 @@ def test_run_worker_loop_reclaims_stale_job_and_old_attempt_cannot_overwrite(
     assert ok is False
     assert store.get_job(job.id).result == winning_result
     assert store.get_job(job.id).result["n_notes"] != 999
+
+
+def test_default_claim_lease_is_short_enough_for_quick_dead_worker_detection():
+    """Pins the actual default, rather than only exercising the generic
+    reclaim mechanism with an arbitrary small value (see the two tests
+    below): the real bug this whole group of tests is about was the
+    *default* being 900s. A dead worker that dies before its heartbeat
+    thread gets even one chance to run leaves a job stale for up to
+    worker.DEFAULT_LEASE_SECONDS -- that needs to be a couple of minutes,
+    not fifteen. A direct, instant assertion on the constant is the only
+    way to pin this without a test that sleeps out the real default."""
+    from app.jobs import worker
+
+    assert worker.DEFAULT_LEASE_SECONDS <= 150.0, (
+        "worst-case dead-worker detection time regressed back toward the old 900s"
+    )
+
+
+def test_run_worker_loop_re_enqueues_a_queued_job_with_no_queue_message_on_startup(
+    store, storage, queue, monkeypatch
+):
+    """Covers run_worker_loop's own startup bootstrap (the
+    `for job_id in store.get_queued_job_ids(): queue.enqueue(job_id)` loop
+    at its top) -- previously only get_queued_job_ids() itself was tested
+    in isolation, never wired through a real run_worker_loop. Simulates a
+    job sitting 'queued' in the durable store with no corresponding queue
+    message (e.g. a lost RedisJobQueue message, or simply a job created
+    before any worker was ever running): queue.enqueue() is deliberately
+    never called here."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+
+    monkeypatch.setattr(
+        inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result()
+    )
+
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=run_worker_loop,
+        kwargs=dict(
+            store=store, queue=queue, storage=storage, stop_event=stop_event,
+            poll_timeout=0.2,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    try:
+        completed = _run_loop_until(
+            stop_event, lambda: (store.get_job(job.id).status == COMPLETED), timeout=10.0
+        )
+        assert completed, "job was never picked up -- startup bootstrap didn't re-enqueue it"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+def test_run_worker_loop_reclaims_a_dead_worker_within_the_short_lease_and_completes(
+    store, storage, queue, monkeypatch
+):
+    """A worker claims a job and dies immediately -- before its heartbeat
+    thread gets a single chance to run (the real OOM case the short lease
+    exists for). Uses a tiny, explicitly-passed lease_seconds (scaled down
+    from the real default for test speed) and real wall-clock expiry
+    (not an artificial lease_seconds=-1.0) to prove the actual timed
+    reclaim path works, then confirms a fresh run_worker_loop both
+    reclaims it and runs it to completion."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+    # Simulates the dead worker: claim with a very short lease and never
+    # heartbeat or complete it -- exactly what a worker that's OOM-killed
+    # the instant after claiming would leave behind.
+    dead_claim = store.claim_job(job.id, lease_seconds=0.2)
+    assert dead_claim is not None
+    time.sleep(0.3)  # let that short lease actually expire in real time
+
+    monkeypatch.setattr(
+        inference, "run_basic_pitch", lambda raw, name, on_progress=None: _fake_transcription_result()
+    )
+
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=run_worker_loop,
+        kwargs=dict(
+            store=store, queue=queue, storage=storage, stop_event=stop_event,
+            poll_timeout=0.1,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    try:
+        completed = _run_loop_until(
+            stop_event, lambda: (store.get_job(job.id).status == COMPLETED), timeout=10.0
+        )
+        assert completed, f"job never completed; last state: {store.get_job(job.id)}"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+def test_process_one_job_heartbeat_thread_keeps_a_slow_job_from_being_reclaimed(
+    store, storage, queue, monkeypatch
+):
+    """The flip side of the short lease: a legitimately slow job (one
+    single chunk taking longer than the lease) must not be reclaimed out
+    from under its own still-alive worker. Uses a lease shorter than the
+    fake pipeline's own sleep, and a heartbeat interval short enough to
+    renew several times during that sleep, to prove the background
+    heartbeat thread -- not chunk completion -- is what's keeping the
+    lease current."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+
+    def slow_run_basic_pitch(raw, name, on_progress=None):
+        # No on_progress call at all during this sleep -- if the lease
+        # were still only renewed at chunk boundaries, it would expire
+        # and this job would be reclaimable mid-run.
+        time.sleep(0.5)
+        return _fake_transcription_result()
+
+    monkeypatch.setattr(inference, "run_basic_pitch", slow_run_basic_pitch)
+
+    process_one_job(
+        job.id, store, storage, queue,
+        lease_seconds=0.15,
+        heartbeat_interval_seconds=0.05,
+    )
+
+    refreshed = store.get_job(job.id)
+    assert refreshed.status == COMPLETED
+    # If it had been wrongly reclaimed mid-run, reclaim_stale_processing_jobs
+    # would have requeued/attempt-bumped it instead of leaving attempt_count
+    # at the single real attempt this test made.
+    assert refreshed.attempt_count == 0
+
+
+def test_run_worker_loop_fails_job_terminally_after_exhausting_max_attempts(
+    store, storage, queue, monkeypatch
+):
+    """End-to-end companion to the store-level max-attempts tests: a job
+    that keeps failing for a real, repeatable reason (not a dead worker)
+    must stop retrying once max_attempts is exhausted and land in a
+    terminal FAILED state through a real run_worker_loop, not loop
+    forever. Retry backoff is collapsed to near-zero so the test doesn't
+    wait out the real exponential schedule."""
+    monkeypatch.setattr(store_module, "_retry_backoff_seconds", lambda attempt_count: 0.05)
+
+    job = _create_queued_job(
+        store, source_filename="clip.wav", storage_key="jobs/1/input.wav", max_attempts=2
+    )
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+    queue.enqueue(job.id)
+
+    attempts = []
+
+    def always_fails(raw, name, on_progress=None):
+        attempts.append(1)
+        raise RuntimeError("persistent pipeline bug")
+
+    monkeypatch.setattr(inference, "run_basic_pitch", always_fails)
+
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=run_worker_loop,
+        kwargs=dict(
+            store=store, queue=queue, storage=storage, stop_event=stop_event,
+            poll_timeout=0.05,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    try:
+        failed = _run_loop_until(
+            stop_event, lambda: (store.get_job(job.id).status == FAILED), timeout=10.0
+        )
+        assert failed, f"job never reached FAILED; last state: {store.get_job(job.id)}"
+        assert len(attempts) == 2  # exactly max_attempts, never more
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+    refreshed = store.get_job(job.id)
+    assert refreshed.attempt_count == 2
+    assert refreshed.error == "Transcription failed unexpectedly"
 
 
 # --- service.create_transcription_job ------------------------------------
