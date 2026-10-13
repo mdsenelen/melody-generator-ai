@@ -456,10 +456,21 @@ def _reject_if_warming_up() -> None:
     )
 
 
+class WarmingUpError(Exception):
+    """Raised by run_basic_pitch instead of a generic RuntimeError when the
+    boot warm-up marker is still fresh. Lets jobs/worker.py tell this apart
+    from a real pipeline failure and requeue it (via
+    store.requeue_after_warmup) without burning one of the job's
+    max_attempts -- without a dedicated type, the worker's generic
+    `except Exception` would eventually exhaust those attempts and
+    surface a sanitized "Transcription failed unexpectedly" to the user
+    for a condition that was never actually a failure."""
+
+
 def _warming_up_still_blocking() -> bool:
     """Same check as _reject_if_warming_up, for the non-HTTP worker path
-    (run_basic_pitch) -- the caller raises a retryable RuntimeError instead
-    of an HTTPException on True."""
+    (run_basic_pitch) -- the caller raises the dedicated WarmingUpError
+    instead of an HTTPException on True."""
     elapsed = _warming_elapsed_seconds()
     if elapsed is None:
         return False
@@ -2549,7 +2560,7 @@ def run_basic_pitch(
     # waiting) lets the job be re-queued immediately instead of tying up
     # the single worker thread for WORKER_HEAVY_WORK_WAIT_SEC first.
     if _warming_up_still_blocking():
-        raise RuntimeError("boot warm-up still in progress; job will be retried")
+        raise WarmingUpError("boot warm-up still in progress; job will be retried")
     # Serialized against every generation route too (HEAVY_WORK_LOCK, see its
     # definition) -- this is the only entry point the async job worker calls,
     # so this is also where the worker-side lock acquisition lives. The
