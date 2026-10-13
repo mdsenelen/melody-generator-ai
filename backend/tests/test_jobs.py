@@ -448,6 +448,53 @@ def test_reclaim_stale_processing_jobs_ignores_fresh_jobs(store):
     assert store.get_job(job.id).status == PROCESSING
 
 
+def test_reclaim_stale_processing_jobs_requeues_when_attempts_remain(store):
+    # Boundary companion to the max-attempts test below: one attempt already
+    # used, but still under max_attempts, so a stale lease should still
+    # requeue rather than terminally fail.
+    job = _create_queued_job(
+        store, source_filename="clip.wav", storage_key="jobs/1/input.wav", max_attempts=3
+    )
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.mark_failed(job.id, "transient", retry=True, lease_token=claimed.lease_token)
+    assert store.get_job(job.id).attempt_count == 1
+
+    # Second attempt crashes mid-processing (expired lease) before finishing.
+    store.claim_job(job.id, lease_seconds=-1.0)
+
+    requeued = store.reclaim_stale_processing_jobs()
+
+    assert requeued == [job.id]
+    refreshed = store.get_job(job.id)
+    assert refreshed.status == QUEUED
+    assert refreshed.attempt_count == 2
+
+
+def test_reclaim_stale_processing_jobs_fails_job_terminally_once_max_attempts_reached(store):
+    # Exercises store.py's reclaim_stale_processing_jobs max-attempts branch
+    # directly (as opposed to mark_failed's own, already-covered by
+    # test_mark_failed_with_retry_requeues_with_backoff_until_max_attempts) --
+    # this is the "worker crashed on its last allowed attempt" path, which
+    # had no test before this one.
+    job = _create_queued_job(
+        store, source_filename="clip.wav", storage_key="jobs/1/input.wav", max_attempts=2
+    )
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.mark_failed(job.id, "transient", retry=True, lease_token=claimed.lease_token)
+    assert store.get_job(job.id).attempt_count == 1
+
+    # Second (last allowed) attempt crashes mid-processing.
+    store.claim_job(job.id, lease_seconds=-1.0)
+
+    requeued = store.reclaim_stale_processing_jobs()
+
+    assert requeued == []  # a terminal failure isn't reported as "requeued"
+    refreshed = store.get_job(job.id)
+    assert refreshed.status == FAILED
+    assert refreshed.attempt_count == 2
+    assert refreshed.error and "max attempts reached" in refreshed.error
+
+
 def test_get_queued_job_ids(store):
     job1 = _create_queued_job(store, source_filename="a.wav", storage_key="jobs/1/input.wav")
     job2 = _create_queued_job(store, source_filename="b.wav", storage_key="jobs/2/input.wav")
