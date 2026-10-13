@@ -59,4 +59,20 @@ describe("requestJson error metadata", () => {
 
     await expect(requestJson("/api/upload")).rejects.toThrow(/couldn't reach the server/i);
   });
+
+  it("tags a network-level TypeError with code 'network_error' so callers can distinguish it from any other status-less error", async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
+
+    let caught: RequestError | undefined;
+    try {
+      await requestJson("/api/upload");
+    } catch (error) {
+      caught = error as RequestError;
+    }
+
+    expect(caught?.code).toBe("network_error");
+    expect(caught?.status).toBeUndefined();
+  });
 });

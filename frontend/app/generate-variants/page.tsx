@@ -55,9 +55,15 @@ const GREEK = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ"];
 //   still in effect -- a different condition from "busy" even though the
 //   backend returns the same 429 status for both; x-error-code tells them
 //   apart (see app/lib/request.ts).
+// - "restarting": the request hit a 502/503 or a bare network failure --
+//   the signature of a free-tier instance restart (see the poisoned-floor
+//   note in CLAUDE.md), not a real failure of the generation itself. The
+//   job/upload that fed this request still exists (Postgres + B2), so this
+//   is "try again," not "something is broken."
 type GenerationError =
   | { kind: "busy"; message: string; retryAfterSeconds?: number }
   | { kind: "warming_up"; message: string; retryAfterSeconds?: number }
+  | { kind: "restarting"; message: string }
   | { kind: "failed"; message: string };
 
 function appendRetryHint(message: string, retryAfterSeconds: number | undefined): string {
@@ -176,10 +182,20 @@ export default function GenerateVariantsPage() {
       const message = requestError?.message ?? "Variant generation failed";
       const retryAfterSeconds = requestError?.retryAfterSeconds;
 
+      const isRestarting =
+        requestError?.code === "network_error" ||
+        requestError?.status === 502 ||
+        requestError?.status === 503;
+
       if (requestError?.code === "warming_up") {
         setError({ kind: "warming_up", message, retryAfterSeconds });
       } else if (requestError?.status === 429) {
         setError({ kind: "busy", message, retryAfterSeconds });
+      } else if (isRestarting) {
+        setError({
+          kind: "restarting",
+          message: "The server restarted. Your clip wasn't lost — try again in a moment.",
+        });
       } else {
         setError({ kind: "failed", message });
       }
@@ -330,6 +346,10 @@ export default function GenerateVariantsPage() {
                 body={appendRetryHint(error.message, error.retryAfterSeconds)}
               />
             </div>
+          ) : error.kind === "restarting" ? (
+            <div data-testid="generation-error-restarting">
+              <WarningBanner title="Server restarted" body={error.message} />
+            </div>
           ) : (
             <div
               className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100"
@@ -353,8 +373,9 @@ export default function GenerateVariantsPage() {
                 MIDI.
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
-                Running a full transcription right after generating may take a little longer while
-                the server recycles memory.
+                Heads up: running a full transcription right after generating variants can make the
+                server restart. If that happens, wait a few minutes. Your clip is picked up again
+                automatically.
               </p>
             </div>
             {mood ? <MoodBadge mood={mood} label={`Mood: ${mood}`} /> : null}

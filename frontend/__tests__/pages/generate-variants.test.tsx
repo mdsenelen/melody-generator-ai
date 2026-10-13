@@ -415,4 +415,179 @@ describe("GenerateVariantsPage", () => {
     expect(screen.queryByTestId("generation-error-busy")).not.toBeInTheDocument();
     expect(screen.getByText("Variant generation failed")).toBeInTheDocument();
   });
+
+  it("shows a calm restarting message (not the plain failure banner) on a 502", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: async () => "Bad Gateway",
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    const banner = await screen.findByTestId("generation-error-restarting");
+    expect(screen.queryByTestId("generation-error-failed")).not.toBeInTheDocument();
+    expect(within(banner).getByText("Server restarted")).toBeInTheDocument();
+    expect(
+      within(banner).getByText(
+        "The server restarted. Your clip wasn't lost — try again in a moment.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the calm restarting message on a 503", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: async () => "Service Unavailable",
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    expect(await screen.findByTestId("generation-error-restarting")).toBeInTheDocument();
+    expect(screen.queryByTestId("generation-error-failed")).not.toBeInTheDocument();
+  });
+
+  it("shows the calm restarting message on a bare network error, not the raw 'couldn't reach the server' failure banner", async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    expect(await screen.findByTestId("generation-error-restarting")).toBeInTheDocument();
+    expect(screen.queryByTestId("generation-error-failed")).not.toBeInTheDocument();
+  });
+
+  it("still shows the plain failure banner (not restarting) when the response is ok but malformed", async () => {
+    // Guards against the 502/503/network detection being too broad: this
+    // error also has no `status`/`code` (it's thrown manually in the page,
+    // not by requestJson), so it must not be swept into "restarting" just
+    // because it lacks those fields too.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          n_variants: 1,
+          temperatures: [0.7],
+          mood_idx: 0,
+          mood_label: "happy",
+          model_status: {
+            cvae: { path: "cvae", exists: true, size_mb: 1, loaded: true },
+            iddm_ppo: { path: "iddm", exists: true, size_mb: 1, loaded: true },
+            device: "cpu",
+            load_error: null,
+            fluidsynth_available: true,
+          },
+          job_id: "job-variants-malformed",
+          // variants deliberately omitted/malformed
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    expect(await screen.findByTestId("generation-error-failed")).toBeInTheDocument();
+    expect(screen.queryByTestId("generation-error-restarting")).not.toBeInTheDocument();
+  });
+
+  it("shows the passive restart heads-up note on the result card without alarm styling", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          n_variants: 1,
+          temperatures: [0.7],
+          mood_idx: 0,
+          mood_label: "happy",
+          model_status: {
+            cvae: { path: "cvae", exists: true, size_mb: 1, loaded: true },
+            iddm_ppo: { path: "iddm", exists: true, size_mb: 1, loaded: true },
+            device: "cpu",
+            load_error: null,
+            fluidsynth_available: true,
+          },
+          variants: [
+            {
+              index: 0,
+              temperature: 0.7,
+              midi_b64: "AAA=",
+              midi_filename: "variant_1.mid",
+              midi_download_path: "/api/download/variant_1.mid",
+              wav_b64: null,
+              wav_filename: "",
+              wav_download_path: "",
+            },
+          ],
+          job_id: "job-variants-note",
+        }),
+    }) as unknown as typeof fetch;
+
+    useSessionStore.getState().setLastUpload({
+      uploadId: "abc123",
+      filename: "upload_abc123.wav",
+      sourceName: "my-riff.wav",
+      transcription: { chords: [], key: "C major", moodLabel: "happy", pitchHistogram: [] },
+    });
+
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await user.click(screen.getByRole("button", { name: /use my last upload/i }));
+    await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+    const note = await screen.findByText(/running a full transcription right after generating/i);
+    expect(note).toBeInTheDocument();
+    // must not claim the server "recycles memory" -- it restarts
+    expect(screen.queryByText(/recycles memory/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/can make the server restart/i)).toBeInTheDocument();
+    expect(screen.getByText(/picked up again automatically/i)).toBeInTheDocument();
+    // passive: no live region and no alert role wrapping the note itself
+    expect(note.closest("[aria-live]")).toBeNull();
+    expect(note.closest("[role='alert']")).toBeNull();
+  });
 });
