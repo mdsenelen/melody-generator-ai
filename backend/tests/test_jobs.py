@@ -334,6 +334,97 @@ def test_get_ready_retry_job_ids_only_returns_due_jobs_and_clears_backoff(store)
     assert store.get_ready_retry_job_ids() == []
 
 
+def test_requeue_after_warmup_does_not_increment_attempt_count(store):
+    """The warming-marker requeue (jobs/worker.py's WarmingUpError branch)
+    is not a failure -- it must not count against max_attempts the way
+    mark_failed(retry=True) does, or a job bouncing a few times while a
+    cold-start warm-up finishes could exhaust its attempts and end up
+    permanently 'failed' for a condition that was never actually wrong."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+
+    assert store.requeue_after_warmup(job.id, lease_token=claimed.lease_token, delay_seconds=10.0)
+
+    refreshed = store.get_job(job.id)
+    assert refreshed.status == QUEUED
+    assert refreshed.attempt_count == 0
+    assert refreshed.waiting_reason == "warming_up"
+    assert refreshed.next_attempt_at is not None
+    assert refreshed.lease_token is None
+    assert refreshed.error is None
+
+
+def test_requeue_after_warmup_is_picked_up_by_get_ready_retry_job_ids_once_due(store):
+    """Reuses the exact same due-backoff mechanism a real failure's retry
+    already relies on (get_ready_retry_job_ids + the worker loop's idle-tick
+    sweep) -- no new queueing primitive needed."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.requeue_after_warmup(job.id, lease_token=claimed.lease_token, delay_seconds=10.0)
+
+    assert store.get_ready_retry_job_ids() == []  # not due yet
+
+    conn = store._connect()
+    conn.execute(
+        "UPDATE transcription_jobs SET next_attempt_at = '2000-01-01T00:00:00+00:00' WHERE id = ?",
+        (job.id,),
+    )
+    conn.commit()
+    conn.close()
+
+    assert store.get_ready_retry_job_ids() == [job.id]
+
+
+def test_requeue_after_warmup_is_discarded_if_lease_no_longer_current(store):
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+
+    ok = store.requeue_after_warmup(job.id, lease_token="stale-token", delay_seconds=10.0)
+
+    assert not ok
+    assert store.get_job(job.id).status == PROCESSING  # untouched
+
+
+def test_claim_job_clears_a_stale_waiting_reason(store):
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.requeue_after_warmup(job.id, lease_token=claimed.lease_token, delay_seconds=0.0)
+
+    reclaimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+
+    assert reclaimed is not None
+    assert reclaimed.waiting_reason is None
+
+
+def test_to_status_payload_exposes_waiting_reason_while_queued_for_warmup(store):
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    claimed = store.claim_job(job.id, lease_seconds=LEASE_SECONDS)
+    store.requeue_after_warmup(job.id, lease_token=claimed.lease_token, delay_seconds=10.0)
+
+    payload = store.get_job(job.id).to_status_payload()
+
+    assert payload["status"] == "queued"
+    assert payload["waiting_reason"] == "warming_up"
+
+
+def test_to_status_payload_waiting_reason_is_none_normally(store):
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    assert job.to_status_payload()["waiting_reason"] is None
+
+
+def test_to_status_payload_never_leaks_an_unrecognized_waiting_reason():
+    """waiting_reason is allowlisted, not passed through raw -- a future bug
+    (or a hand-edited DB row) writing some other string into that column
+    must never reach the client."""
+    from app.jobs.models import Job
+
+    job = Job(
+        id="x", status=QUEUED, source_filename="a.wav", storage_key="k",
+        created_at="now", updated_at="now", waiting_reason="some-internal-debug-string",
+    )
+    assert job.to_status_payload()["waiting_reason"] is None
+
+
 def test_reclaim_stale_processing_jobs_requeues_and_reports_ids(store):
     job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
     # A negative lease is already expired the instant it's issued.
@@ -467,6 +558,63 @@ def test_process_one_job_retries_unexpected_errors_then_gives_up(store, storage,
     after_second = store.get_job(job.id)
     assert after_second.status == FAILED
     assert after_second.attempt_count == 2
+
+
+def test_process_one_job_requeues_without_consuming_an_attempt_while_warming(
+    store, storage, queue, monkeypatch, caplog
+):
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+
+    def _raise(raw, name, on_progress=None):
+        raise inference.WarmingUpError("boot warm-up still in progress; job will be retried")
+
+    monkeypatch.setattr(inference, "run_basic_pitch", _raise)
+
+    with caplog.at_level("INFO", logger="app.jobs.worker"):
+        process_one_job(job.id, store, storage, queue)
+
+    refreshed = store.get_job(job.id)
+    assert refreshed.status == QUEUED
+    assert refreshed.attempt_count == 0  # not counted as a failed attempt
+    assert refreshed.waiting_reason == "warming_up"
+    assert refreshed.next_attempt_at is not None
+    assert refreshed.error is None  # never treated as a failure
+    assert any("requeued" in r.message and job.id in r.message for r in caplog.records)
+
+
+def test_process_one_job_runs_once_the_warmup_marker_clears(store, storage, queue, monkeypatch):
+    """The worker-level equivalent of test_warmup_state.py's
+    test_run_basic_pitch_proceeds_once_warming_state_is_stale -- bounces
+    once while warming, then actually completes once the real pipeline
+    stops raising WarmingUpError (standing in for the marker going stale
+    or warm-up finishing for real)."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+
+    call_count = {"n": 0}
+
+    def _run_basic_pitch(raw, name, on_progress=None):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise inference.WarmingUpError("boot warm-up still in progress")
+        return _fake_transcription_result()
+
+    monkeypatch.setattr(inference, "run_basic_pitch", _run_basic_pitch)
+
+    process_one_job(job.id, store, storage, queue)
+    after_first = store.get_job(job.id)
+    assert after_first.status == QUEUED
+    assert after_first.attempt_count == 0
+    assert after_first.waiting_reason == "warming_up"
+
+    # As if the idle-tick sweep re-enqueued it once the short delay passed
+    # (see run_worker_loop's get_ready_retry_job_ids handling) and the
+    # marker has since cleared for real.
+    process_one_job(job.id, store, storage, queue)
+    after_second = store.get_job(job.id)
+    assert after_second.status == COMPLETED
+    assert after_second.result["n_notes"] == 3
 
 
 def test_process_one_job_is_a_noop_for_already_claimed_job(store, storage, queue, monkeypatch):
@@ -893,6 +1041,7 @@ def test_get_transcribe_job_route_returns_status_shape(store, monkeypatch):
         "progress": 0,
         "result": None,
         "error": None,
+        "waiting_reason": None,
     }
 
 

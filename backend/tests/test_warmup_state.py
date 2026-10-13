@@ -172,7 +172,13 @@ def test_run_basic_pitch_rejected_while_warm_up_is_in_flight():
     """The transcribe worker must also respect the warming marker --
     without this, warm-up (no longer holding HEAVY_WORK_LOCK) and a real
     transcription would run their heavy work concurrently again, exactly
-    the CPU-contention bug this design change fixes."""
+    the CPU-contention bug this design change fixes.
+
+    Raises the dedicated WarmingUpError (not a plain RuntimeError) so
+    jobs/worker.py can requeue it without burning a retry attempt instead
+    of eventually exhausting max_attempts and surfacing a sanitized
+    "Transcription failed unexpectedly" for a condition that was never
+    actually a failure -- see test_jobs.py's requeue tests."""
     inference._mark_warming_started()
     called = False
 
@@ -181,7 +187,7 @@ def test_run_basic_pitch_rejected_while_warm_up_is_in_flight():
         called = True
         return {}
 
-    with pytest.raises(RuntimeError, match="warm-up"):
+    with pytest.raises(inference.WarmingUpError, match="warm-up"):
         inference.run_basic_pitch(b"irrelevant", "probe.wav")
 
     assert not inference.HEAVY_WORK_LOCK.locked(), "must never have acquired the lock"

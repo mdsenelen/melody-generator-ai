@@ -21,6 +21,16 @@ EXPIRED = "expired"
 # Statuses a job never leaves once reached.
 TERMINAL_STATUSES = {COMPLETED, FAILED}
 
+# The only recognized value of Job.waiting_reason / to_status_payload()'s
+# "waiting_reason" field -- a job sitting in 'queued' because the boot
+# warm-up marker is still fresh (see inference.WarmingUpError,
+# jobs/worker.py, jobs/store.py's requeue_after_warmup). Allowlisted
+# (to_status_payload only ever emits a value from this set, or None) so a
+# future bug -- or a hand-edited DB row -- writing some other string into
+# that column can never reach the client.
+WAITING_REASON_WARMING_UP = "warming_up"
+_ALLOWED_WAITING_REASONS = {WAITING_REASON_WARMING_UP}
+
 
 @dataclasses.dataclass
 class Job:
@@ -48,9 +58,14 @@ class Job:
     lease_token: Optional[str] = None
     lease_expires_at: Optional[str] = None
     # Backoff scheduling for a retried job sitting in 'queued': set by
-    # mark_failed(retry=True), cleared once the worker loop's idle-tick
-    # sweep re-enqueues it.
+    # mark_failed(retry=True) or requeue_after_warmup, cleared once the
+    # worker loop's idle-tick sweep re-enqueues it.
     next_attempt_at: Optional[str] = None
+    # Set by requeue_after_warmup, cleared by claim_job on the next claim
+    # (and defensively by mark_failed / reclaim_stale_processing_jobs) --
+    # see WAITING_REASON_WARMING_UP above for the allowlist this is
+    # filtered through before ever reaching to_status_payload().
+    waiting_reason: Optional[str] = None
 
     def to_status_payload(self) -> dict[str, Any]:
         return {
@@ -59,4 +74,7 @@ class Job:
             "progress": self.progress,
             "result": self.result,
             "error": self.error,
+            "waiting_reason": (
+                self.waiting_reason if self.waiting_reason in _ALLOWED_WAITING_REASONS else None
+            ),
         }
