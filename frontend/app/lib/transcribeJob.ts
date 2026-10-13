@@ -87,12 +87,25 @@ export async function getTranscribeJob<TResult = TranscriptionResult>(
 const POLL_INITIAL_DELAY_MS = 1000;
 const POLL_MAX_DELAY_MS = 5000;
 const POLL_BACKOFF_FACTOR = 1.5;
-// Matches the backend worker's lease margin (DEFAULT_LEASE_SECONDS, see
-// jobs/worker.py) above the longest a job can legitimately take
-// (MAX_ANALYSIS_DURATION_SEC's 240s, plus overhead) -- without this, a
-// long-but-healthy transcription could still get abandoned client-side
-// even though the server would have finished it.
-const POLL_MAX_TOTAL_MS = 15 * 60 * 1000;
+// How long the browser keeps polling before giving up
+// (TranscribeJobTimeoutError). Must cover the worst realistic recovery
+// chain end to end, not just one normal transcription -- see CLAUDE.md's
+// "poisoned floor" section for the full chain this budget has to survive:
+//   - up to ~125s to detect a dead worker and have its job reclaimed:
+//     the backend's claim lease (jobs/worker.py's DEFAULT_LEASE_SECONDS,
+//     120s) plus one worker idle-tick interval (~5s) before a live
+//     worker notices the stale lease
+//   - up to WARMUP_MAX_SECONDS (240s) if the reclaimed job lands on a
+//     container that's still warming up after a restart
+//   - up to MAX_UPLOAD_DURATION_SEC (600s) for the reclaimed job's own
+//     transcription, run at roughly real-time speed
+// 125 + 240 + 600 = 965s minimum. 20 minutes (1200s) keeps ~235s (~24%)
+// of margin on top for network latency, backoff overhead, and Render's
+// own container-restart time (not bounded by anything in this codebase).
+// Raised from 15 minutes (900s), which didn't even cover the *old*
+// worst-case lease (900s) on its own, let alone warm-up or transcription
+// stacked on top of it.
+export const POLL_MAX_TOTAL_MS = 20 * 60 * 1000;
 const POLL_MAX_CONSECUTIVE_FAILURES = 3;
 
 export class TranscribeJobSupersededError extends Error {

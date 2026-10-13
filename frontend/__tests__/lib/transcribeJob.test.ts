@@ -1,6 +1,7 @@
 import {
   createTranscribeJob,
   getTranscribeJob,
+  POLL_MAX_TOTAL_MS,
   pollTranscribeJob,
   TranscribeJobLostError,
   TranscribeJobSupersededError,
@@ -293,14 +294,33 @@ describe("pollTranscribeJob", () => {
     const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
     const expectation = expect(promise).rejects.toBeInstanceOf(TranscribeJobTimeoutError);
 
-    // POLL_MAX_TOTAL_MS is 15 minutes (matches the backend worker's lease
-    // margin above a long clip's worst-case transcription time -- see
-    // transcribeJob.ts) -- 100 * 10000ms = 1,000,000ms comfortably exceeds
-    // the 900,000ms budget.
-    for (let i = 0; i < 100; i += 1) {
+    // 130 * 10000ms = 1,300,000ms comfortably exceeds POLL_MAX_TOTAL_MS
+    // (see its own definition in transcribeJob.ts for the arithmetic this
+    // budget is sized against) regardless of exactly how large that
+    // budget is, so this test doesn't need updating every time the
+    // budget itself is retuned.
+    const iterations = Math.ceil((POLL_MAX_TOTAL_MS + 100000) / 10000);
+    for (let i = 0; i < iterations; i += 1) {
       await Promise.resolve();
       await jest.advanceTimersByTimeAsync(10000);
     }
     await expectation;
+  });
+
+  it("covers the worst-case recovery chain: dead-worker detection + a full warm-up + the longest allowed transcription, with margin", () => {
+    // Pins the actual budget against the real arithmetic, rather than
+    // only a generic "it eventually times out" check above. Mirrors
+    // CLAUDE.md's "poisoned floor" recovery-chain numbers and
+    // jobs/worker.py's DEFAULT_LEASE_SECONDS -- if any of those move,
+    // this is the number that needs re-deriving, not silently left stale.
+    const leaseDetectionWorstCaseSec = 120 + 5; // DEFAULT_LEASE_SECONDS + one idle-tick interval
+    const warmupBudgetSec = 240; // WARMUP_MAX_SECONDS
+    const longestTranscriptionSec = 600; // MAX_UPLOAD_DURATION_SEC, ~real-time
+    const minimumRequiredSec =
+      leaseDetectionWorstCaseSec + warmupBudgetSec + longestTranscriptionSec;
+
+    expect(POLL_MAX_TOTAL_MS).toBeGreaterThanOrEqual(minimumRequiredSec * 1000);
+    // Real margin on top, not just barely clearing the minimum.
+    expect(POLL_MAX_TOTAL_MS - minimumRequiredSec * 1000).toBeGreaterThanOrEqual(120 * 1000);
   });
 });
