@@ -586,6 +586,11 @@ describe("GenerateVariantsPage", () => {
     expect(screen.queryByText(/recycles memory/i)).not.toBeInTheDocument();
     expect(screen.getByText(/can make the server restart/i)).toBeInTheDocument();
     expect(screen.getByText(/picked up again automatically/i)).toBeInTheDocument();
+    // honest fallback for the real (now-fixed) worst case: up to ~20
+    // minutes end to end (see transcribeJob.ts's POLL_MAX_TOTAL_MS) --
+    // not the shorter "~10 minutes" that would understate it.
+    expect(screen.getByText(/about 20 minutes/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload it again/i)).toBeInTheDocument();
     // passive: no live region and no alert role wrapping the note itself
     expect(note.closest("[aria-live]")).toBeNull();
     expect(note.closest("[role='alert']")).toBeNull();

@@ -375,7 +375,7 @@ export default function GenerateVariantsPage() {
               <p className="text-muted-foreground mt-1 text-xs">
                 Heads up: running a full transcription right after generating variants can make the
                 server restart. If that happens, wait a few minutes. Your clip is picked up again
-                automatically.
+                automatically. If it has not finished after about 20 minutes, upload it again.
               </p>
             </div>
             {mood ? <MoodBadge mood={mood} label={`Mood: ${mood}`} /> : null}
