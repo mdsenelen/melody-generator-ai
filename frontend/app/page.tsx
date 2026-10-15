@@ -63,12 +63,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-4xl">
           <h1 className="sr-only">Melodia</h1>
 
-          <p className="text-secondary-foreground mx-auto max-w-xl text-lg leading-7">
-            Upload or record a short clip. Melodia analyses its harmonic content, then generates
-            melodic variants you can preview, download, and use immediately, as MIDI or WAV.
-          </p>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <Link href="/analyse" className={buttonClass("primary")}>
               Start analysing audio <span aria-hidden="true">↗</span>
             </Link>
