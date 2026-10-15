@@ -10,37 +10,6 @@ const COLAB_NOTEBOOK_URL =
 const INTRO =
   "I am an assistant tool to help you make a song from a simple hum or a phrase. You can upload a song too, and I will generate alternative variants from that.";
 
-const PIPELINE_STEPS = [
-  {
-    n: "01",
-    title: "Record or upload",
-    description: "Play or upload a clip of audio straight from your browser.",
-    href: "/analyse",
-    linkLabel: "Start on the analyse page",
-  },
-  {
-    n: "02",
-    title: "Analyse",
-    description: "We transcribe pitch, chords, key and mood from what you gave us.",
-    href: "/analyse",
-    linkLabel: "See the analyse page",
-  },
-  {
-    n: "03",
-    title: "Choose a progression",
-    description: "Pick a chord progression to shape the melody that gets generated.",
-    href: "/choose-progression",
-    linkLabel: "Browse progressions",
-  },
-  {
-    n: "04",
-    title: "Generate & listen",
-    description: "A trained CVAE + IDDM-PPO model generates variants — preview, compare, download.",
-    href: "/generate-variants",
-    linkLabel: "Generate variants",
-  },
-] as const;
-
 const GOOD_TO_KNOW = [
   {
     title: "Cold-server latency",
@@ -82,39 +51,6 @@ export default function LandingPage() {
             </a>
           </div>
         </div>
-      </section>
-
-      <section aria-labelledby="how-it-works">
-        <div className="mb-8 flex items-end justify-between gap-4">
-          <div>
-            <Label>How it works</Label>
-            <h2 id="how-it-works" className="font-title text-foreground mt-3 text-3xl">
-              From a hum to a melody, in four steps
-            </h2>
-          </div>
-        </div>
-        <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PIPELINE_STEPS.map((step) => (
-            <li
-              key={step.title}
-              className="border-border bg-card hover:border-border-strong flex flex-col rounded-[var(--radius-lg)] border p-6 transition-colors"
-            >
-              <span className="text-primary-bright font-mono text-[13px] font-medium">
-                {step.n}
-              </span>
-              <p className="font-title text-foreground mt-6 text-xl">{step.title}</p>
-              <p className="text-secondary-foreground mt-2 flex-1 text-sm leading-6">
-                {step.description}
-              </p>
-              <Link
-                href={step.href}
-                className="text-primary-bright focus-visible:ring-ring mt-5 inline-block self-start rounded-sm text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {step.linkLabel} →
-              </Link>
-            </li>
-          ))}
-        </ol>
       </section>
 
       <section aria-labelledby="good-to-know" className="border-border border-t pt-12">

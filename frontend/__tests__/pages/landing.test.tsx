@@ -17,13 +17,8 @@ describe("LandingPage", () => {
     );
   });
 
-  it("links every pipeline step to an existing route", () => {
+  it("leaves the how-it-works steps to the user's guide page", () => {
     render(<LandingPage />);
-    const expectedRoutes = ["/analyse", "/choose-progression", "/generate-variants"];
-    for (const route of expectedRoutes) {
-      expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === route)).toBe(
-        true,
-      );
-    }
+    expect(screen.queryByText(/how it works/i)).not.toBeInTheDocument();
   });
 });
