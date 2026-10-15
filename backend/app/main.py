@@ -176,6 +176,48 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+
+class UnhandledErrorMiddleware:
+    """Turns any unhandled exception into a sanitized JSON 500.
+
+    Not an @app.exception_handler(Exception): Starlette routes that handler
+    through ServerErrorMiddleware, which always sits outside every user
+    middleware -- so its 500 skipped CORSMiddleware and went out with no
+    Access-Control-Allow-Origin. The browser (which uploads straight to this
+    backend, cross-origin) then hid it behind an opaque "Failed to fetch",
+    and the frontend could only say "Couldn't reach the server". Added before
+    CORSMiddleware so CORS wraps it, same reasoning as the 413 above.
+    """
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        response_started = False
+
+        async def tracking_send(message: Any) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracking_send)
+        except Exception:
+            logger.exception("Unhandled error on %s %s", scope.get("method"), scope.get("path"))
+            if response_started:
+                raise
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "An unexpected error occurred. Please try again."},
+            )
+            await response(scope, receive, send)
+
+
 # Starlette's add_middleware inserts each new middleware ahead of the previous
 # ones, so the last one added is outermost. The body-size cap is added first
 # and CORS last: the cap's 413 for an oversized upload is sent directly from
@@ -183,6 +225,8 @@ CORS_ALLOWED_ORIGINS = [
 # Access-Control-Allow-Origin header -- the browser would hide it behind an
 # opaque "Failed to fetch" instead of showing the real "too large" message.
 app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_UPLOAD_BYTES)
+
+app.add_middleware(UnhandledErrorMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -199,14 +243,6 @@ async def handle_request_body_too_large(request: Any, exc: RequestBodyTooLarge) 
         content={"detail": f"Request body exceeds the {exc.max_bytes // (1024 * 1024)}MB upload limit"},
     )
 
-
-@app.exception_handler(Exception)
-async def handle_unexpected_error(request: Any, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An unexpected error occurred. Please try again."},
-    )
 
 # No public static mount: data/recordings, data/generated, and data/logs all
 # hold user-uploaded/generated content and were previously exposed under

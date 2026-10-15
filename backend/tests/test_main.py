@@ -112,6 +112,22 @@ def test_unhandled_exception_is_logged_and_sanitized(monkeypatch, caplog):
     assert any(record.exc_info is not None for record in caplog.records)
 
 
+def test_unhandled_exception_500_carries_cors_headers(monkeypatch):
+    # The browser uploads straight to this backend cross-origin. A 500 without
+    # Access-Control-Allow-Origin is hidden behind an opaque "Failed to fetch",
+    # which the frontend can only report as "Couldn't reach the server".
+    def boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(inference, "get_runtime_status", boom)
+    origin = main.CORS_ALLOWED_ORIGINS[0]
+
+    response = client.get("/health", headers={"Origin": origin})
+
+    assert response.status_code == 500
+    assert response.headers.get("access-control-allow-origin") == origin
+
+
 def test_existing_http_exception_handling_is_unchanged():
     response = client.post(
         "/api/upload",

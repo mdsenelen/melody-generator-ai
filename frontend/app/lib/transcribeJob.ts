@@ -59,6 +59,7 @@ export type TranscribeJobStatusResponse = JobStatusResponse<TranscriptionResult>
 export async function createTranscribeJob(
   file: File,
   uploaded?: { id: string; filename: string } | null,
+  options: { signal?: AbortSignal } = {},
 ): Promise<TranscribeJobStatusResponse> {
   const formData = new FormData();
   if (uploaded) {
@@ -72,6 +73,7 @@ export async function createTranscribeJob(
     method: "POST",
     body: formData,
     expectedContentType: "application/json",
+    signal: options.signal,
   });
 }
 

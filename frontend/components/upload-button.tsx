@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { uploadFile } from "../app/lib/upload";
+import { retryOnWakeup, RetryCancelledError } from "../app/lib/retryOnWakeup";
 import { Spinner } from "./spinner";
 
 export type UploadSuccessPayload = {
@@ -25,12 +26,14 @@ export function UploadButton({
   const [status, setStatus] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       if (statusTimerRef.current) {
         clearTimeout(statusTimerRef.current);
       }
+      abortControllerRef.current?.abort();
     };
   }, []);
 
@@ -41,10 +44,17 @@ export function UploadButton({
       return;
     }
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsLoading(true);
 
     try {
-      const { id, filename } = await uploadFile(file);
+      const { id, filename } = await retryOnWakeup((signal) => uploadFile(file, { signal }), {
+        signal: controller.signal,
+        onRetrying: () => setStatus("Server is waking up — retrying..."),
+      });
       onUploadSuccess({ id, filename, file });
       setStatus("Upload complete");
       if (statusTimerRef.current) {
@@ -52,11 +62,16 @@ export function UploadButton({
       }
       statusTimerRef.current = setTimeout(() => setStatus(""), 2000);
     } catch (error) {
+      if (error instanceof RetryCancelledError) {
+        return;
+      }
       const message = error instanceof Error ? error.message : "Upload failed";
       setStatus(message);
       onUploadError?.(message);
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   };
 

@@ -9,7 +9,10 @@ export type UploadResponse = { id: string; filename: string };
 // Uploaded audio can exceed Vercel's ~4.5MB serverless function body limit,
 // so this goes straight to the backend instead of through the Next.js
 // /api/upload proxy route.
-export async function uploadFile(file: File): Promise<UploadResponse> {
+export async function uploadFile(
+  file: File,
+  options: { signal?: AbortSignal } = {},
+): Promise<UploadResponse> {
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error(`File is too large. The limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`);
   }
@@ -23,6 +26,7 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
       method: "POST",
       body: formData,
       expectedContentType: "application/json",
+      signal: options.signal,
     },
   );
 
