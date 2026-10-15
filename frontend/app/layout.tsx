@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { Caveat, Fraunces, Inter, JetBrains_Mono, Lora } from "next/font/google";
 import "../styles/globals.css";
 import Header from "../components/header";
 import Nav from "../components/nav";
@@ -21,6 +21,20 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+const lora = Lora({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-lora",
+  display: "swap",
+});
+
+const caveat = Caveat({
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  variable: "--font-caveat",
+  display: "swap",
+});
+
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
@@ -29,7 +43,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MelodyAI",
+  title: "Melodia",
   description: "Analyse melodies, render progressions, and generate music variants.",
   icons: {
     icon: "/logo.svg",
@@ -43,15 +57,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${fraunces.variable} ${lora.variable} ${caveat.variable} ${jetbrainsMono.variable}`}
+    >
       <body className="bg-background text-foreground min-h-screen overflow-x-hidden font-sans antialiased">
         <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-10">
-          <header className="border-border flex flex-col gap-3 border-b py-4 md:flex-row md:items-center md:justify-between">
+          <header className="sticky top-0 z-30 flex flex-col gap-3 py-4 backdrop-blur-sm md:flex-row md:items-center md:justify-between">
             <Header />
             <Nav />
           </header>
           <ErrorBoundary>
-            <main className="flex-1 py-8">{children}</main>
+            <main className="flex-1 py-10">{children}</main>
           </ErrorBoundary>
           <Footer />
         </div>

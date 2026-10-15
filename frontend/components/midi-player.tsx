@@ -32,7 +32,7 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
 
   if (state.status === "error") {
     return (
-      <p className={`text-sm text-amber-400/80 ${className}`}>
+      <p className={`text-warning text-sm ${className}`}>
         {state.message} The MIDI download still works.
       </p>
     );

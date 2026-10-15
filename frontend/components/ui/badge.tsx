@@ -6,19 +6,19 @@ type BadgeVariant = "default" | "accent" | "success" | "warning" | "error" | "mu
 
 const BADGE_STYLES: Record<BadgeVariant, string> = {
   default: "border-border text-muted-foreground",
-  accent: "border-primary/40 text-primary bg-primary/8",
-  success: "border-green-500/30 text-green-400 bg-green-500/8",
-  warning: "border-amber-500/30 text-amber-400 bg-amber-500/8",
-  error: "border-red-500/30 text-red-400 bg-red-500/8",
-  muted: "border-border text-border-strong",
+  accent: "border-primary/50 text-primary-bright bg-primary-deep/60",
+  success: "border-success/40 text-success bg-success/8",
+  warning: "border-warning/40 text-warning bg-warning/8",
+  error: "border-danger/40 text-danger bg-danger/8",
+  muted: "border-border text-muted-foreground",
 };
 
 const DOT_STYLES: Record<BadgeVariant, string> = {
   default: "bg-muted-foreground",
   accent: "bg-primary",
-  success: "bg-green-400",
-  warning: "bg-amber-400",
-  error: "bg-red-400",
+  success: "bg-success",
+  warning: "bg-warning",
+  error: "bg-danger",
   muted: "bg-border-strong",
 };
 
@@ -34,7 +34,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-1.5 py-0.5 font-mono text-[9px] tracking-widest uppercase",
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase",
         BADGE_STYLES[variant],
       )}
     >
@@ -51,8 +51,8 @@ export function PlannedBadge({ label = "Planned" }: { label?: string }) {
 }
 
 const MOOD_COLORS: Record<string, string> = {
-  happy: "border-amber-500/40 text-amber-300 bg-amber-950/30",
-  sad: "border-sky-500/40 text-sky-300 bg-sky-950/30",
+  happy: "border-warning/40 text-warning bg-warning/8",
+  sad: "border-primary/50 text-primary-bright bg-primary-deep/60",
   neutral: "border-border text-muted-foreground bg-muted",
 };
 
@@ -69,7 +69,7 @@ export function MoodBadge({ mood, label }: { mood: string; label?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-2 py-0.5 font-mono text-[9px] tracking-widest uppercase",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase",
         cls,
       )}
     >
@@ -79,28 +79,15 @@ export function MoodBadge({ mood, label }: { mood: string; label?: string }) {
   );
 }
 
-const GENRE_COLORS: Record<string, string> = {
-  Ambient: "border-emerald-900/50 text-emerald-400",
-  Jazz: "border-amber-900/50 text-amber-400",
-  Classical: "border-indigo-900/50 text-indigo-400",
-  Electronic: "border-primary/40 text-primary/85",
-  Folk: "border-orange-900/50 text-orange-400",
-  Cinematic: "border-slate-800/60 text-slate-400",
-  Pop: "border-primary/40 text-primary/85",
-  Blues: "border-sky-900/50 text-sky-400",
-  Rock: "border-red-900/50 text-red-400",
-  Flamenco: "border-orange-900/50 text-orange-400",
-  "J-Pop": "border-fuchsia-900/50 text-fuchsia-400",
-  General: "border-border text-muted-foreground",
-};
+// Genres are labels, not states: one neutral treatment keeps the steel accent meaningful.
+const GENRE_CLASS = "border-border-strong text-secondary-foreground";
 
 export function GenreBadge({ genre }: { genre: string }) {
-  const cls = GENRE_COLORS[genre] ?? GENRE_COLORS.General;
   return (
     <span
       className={cn(
-        "rounded-[var(--radius)] border px-2 py-0.5 font-mono text-[9px] tracking-widest uppercase",
-        cls,
+        "rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase",
+        GENRE_CLASS,
       )}
     >
       {genre}

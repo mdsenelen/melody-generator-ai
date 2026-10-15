@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { buttonClass } from "../components/ui/button";
-import { Card } from "../components/ui/card";
 import { Label } from "../components/ui/text";
 
 const COLAB_NOTEBOOK_URL =
@@ -40,17 +39,14 @@ const PIPELINE_STEPS = [
 
 const GOOD_TO_KNOW = [
   {
-    icon: "⏱",
     title: "Cold-server latency",
     body: "The backend runs on Render's free tier — the first analysis after a period of inactivity can take a minute or two while it wakes up. Later ones are much faster.",
   },
   {
-    icon: "🎵",
     title: "Trained end to end",
     body: "The CVAE + IDDM-PPO generation model is trained in the linked Colab notebook — open it to see how transcription, mood detection, and melody generation are trained.",
   },
   {
-    icon: "🔒",
     title: "Privacy",
     body: "No account needed — everything runs from your browser, and audio is only kept as long as it takes to generate your results.",
   },
@@ -58,26 +54,32 @@ const GOOD_TO_KNOW = [
 
 export default function LandingPage() {
   return (
-    <div className="space-y-16">
-      <section className="pt-4 pb-8 text-center">
-        <div className="mx-auto max-w-3xl">
-          <div className="border-primary/75 text-primary mb-8 inline-flex items-center rounded-[var(--radius)] border px-3 py-1.5 font-mono text-[10px] tracking-widest uppercase">
-            AI music generation
+    <div className="space-y-24">
+      <section className="relative isolate pt-10 pb-6 text-center md:pt-16">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -top-24 -z-10 mx-auto h-[420px] max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(143,169,204,0.16),transparent)] blur-2xl"
+        />
+        <div className="mx-auto max-w-4xl">
+          <div className="border-border-strong bg-card/70 mb-8 inline-flex items-center gap-2 rounded-full border py-1 pr-4 pl-1 text-sm">
+            <span className="bg-foreground text-background rounded-full px-2.5 py-0.5 text-xs font-medium">
+              New
+            </span>
+            <span className="text-secondary-foreground">AI melody generation, in your browser</span>
           </div>
 
-          <h1 className="font-display text-foreground text-[clamp(2.4rem,5vw,4.4rem)] leading-[0.98] font-light">
-            Turn a clip of audio into new,
-            <span className="block">playable melodies</span>
+          <h1 className="font-hand text-foreground mx-auto max-w-4xl text-[clamp(3.25rem,8vw,5.5rem)] leading-[0.95] tracking-[-0.02em]">
+            Turn a clip of audio into new, <span className="block">playable melodies</span>
           </h1>
 
-          <p className="text-secondary-foreground mx-auto mt-8 max-w-2xl text-base leading-relaxed">
+          <p className="text-secondary-foreground mx-auto mt-8 max-w-xl text-lg leading-7">
             Upload or record a short clip. Melodia analyses its harmonic content, then generates
             melodic variants you can preview, download, and use immediately, as MIDI or WAV.
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link href="/analyse" className={buttonClass("primary")}>
-              Start analysing audio
+              Start analysing audio <span aria-hidden="true">↗</span>
             </Link>
             <a
               href={COLAB_NOTEBOOK_URL}
@@ -91,53 +93,52 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section>
-        <p className="text-muted-foreground mb-8 text-center font-mono text-[11px] tracking-widest uppercase">
-          How it works
-        </p>
-        <div className="mx-auto max-w-2xl space-y-0">
-          {PIPELINE_STEPS.map((step, index) => (
-            <div key={step.title} className="group flex gap-6">
-              <div className="flex flex-col items-center">
-                <div className="border-border group-hover:border-primary/40 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors">
-                  <span className="text-muted-foreground font-mono text-[9px]">{step.n}</span>
-                </div>
-                {index < PIPELINE_STEPS.length - 1 ? (
-                  <div className="bg-border my-1 w-px flex-1" style={{ minHeight: 32 }} />
-                ) : null}
-              </div>
-              <div className="pb-8">
-                <p className="font-display text-foreground mb-1 text-base font-light">
-                  {step.title}
-                </p>
-                <p className="text-muted-foreground text-sm leading-relaxed">{step.description}</p>
-                <Link
-                  href={step.href}
-                  className="text-primary mt-1 inline-block text-xs hover:underline"
-                >
-                  {step.linkLabel} →
-                </Link>
-              </div>
-            </div>
-          ))}
+      <section aria-labelledby="how-it-works">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <Label>How it works</Label>
+            <h2 id="how-it-works" className="font-title text-foreground mt-3 text-3xl">
+              From a hum to a melody, in four steps
+            </h2>
+          </div>
         </div>
+        <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PIPELINE_STEPS.map((step) => (
+            <li
+              key={step.title}
+              className="border-border bg-card hover:border-border-strong flex flex-col rounded-[var(--radius-lg)] border p-6 transition-colors"
+            >
+              <span className="text-primary-bright font-mono text-[13px] font-medium">
+                {step.n}
+              </span>
+              <p className="font-title text-foreground mt-6 text-xl">{step.title}</p>
+              <p className="text-secondary-foreground mt-2 flex-1 text-sm leading-6">
+                {step.description}
+              </p>
+              <Link
+                href={step.href}
+                className="text-primary-bright focus-visible:ring-ring mt-5 inline-block self-start rounded-sm text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                {step.linkLabel} →
+              </Link>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <section className="mx-auto max-w-2xl">
-        <Card className="space-y-4">
-          <Label>Good to know</Label>
-          <div className="space-y-4">
-            {GOOD_TO_KNOW.map((item) => (
-              <div key={item.title} className="space-y-1">
-                <p className="text-foreground flex items-center gap-2 text-sm">
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.title}
-                </p>
-                <p className="text-muted-foreground pl-6 text-xs leading-relaxed">{item.body}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
+      <section aria-labelledby="good-to-know" className="border-border border-t pt-12">
+        <Label>Good to know</Label>
+        <h2 id="good-to-know" className="sr-only">
+          Good to know
+        </h2>
+        <dl className="mt-6 grid gap-8 md:grid-cols-3">
+          {GOOD_TO_KNOW.map((item) => (
+            <div key={item.title}>
+              <dt className="font-title text-foreground text-lg">{item.title}</dt>
+              <dd className="text-secondary-foreground mt-2 text-sm leading-6">{item.body}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
     </div>
   );

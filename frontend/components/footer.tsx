@@ -8,7 +8,7 @@ export default function Footer() {
           href="https://www.linkedin.com/in/mdenizsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-primary transition-colors"
+          className="hover:text-foreground transition-colors"
         >
           LinkedIn
         </a>
@@ -17,7 +17,7 @@ export default function Footer() {
           href="https://github.com/mdsenelen"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-primary transition-colors"
+          className="hover:text-foreground transition-colors"
         >
           Github
         </a>

@@ -48,13 +48,15 @@ export function ChordPicker({ value, onChange, placeholder }: ChordPickerProps) 
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          "flex w-full items-center justify-between rounded-[var(--radius)] border px-3 py-2.5 text-sm transition-colors",
+          "focus-visible:ring-ring flex w-full items-center justify-between rounded-[var(--radius)] border px-3 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none",
           value
-            ? "border-primary/40 bg-card text-foreground"
-            : "border-border bg-background text-muted-foreground hover:border-border-strong",
+            ? "border-primary/50 bg-raised text-foreground"
+            : "border-border-strong bg-raised text-secondary-foreground hover:bg-raised-hover",
         )}
       >
-        <span className={value ? "font-display" : "font-mono"}>{value ?? placeholder}</span>
+        <span className={value ? "font-display text-base" : "font-mono"}>
+          {value ?? placeholder}
+        </span>
         <span className="flex items-center gap-1.5">
           {value ? (
             <span
@@ -114,8 +116,8 @@ export function ChordPicker({ value, onChange, placeholder }: ChordPickerProps) 
                   className={cn(
                     "w-full rounded-[var(--radius)] px-2 py-1 text-left font-mono text-xs transition-colors",
                     root === r
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "bg-primary-deep text-primary-bright"
+                      : "text-secondary-foreground hover:text-foreground",
                   )}
                 >
                   {r}

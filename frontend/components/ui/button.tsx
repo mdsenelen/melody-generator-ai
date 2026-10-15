@@ -5,17 +5,16 @@ import { cn } from "./cn";
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "destructive";
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/85 active:bg-primary/70 font-display",
+    "bg-primary text-primary-foreground hover:bg-primary-bright active:bg-primary-bright shadow-[0_1px_0_rgba(255,255,255,0.18)_inset]",
   secondary:
-    "bg-primary/12 text-primary border border-primary/30 hover:bg-primary/20 hover:border-primary/50 active:bg-primary/25 font-display",
-  ghost:
-    "border border-border text-secondary-foreground hover:border-border-strong hover:text-foreground active:bg-card",
+    "bg-primary-deep text-primary-bright border border-primary/40 hover:border-primary active:bg-primary-deep/80",
+  ghost: "border border-border-strong text-foreground hover:bg-raised active:bg-raised-hover",
   destructive:
-    "border border-red-500/30 text-red-400 hover:bg-red-500/8 hover:border-red-500/50 active:bg-red-500/15",
+    "border border-danger/50 text-danger hover:bg-danger/10 hover:border-danger active:bg-danger/15",
 };
 
 /**
@@ -28,11 +27,11 @@ export function buttonClass(
   { small = false, className = "" }: { small?: boolean; className?: string } = {},
 ): string {
   return cn(
-    "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-medium tracking-wide transition-all duration-150",
-    "disabled:cursor-not-allowed disabled:opacity-30",
+    "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-sans font-medium transition-colors duration-150",
+    "disabled:cursor-not-allowed disabled:opacity-40",
     FOCUS_RING,
     VARIANT_CLASSES[variant],
-    small ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm",
+    small ? "h-8 px-3 text-xs" : "h-11 px-5 text-sm",
     className,
   );
 }

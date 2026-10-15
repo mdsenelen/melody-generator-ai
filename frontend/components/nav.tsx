@@ -14,7 +14,10 @@ export default function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap items-center gap-5 font-mono text-[11px] tracking-widest uppercase">
+    <nav
+      aria-label="Main"
+      className="border-border bg-card/80 flex max-w-full items-center gap-1 overflow-x-auto rounded-full border p-1 shadow-[var(--shadow-panel)]"
+    >
       {links.map((link) => {
         const active = pathname === link.href;
         return (
@@ -23,9 +26,10 @@ export default function Nav() {
             href={link.href}
             aria-current={active ? "page" : undefined}
             className={
-              active
-                ? "text-primary transition-colors"
-                : "text-muted-foreground hover:text-secondary-foreground transition-colors"
+              "focus-visible:ring-ring shrink-0 rounded-full px-4 py-1.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none " +
+              (active
+                ? "bg-foreground text-background"
+                : "text-secondary-foreground hover:text-foreground")
             }
           >
             {link.label}

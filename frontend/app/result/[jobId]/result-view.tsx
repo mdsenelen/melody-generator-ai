@@ -17,7 +17,7 @@ function downloadPathFor(filename: string) {
 const DOWNLOAD_MIDI_CLASS =
   "rounded-[var(--radius)] border border-primary/40 bg-primary/10 px-4 py-2 text-sm text-primary transition-colors hover:border-primary/70 hover:bg-primary/20";
 const DOWNLOAD_WAV_CLASS =
-  "rounded-[var(--radius)] border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/20";
+  "rounded-[var(--radius)] border border-success/50 bg-success/10 px-4 py-2 text-sm text-foreground transition-colors hover:border-success/50 hover:bg-success/20";
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -55,9 +55,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
     return (
       <Frame>
         <div className="border-border text-muted-foreground flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-[var(--radius)] border border-dashed p-8 text-center">
-          <p className="font-display text-foreground text-lg font-light">
-            This result isn&apos;t available
-          </p>
+          <p className="font-title text-foreground text-xl">This result isn&apos;t available</p>
           <p className="max-w-md text-sm">
             The link may be mistyped, or the result has expired — generated files are only kept for
             a limited time. Try generating it again.
@@ -70,7 +68,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
   if (state.status === "failed") {
     return (
       <Frame>
-        <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
+        <div className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-4 text-sm">
           {state.error}
         </div>
       </Frame>
@@ -86,9 +84,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
         <div className="space-y-6">
           <div>
             <Label>Result</Label>
-            <h1 className="font-display text-foreground mt-1 text-2xl font-light">
-              Generated melody variants
-            </h1>
+            <h1 className="font-title text-foreground mt-2 text-3xl">Generated melody variants</h1>
             <p className="text-muted-foreground mt-2 text-sm">Mood: {result.mood_label}</p>
           </div>
 
@@ -126,9 +122,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
         <div className="space-y-6">
           <div>
             <Label>Result</Label>
-            <h1 className="font-display text-foreground mt-1 text-2xl font-light">
-              Rendered chord progression
-            </h1>
+            <h1 className="font-title text-foreground mt-2 text-3xl">Rendered chord progression</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               {result.progression.join(" → ")} · {result.bpm} BPM
             </p>
@@ -166,9 +160,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
       <div className="space-y-6">
         <div>
           <Label>Result</Label>
-          <h1 className="font-display text-foreground mt-1 text-2xl font-light">
-            Transcription complete
-          </h1>
+          <h1 className="font-title text-foreground mt-2 text-3xl">Transcription complete</h1>
           <p className="text-muted-foreground mt-2 text-sm">
             {result.n_notes} notes
             {result.source_duration_sec

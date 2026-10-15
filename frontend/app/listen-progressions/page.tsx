@@ -7,7 +7,7 @@ import { Spinner } from "../../components/spinner";
 import { GenreBadge } from "../../components/ui/badge";
 import { Card } from "../../components/ui/card";
 import { Pills } from "../../components/ui/pills";
-import { Label } from "../../components/ui/text";
+import { PageHeader } from "../../components/ui/text";
 import { requestJson } from "../lib/request";
 
 type Progression = {
@@ -94,19 +94,18 @@ export default function ListenProgressionsPage() {
   });
 
   return (
-    <div className="space-y-8">
-      <div className="border-border flex flex-col gap-5 border-b pb-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <Label>Curated library</Label>
-          <h1 className="font-display text-foreground mt-2 text-3xl font-light">Progressions</h1>
-          <p className="text-muted-foreground mt-2 max-w-xl text-sm">
-            Explore chord movements, hear them in context, and download the progression as MIDI.
-          </p>
-        </div>
-
-        <label className="relative block w-full lg:max-w-[320px]">
+    <div className="space-y-10">
+      <PageHeader
+        eyebrow="Curated library"
+        title="Progressions"
+        lead="Explore chord movements, hear them in context, and download the progression as MIDI."
+      >
+        <label className="relative block w-full md:w-[320px]">
           <span className="sr-only">Search progressions</span>
-          <span className="text-muted-foreground pointer-events-none absolute inset-y-0 left-4 flex items-center">
+          <span
+            aria-hidden="true"
+            className="text-muted-foreground pointer-events-none absolute inset-y-0 left-4 flex items-center"
+          >
             ⌕
           </span>
           <input
@@ -114,10 +113,10 @@ export default function ListenProgressionsPage() {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search by name, chord, artist..."
-            className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/60 h-11 w-full rounded-[var(--radius)] border pr-4 pl-11 text-sm transition-colors outline-none"
+            className="border-border-strong bg-card text-foreground placeholder:text-muted-foreground focus-visible:ring-ring h-11 w-full rounded-full border pr-4 pl-11 text-sm transition-colors outline-none focus-visible:ring-2"
           />
         </label>
-      </div>
+      </PageHeader>
 
       <Pills
         options={genres}
@@ -131,7 +130,10 @@ export default function ListenProgressionsPage() {
           <Spinner size="lg" label="Loading chord progressions" />
         </div>
       ) : error ? (
-        <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
+        <div
+          role="alert"
+          className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-4 text-sm"
+        >
           Couldn&apos;t load chord progressions: {error}
         </div>
       ) : progressions.length === 0 ? (

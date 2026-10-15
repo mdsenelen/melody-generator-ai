@@ -7,10 +7,10 @@ function ErrorFallback({ error }: { error: Error }) {
   return (
     <div
       role="alert"
-      className="rounded-[var(--radius)] border border-red-500/50 bg-[#120808] p-4 text-sm text-red-100"
+      className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-4 text-sm"
     >
       <p className="font-semibold">Something went wrong.</p>
-      <pre className="mt-2 text-xs whitespace-pre-wrap text-red-200">{error.message}</pre>
+      <pre className="text-foreground mt-2 text-xs whitespace-pre-wrap">{error.message}</pre>
     </div>
   );
 }

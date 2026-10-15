@@ -98,36 +98,37 @@ export function ChordGraph({
   };
 
   return (
-    <section className="border-border bg-card rounded-[var(--radius)] border p-5 sm:p-6">
+    <section className="border-border bg-card hover:border-border-strong rounded-[var(--radius-lg)] border p-6 transition-colors">
       <div className="flex flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-display text-foreground text-xl font-light">{title}</h2>
+              <h2 className="font-title text-foreground text-2xl">{title}</h2>
               {genreBadge ?? null}
             </div>
             {description ? (
-              <p className="text-muted-foreground mt-2 text-sm">{description}</p>
+              <p className="text-secondary-foreground mt-2 text-[15px] leading-6">{description}</p>
             ) : null}
-            <p className="text-muted-foreground mt-3 max-w-md text-sm leading-6"></p>
           </div>
-          <span className="text-muted-foreground hidden font-mono text-xs sm:block">
+          <span className="text-muted-foreground hidden shrink-0 font-mono text-xs sm:block">
             {progression.length} chords
           </span>
         </div>
 
         <div>
-          <p className="text-muted-foreground mb-3 font-mono text-[10px] tracking-widest uppercase">
+          <p className="text-muted-foreground mb-3 font-mono text-[11px] font-medium tracking-[0.14em] uppercase">
             Chord sequence
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {progression.map((chord, index) => (
               <div key={`${chord}-${index}`} className="flex items-center gap-2">
-                <span className="border-border bg-secondary text-foreground rounded-[var(--radius)] border px-3 py-2 font-mono text-sm">
+                <span className="bg-primary-deep text-primary-bright rounded-[var(--radius-sm)] px-2.5 py-1 font-mono text-[13px] font-medium">
                   {chord}
                 </span>
                 {index < progression.length - 1 ? (
-                  <span className="text-muted-foreground">→</span>
+                  <span aria-hidden="true" className="text-muted-foreground">
+                    →
+                  </span>
                 ) : null}
               </div>
             ))}
@@ -135,7 +136,7 @@ export function ChordGraph({
         </div>
 
         <div>
-          <p className="text-muted-foreground mb-3 font-mono text-[10px] tracking-widest uppercase">
+          <p className="text-muted-foreground mb-3 font-mono text-[11px] font-medium tracking-[0.14em] uppercase">
             Guitar diagrams
           </p>
           <div className="flex flex-wrap gap-2">
@@ -145,7 +146,7 @@ export function ChordGraph({
           </div>
         </div>
 
-        <div className="border-border grid gap-4 border-t pt-5 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="border-border grid gap-6 border-t pt-6 md:grid-cols-[1fr_auto] md:items-end">
           {/* Instrument dropdown hidden — backend support coming later; defaults to Piano (0) */}
           {/*
           <label className="flex flex-col gap-2 text-sm text-white/75">
@@ -153,7 +154,7 @@ export function ChordGraph({
             <select
               value={instrument}
               onChange={(event) => setInstrument(Number(event.target.value))}
-              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-white outline-none transition focus:border-purple-400"
+              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-white outline-none transition focus:border-primary-bright"
             >
               {INSTRUMENT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -170,7 +171,10 @@ export function ChordGraph({
         </div>
 
         {error ? (
-          <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-3 text-sm text-red-100">
+          <div
+            role="alert"
+            className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-3 text-sm"
+          >
             {error}
           </div>
         ) : null}
@@ -185,7 +189,7 @@ export function ChordGraph({
                 href={result.midi_download_path ?? `data:audio/midi;base64,${result.midi_b64}`}
                 download={result.midi_filename}
                 aria-label="Download MIDI"
-                className="text-primary hover:text-foreground font-mono text-sm transition-colors"
+                className="text-primary-bright hover:text-foreground focus-visible:ring-ring rounded-sm font-mono text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 ↓ MIDI
               </a>

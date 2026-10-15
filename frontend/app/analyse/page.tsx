@@ -14,7 +14,7 @@ import { Card } from "../../components/ui/card";
 import { ChordSequence } from "../../components/ui/chord-sequence";
 import { MoodBadge, StatusBadge } from "../../components/ui/badge";
 import { PitchHistogram } from "../../components/ui/pitch-histogram";
-import { Label, SectionHeading } from "../../components/ui/text";
+import { Label, PageHeader } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
 import { retryOnWakeup, RetryCancelledError } from "../lib/retryOnWakeup";
@@ -368,61 +368,70 @@ export default function AnalysePage() {
   return (
     <ErrorBoundary>
       <>
-        <div className="mb-8 flex items-start justify-between">
-          <SectionHeading sub="Upload or record a clip to extract key, tempo, pitch content, and chord structure.">
-            Analyse Audio
-          </SectionHeading>
-          <div className="flex items-center gap-3">
-            {showRecorder && !transcription ? (
-              <StatusBadge variant="error" dot>
-                Recording
-              </StatusBadge>
-            ) : null}
-            {isTranscribing ? (
-              <StatusBadge variant="accent" dot>
-                Analysing
-              </StatusBadge>
-            ) : null}
-            {transcription && !isTranscribing ? (
-              <StatusBadge variant="success" dot>
-                Complete
-              </StatusBadge>
-            ) : null}
-          </div>
+        <div className="mb-10">
+          <PageHeader
+            eyebrow="Analyse"
+            title="Analyse audio"
+            lead="Upload or record a clip to extract key, tempo, pitch content, and chord structure."
+          >
+            <div className="flex items-center gap-3" aria-live="polite">
+              {showRecorder && !transcription ? (
+                <StatusBadge variant="error" dot>
+                  Recording
+                </StatusBadge>
+              ) : null}
+              {isTranscribing ? (
+                <StatusBadge variant="accent" dot>
+                  Analysing
+                </StatusBadge>
+              ) : null}
+              {transcription && !isTranscribing ? (
+                <StatusBadge variant="success" dot>
+                  Complete
+                </StatusBadge>
+              ) : null}
+            </div>
+          </PageHeader>
         </div>
 
-        <main className="space-y-8">
-          <section className="grid gap-6 xl:grid-cols-2">
-            <Card>
+        <div className="space-y-8">
+          <section
+            aria-label="Audio source"
+            className="border-border bg-card grid overflow-hidden rounded-[var(--radius-lg)] border shadow-[var(--shadow-panel)] xl:grid-cols-2"
+          >
+            <div className="p-6">
               <Label>Upload audio</Label>
               <div className="mt-4">
                 <UploadButton
                   onUploadSuccess={handleUploadSuccess}
                   onUploadError={setErrorMessage}
-                  label="Upload Audio"
+                  label="Upload audio file"
                 />
               </div>
 
               {selectedFile ? (
-                <div className="border-border bg-background text-secondary-foreground mt-5 rounded-[var(--radius)] border p-4 text-sm">
+                <div className="border-border bg-raised text-secondary-foreground mt-5 rounded-[var(--radius)] border p-4 text-sm">
                   <Label>Source</Label>
                   <p className="text-foreground mt-2">{selectedFile.name}</p>
                 </div>
               ) : null}
-            </Card>
+            </div>
 
-            <Card>
+            <div className="border-border border-t p-6 xl:border-t-0 xl:border-l">
               <Label>Record audio</Label>
               <button
                 type="button"
                 onClick={() => setShowRecorder((current) => !current)}
-                className="border-primary/45 bg-primary/6 text-foreground hover:border-primary/70 hover:bg-primary/12 mt-4 flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[var(--radius)] border-2 border-dashed px-6 py-8 text-center transition-colors"
+                className="border-border-strong bg-raised/40 text-foreground hover:border-primary hover:bg-raised focus-visible:ring-ring mt-4 flex min-h-[220px] w-full flex-col items-center justify-center gap-4 rounded-[var(--radius)] border border-dashed px-6 py-8 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 aria-expanded={showRecorder}
               >
-                <span className="border-primary/50 bg-primary/15 text-primary flex h-14 w-14 items-center justify-center rounded-full border text-2xl">
+                <span
+                  aria-hidden="true"
+                  className="border-border-strong bg-background text-danger flex h-14 w-14 items-center justify-center rounded-full border text-xl shadow-[var(--shadow-knob)]"
+                >
                   ●
                 </span>
-                <span className="font-display text-base">
+                <span className="font-title text-lg">
                   {showRecorder ? "Hide recorder" : "Record audio"}
                 </span>
                 <span className="text-muted-foreground text-sm">
@@ -437,7 +446,7 @@ export default function AnalysePage() {
                   <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
                 </div>
               ) : null}
-            </Card>
+            </div>
           </section>
 
           <div className="space-y-6">
@@ -454,7 +463,7 @@ export default function AnalysePage() {
               <Card variant="accent" className="space-y-5">
                 <div>
                   <Label>Transcription</Label>
-                  <h2 className="font-display text-foreground mt-1 text-2xl font-light">
+                  <h2 className="font-title text-foreground mt-2 text-3xl">
                     {transcription.sourceName}
                   </h2>
                   <p className="text-muted-foreground mt-2 text-sm">
@@ -499,7 +508,7 @@ export default function AnalysePage() {
                   ) : null}
                 </div>
 
-                <div className="border-border bg-background rounded-[var(--radius)] border p-5">
+                <div className="border-border bg-raised/50 rounded-[var(--radius)] border p-5">
                   <ClipRange
                     sourceDurationSec={transcription.source_duration_sec}
                     value={clipWindow}
@@ -514,36 +523,39 @@ export default function AnalysePage() {
                       <Spinner label={analysis.message ?? "Analysing this section..."} />
                     </div>
                   ) : analysis.status === "error" ? (
-                    <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
+                    <div
+                      role="alert"
+                      className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-4 text-sm"
+                    >
                       {analysis.error}
                     </div>
                   ) : analysisData ? (
                     <div className="space-y-6">
-                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <Card variant="muted">
+                      <div className="border-border grid gap-px overflow-hidden rounded-[var(--radius)] border bg-[var(--color-border)] md:grid-cols-2 xl:grid-cols-4">
+                        <div className="bg-card p-5">
                           <Label>Key</Label>
-                          <p className="font-display text-foreground mt-3 text-lg font-light">
+                          <p className="font-display text-foreground mt-3 text-4xl leading-none font-light">
                             {analysisData.key}
                           </p>
-                        </Card>
-                        <Card variant="muted">
+                        </div>
+                        <div className="bg-card p-5">
                           <Label>Notes in window</Label>
-                          <p className="font-display text-foreground mt-3 text-lg font-light">
+                          <p className="font-display text-foreground mt-3 text-4xl leading-none font-light">
                             {analysisData.n_notes}
                           </p>
-                        </Card>
-                        <Card variant="muted">
+                        </div>
+                        <div className="bg-card p-5">
                           <Label>Tempo</Label>
-                          <p className="font-display text-foreground mt-3 text-lg font-light">
+                          <p className="font-display text-foreground mt-3 text-4xl leading-none font-light">
                             {analysisData.tempo_bpm} BPM
                           </p>
-                        </Card>
-                        <Card variant="muted">
+                        </div>
+                        <div className="bg-card p-5">
                           <Label>Average pitch</Label>
-                          <p className="font-display text-foreground mt-3 text-lg font-light">
+                          <p className="font-display text-foreground mt-3 text-4xl leading-none font-light">
                             {analysisData.average_pitch}
                           </p>
-                        </Card>
+                        </div>
                       </div>
 
                       {detectedNotes.length > 0 ? (
@@ -625,7 +637,7 @@ export default function AnalysePage() {
               </Card>
             ) : null}
           </div>
-        </main>
+        </div>
 
         {errorMessage ? <ErrorToast message={errorMessage} onDismiss={dismissError} /> : null}
       </>

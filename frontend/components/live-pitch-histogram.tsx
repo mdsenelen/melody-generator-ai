@@ -30,7 +30,7 @@ export function LivePitchHistogram({
           {isPitched ? (
             <>
               {/* Pulsing dot — indicates live signal */}
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+              <span className="bg-success inline-block h-2 w-2 animate-pulse rounded-full" />
               <span className="text-foreground text-sm font-semibold">{currentNote}</span>
               <span className="text-muted-foreground text-xs">{currentFrequency} Hz</span>
             </>
@@ -59,7 +59,7 @@ export function LivePitchHistogram({
                   className={[
                     "w-full rounded-t-[2px] transition-all duration-75",
                     isActive
-                      ? "bg-primary animate-pulse shadow-[0_0_12px_rgba(172,32,232,0.5)]"
+                      ? "bg-primary animate-pulse shadow-[0_0_12px_rgba(143,169,204,0.45)]"
                       : normalized > 0
                         ? "bg-primary/40"
                         : "bg-border",
@@ -85,7 +85,7 @@ export function LivePitchHistogram({
       <div className="mt-3">
         <div className="bg-border h-px w-full overflow-hidden">
           <div
-            className="h-full bg-emerald-400/70 transition-all duration-150"
+            className="bg-success/70 h-full transition-all duration-150"
             style={{ width: `${Math.round(clarity * 100)}%` }}
           />
         </div>

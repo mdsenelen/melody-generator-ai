@@ -44,13 +44,18 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-      <div className="h-12 w-12 opacity-10" aria-hidden="true">
+      <div className="text-primary h-12 w-12 opacity-40" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="24" r="22" stroke="#AC20E8" strokeWidth="1.5" />
-          <path d="M12 24h24M24 12v24" stroke="#AC20E8" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="1.5" />
+          <path
+            d="M12 24h24M24 12v24"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
-      <p className="font-display text-foreground text-lg font-light">{title}</p>
+      <p className="font-title text-foreground text-xl">{title}</p>
       {body ? (
         <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">{body}</p>
       ) : null}
@@ -67,14 +72,24 @@ export function WarningBanner({ title, body }: { title: string; body?: string })
         height="14"
         viewBox="0 0 14 14"
         fill="none"
-        className="mt-0.5 shrink-0"
+        className="text-warning mt-0.5 shrink-0"
         aria-hidden="true"
       >
-        <path d="M7 1.5L13 12H1L7 1.5z" stroke="#f59e0b" strokeWidth="1.2" strokeLinejoin="round" />
-        <path d="M7 5.5v3M7 10.5v.5" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round" />
+        <path
+          d="M7 1.5L13 12H1L7 1.5z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M7 5.5v3M7 10.5v.5"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+        />
       </svg>
       <div>
-        <p className="text-xs font-medium text-amber-400">{title}</p>
+        <p className="text-warning text-xs font-medium">{title}</p>
         {body ? (
           <p className="text-secondary-foreground mt-0.5 text-xs leading-relaxed">{body}</p>
         ) : null}
@@ -91,20 +106,20 @@ export function SuccessState({ title, body }: { title: string; body?: string }) 
         height="14"
         viewBox="0 0 14 14"
         fill="none"
-        className="mt-0.5 shrink-0"
+        className="text-success mt-0.5 shrink-0"
         aria-hidden="true"
       >
-        <circle cx="7" cy="7" r="6" stroke="#22c55e" strokeWidth="1.2" />
+        <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2" />
         <path
           d="M4.5 7l2 2 3-3"
-          stroke="#22c55e"
+          stroke="currentColor"
           strokeWidth="1.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>
       <div>
-        <p className="text-xs font-medium text-green-400">{title}</p>
+        <p className="text-success text-xs font-medium">{title}</p>
         {body ? (
           <p className="text-secondary-foreground mt-0.5 text-xs leading-relaxed">{body}</p>
         ) : null}

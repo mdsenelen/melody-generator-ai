@@ -1,6 +1,32 @@
-import { useId, type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 
 import { Label } from "./text";
+
+/** Visible track + fill + thumb behind a transparent native range input; the thumb shows focus. */
+function RangeTrack({
+  pct,
+  className = "",
+  children,
+}: {
+  pct: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`group bg-raised-hover relative h-1 rounded-full ${className}`}>
+      <div
+        className="bg-primary absolute top-0 left-0 h-full rounded-full"
+        style={{ width: `${pct}%` }}
+      />
+      <div
+        aria-hidden="true"
+        className="bg-foreground border-primary group-focus-within:ring-ring group-focus-within:ring-offset-background pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] group-focus-within:ring-2 group-focus-within:ring-offset-2"
+        style={{ left: `${pct}%` }}
+      />
+      {children}
+    </div>
+  );
+}
 
 type SliderProps = {
   label: string;
@@ -33,13 +59,12 @@ export function Slider({
         <Label>
           <label htmlFor={id}>{label}</label>
         </Label>
-        <span className="text-primary font-mono text-[11px]">
+        <span className="text-primary-bright font-mono text-[13px]">
           {value}
           {unit}
         </span>
       </div>
-      <div className="bg-border relative h-px">
-        <div className="bg-primary absolute top-0 left-0 h-full" style={{ width: `${pct}%` }} />
+      <RangeTrack pct={pct}>
         <input
           id={id}
           type="range"
@@ -53,7 +78,7 @@ export function Slider({
           style={{ height: 20, top: -10 }}
           {...rest}
         />
-      </div>
+      </RangeTrack>
     </div>
   );
 }
@@ -72,7 +97,12 @@ export function TemperatureInput({
 }) {
   const id = useId();
   const pct = ((value - 0.3) / 1.7) * 100;
-  const warmth = value > 1.2 ? "text-amber-400" : value < 0.7 ? "text-sky-400" : "text-primary";
+  const warmth =
+    value > 1.2
+      ? "text-warning"
+      : value < 0.7
+        ? "text-primary-bright"
+        : "text-secondary-foreground";
 
   return (
     <div className={disabled ? "flex items-center gap-2 opacity-40" : "flex items-center gap-2"}>
@@ -84,8 +114,7 @@ export function TemperatureInput({
       <span className={`w-7 shrink-0 text-right font-mono text-[11px] ${warmth}`}>
         {value.toFixed(1)}
       </span>
-      <div className="bg-border relative h-px flex-1">
-        <div className="bg-primary absolute top-0 left-0 h-full" style={{ width: `${pct}%` }} />
+      <RangeTrack pct={pct} className="flex-1">
         <input
           id={id}
           type="range"
@@ -98,7 +127,7 @@ export function TemperatureInput({
           className="absolute inset-0 w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           style={{ height: 20, top: -10 }}
         />
-      </div>
+      </RangeTrack>
     </div>
   );
 }

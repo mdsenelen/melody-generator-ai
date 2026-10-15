@@ -76,17 +76,18 @@ export function UploadButton({
   };
 
   return (
-    <div className="flex flex-col items-start gap-4">
-      <label className="group border-border hover:border-border-strong relative flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[var(--radius)] border-2 border-dashed bg-transparent px-6 py-8 text-center transition-colors">
-        <div className="border-primary/40 bg-primary/10 text-primary mb-4 flex h-12 w-12 items-center justify-center rounded-full border text-xl">
+    <div className="flex flex-col items-start gap-2">
+      <label className="group border-border-strong bg-raised/40 hover:border-primary focus-within:ring-ring relative flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[var(--radius)] border border-dashed px-6 py-8 text-center transition-colors focus-within:ring-2">
+        <div
+          aria-hidden="true"
+          className="border-border-strong bg-background text-primary-bright mb-4 flex h-12 w-12 items-center justify-center rounded-full border text-xl shadow-[var(--shadow-knob)]"
+        >
           ↑
         </div>
 
         {!isLoading ? (
           <>
-            <span className="font-display text-foreground mb-2 text-[1.05rem]">
-              Drop audio file here
-            </span>
+            <span className="font-title text-foreground mb-2 text-lg">Drop audio file here</span>
             <span className="text-secondary-foreground text-sm">
               MP3 · WAV · FLAC · M4A · up to 50 MB
             </span>
@@ -97,7 +98,7 @@ export function UploadButton({
 
         <input
           type="file"
-          aria-label="Upload audio file"
+          aria-label={label}
           accept=".wav,.mp3,.flac,.ogg,.m4a,.webm,audio/*"
           onChange={handleFile}
           className="absolute inset-0 cursor-pointer opacity-0"
@@ -106,9 +107,6 @@ export function UploadButton({
       </label>
 
       <div className="w-full">
-        <p className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
-          {label.toUpperCase()}
-        </p>
         <p className="text-muted-foreground min-h-[1.25rem] text-sm" aria-live="polite">
           {status}
         </p>

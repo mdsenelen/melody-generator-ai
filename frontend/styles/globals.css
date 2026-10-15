@@ -1,29 +1,45 @@
 @import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Caveat:wght@400;600&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0b;
-  --color-foreground: #f0ede8;
-  --color-card: #111114;
-  --color-card-foreground: #f0ede8;
-  --color-primary: #ac20e8;
-  --color-primary-foreground: #0a0a0b;
-  --color-secondary: #1a1a1f;
-  --color-secondary-foreground: #a09a90;
-  --color-muted: #161618;
-  --color-muted-foreground: #6b6560;
-  --color-accent: #ac20e8;
-  --color-accent-foreground: #0a0a0b;
-  --color-border: #1e1e22;
-  --color-border-strong: #2e2e34;
-  --color-ring: #ac20e8;
+  /* Melodia design system — graphite surfaces, one steel (gray→blue) accent. */
+  --color-background: #0b0c0e;
+  --color-foreground: #eceef2;
+  --color-card: #121418;
+  --color-card-foreground: #eceef2;
+  --color-raised: #181b20;
+  --color-raised-hover: #20242b;
+  --color-primary: #8fa9cc;
+  --color-primary-bright: #b4c8e4;
+  --color-primary-deep: #2b3a4f;
+  --color-primary-foreground: #0b0c0e;
+  --color-secondary: #181b20;
+  --color-secondary-foreground: #a0a8b4;
+  --color-muted: #161a1f;
+  --color-muted-foreground: #7a8391;
+  --color-accent: #8fa9cc;
+  --color-accent-foreground: #0b0c0e;
+  --color-border: #23272e;
+  --color-border-strong: #5a6270;
+  --color-ring: #b4c8e4;
+  --color-success: #7fbf9c;
+  --color-warning: #d9ab62;
+  --color-danger: #e5847a;
 
-  --radius: 4px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-knob: 0 2px 0 rgba(255, 255, 255, 0.06) inset, 0 6px 14px rgba(0, 0, 0, 0.6);
 
   --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
   --font-display: var(--font-fraunces), "Fraunces", Georgia, "Times New Roman", serif;
+  --font-title: var(--font-lora), "Lora", Georgia, "Times New Roman", serif;
+  --font-hand: var(--font-caveat), "Caveat", "Segoe Script", cursive;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -57,7 +73,7 @@ img {
 }
 
 ::selection {
-  background: rgba(172, 32, 232, 0.38);
+  background: rgba(143, 169, 204, 0.3);
   color: #f8faff;
 }
 
@@ -69,4 +85,13 @@ img {
 }
 *:hover {
   scrollbar-width: thin;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

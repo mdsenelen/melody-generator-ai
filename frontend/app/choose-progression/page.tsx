@@ -5,9 +5,12 @@ import { useState } from "react";
 import { ChordDiagram } from "../../components/chord-diagram";
 import { ChordGraph } from "../../components/chord-graph";
 import { ChordPicker } from "../../components/chord-picker";
-import { Card } from "../../components/ui/card";
+import { KeyboardStrip } from "../../components/keyboard-strip";
 import { PlannedBadge } from "../../components/ui/badge";
-import { Label } from "../../components/ui/text";
+import { cn } from "../../components/ui/cn";
+import { Label, PageHeader } from "../../components/ui/text";
+import { chordPitchClasses } from "../../data/chords";
+import { NOTE_NAMES } from "../../utils/pitch";
 
 const PLANNED_FEATURES = [
   "Add / remove chord slots (up to 8)",
@@ -18,31 +21,48 @@ const PLANNED_FEATURES = [
 
 export default function ChooseProgressionPage() {
   const [progression, setProgression] = useState<(string | null)[]>([null, null, null, null]);
+  // The slot the readout + keyboard follow: whichever chord was edited last.
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
   const updateChord = (index: number, chord: string | null) => {
     setProgression((current) =>
       current.map((value, currentIndex) => (currentIndex === index ? chord : value)),
     );
+    setFocusIndex(chord ? index : null);
   };
 
   const filled = progression.filter((chord): chord is string => Boolean(chord));
+  const focusChord = focusIndex !== null ? progression[focusIndex] : null;
+  const focusPitchClasses = focusChord ? chordPitchClasses(focusChord) : [];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <Label>Compose</Label>
-        <h1 className="font-display text-foreground mt-2 text-3xl font-light">
-          Build your progression
-        </h1>
-        <p className="text-muted-foreground mt-2 max-w-xl text-sm">
-          Choose up to four chords and preview the movement before generating your melody.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        eyebrow="Compose"
+        title="Build your progression"
+        lead="Choose up to four chords, hear the movement, then use it as a scaffold for generation."
+      />
 
-      <Card>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section
+        aria-label="Progression"
+        className="border-border bg-card overflow-hidden rounded-[var(--radius-lg)] border shadow-[var(--shadow-panel)]"
+      >
+        <div className="border-border bg-raised/60 flex items-center justify-between gap-3 border-b px-6 py-3">
+          <Label>Progression</Label>
+          <span className="text-primary-bright font-mono text-[13px] font-medium">
+            {filled.length}/4 selected
+          </span>
+        </div>
+
+        <div className="grid gap-px bg-[var(--color-border)] sm:grid-cols-2 xl:grid-cols-4">
           {progression.map((chord, index) => (
-            <div key={`slot-${index}`} className="space-y-3">
+            <div
+              key={`slot-${index}`}
+              className={cn(
+                "bg-card space-y-4 p-5 transition-colors",
+                focusIndex === index && chord && "bg-primary-deep/40",
+              )}
+            >
               <Label>Chord {index + 1}</Label>
               <ChordPicker
                 value={chord}
@@ -50,60 +70,72 @@ export default function ChooseProgressionPage() {
                 placeholder={`Chord ${index + 1}`}
               />
               {chord ? (
-                <div className="flex justify-center py-2">
+                <div className="flex justify-center py-1">
                   <ChordDiagram chord={chord} />
                 </div>
               ) : (
-                <div className="flex h-20 items-center justify-center">
-                  <span className="text-border-strong font-mono text-[10px] tracking-widest uppercase">
-                    Empty
-                  </span>
+                <div className="border-border flex h-24 items-center justify-center rounded-[var(--radius)] border border-dashed">
+                  <span className="text-muted-foreground text-sm">Add a chord</span>
                 </div>
               )}
             </div>
           ))}
         </div>
-        <div className="border-border mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-          <p className="text-muted-foreground text-sm">
-            {filled.length < 2
-              ? "Add at least 2 chords to preview"
-              : "Your progression is ready to preview"}
-          </p>
-          <span className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
-            {filled.length}/4 selected
-          </span>
+
+        <div className="border-border grid gap-6 border-t p-6 md:grid-cols-[220px_1fr] md:items-center">
+          <div aria-live="polite">
+            <Label>Now showing</Label>
+            <p
+              data-testid="chord-readout"
+              className={cn(
+                "font-display mt-2 text-5xl leading-none font-light",
+                focusChord ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {focusChord ?? "—"}
+            </p>
+            <p className="text-secondary-foreground mt-3 font-mono text-[13px]">
+              {focusPitchClasses.length > 0
+                ? focusPitchClasses.map((pc) => NOTE_NAMES[pc]).join(" · ")
+                : "Pick a chord to see its notes"}
+            </p>
+          </div>
+          <KeyboardStrip pitchClasses={focusPitchClasses} />
         </div>
-      </Card>
+      </section>
 
       <ChordGraph
         title="Preview progression"
-        description="Adjust tempo and listen to the selected chord movement."
+        description={
+          filled.length < 2
+            ? "Add at least 2 chords to preview"
+            : "Adjust tempo and listen to the selected chord movement."
+        }
         progression={filled}
         canPlay={filled.length >= 2}
       />
 
-      <Card variant="muted">
+      <section aria-labelledby="planned-heading" className="border-border border-t pt-10">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <Label>Additional features</Label>
-            <p className="text-muted-foreground mt-2 text-sm">
-              More composition controls are on the way.
-            </p>
+            <Label>Coming next</Label>
+            <h2 id="planned-heading" className="font-title text-foreground mt-2 text-2xl">
+              More composition controls
+            </h2>
           </div>
-          <PlannedBadge />
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
           {PLANNED_FEATURES.map((feature) => (
-            <div
+            <li
               key={feature}
-              className="border-border text-muted-foreground flex items-center justify-between gap-3 rounded-[var(--radius)] border px-4 py-3 text-sm"
+              className="border-border text-secondary-foreground flex items-center justify-between gap-3 rounded-[var(--radius)] border px-4 py-3 text-sm"
             >
               <span>{feature}</span>
               <PlannedBadge />
-            </div>
+            </li>
           ))}
-        </div>
-      </Card>
+        </ul>
+      </section>
     </div>
   );
 }

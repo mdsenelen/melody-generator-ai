@@ -152,7 +152,7 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
           onClick={startRecording}
           aria-label="Record from microphone"
           disabled={isRecording}
-          className="border-primary/60 bg-primary/8 font-display text-foreground hover:border-primary hover:bg-primary/14 inline-flex items-center justify-center gap-3 rounded-[var(--radius)] border px-5 py-3 text-base transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          className="border-primary/60 bg-primary-deep text-foreground hover:border-primary focus-visible:ring-ring inline-flex items-center justify-center gap-3 rounded-[var(--radius)] border px-5 py-3 text-base transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="bg-primary flex h-3.5 w-3.5 items-center justify-center rounded-full" />
           {isRecording ? "Recording..." : "Record from microphone"}
@@ -173,7 +173,7 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
           Browser recorder
         </p>
         <p className="text-muted-foreground mt-2 text-sm">Uses the Web Audio API</p>
-        {error ? <p className="mt-2 text-red-300">{error}</p> : null}
+        {error ? <p className="text-danger mt-2">{error}</p> : null}
         {!isRecording ? <p className="text-muted-foreground mt-2 text-sm">{status}</p> : null}
 
         {showLivePitch && isRecording && (
@@ -198,7 +198,7 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
               <button
                 type="button"
                 onClick={useRecording}
-                className="rounded-[var(--radius)] border border-emerald-400/40 bg-emerald-500/15 px-4 py-2.5 text-sm text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/20"
+                className="border-success/50 bg-success/15 text-foreground hover:border-success/50 hover:bg-success/20 rounded-[var(--radius)] border px-4 py-2.5 text-sm transition-colors"
               >
                 Use this recording
               </button>

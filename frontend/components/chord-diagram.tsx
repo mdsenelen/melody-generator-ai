@@ -839,7 +839,7 @@ export function ChordDiagram({ chord }: { chord: string }) {
                   x={stringX(stringNumber)}
                   y="24"
                   textAnchor="middle"
-                  className="fill-red-300 text-xs font-bold"
+                  className="fill-danger text-xs font-bold"
                 >
                   ×
                 </text>

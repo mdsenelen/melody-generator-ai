@@ -12,7 +12,7 @@ import { Card } from "../../components/ui/card";
 import { EmptyState, WarningBanner } from "../../components/ui/feedback";
 import { Pills } from "../../components/ui/pills";
 import { Slider, TemperatureInput } from "../../components/ui/slider";
-import { Label } from "../../components/ui/text";
+import { Label, PageHeader } from "../../components/ui/text";
 import { VariantPicker } from "../../components/ui/variant-picker";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { requestJson, type RequestError } from "../lib/request";
@@ -205,26 +205,22 @@ export default function GenerateVariantsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <Label>Variants</Label>
-        <h1 className="font-display text-foreground mt-2 text-3xl font-light">
-          Transform your audio
-        </h1>
-        <p className="text-muted-foreground mt-2 max-w-xl text-sm">
-          Configure the source and transformation controls, then generate new playable ideas.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        eyebrow="Variants"
+        title="Transform your audio"
+        lead="Configure the source and transformation controls, then generate new playable ideas."
+      />
 
-      <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <Card className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <Card variant="accent" className="space-y-6 self-start p-6">
           <div>
             <Label>Audio source</Label>
             <div className="mt-3 space-y-3">
               <UploadButton
                 onUploadSuccess={handleUploadSuccess}
                 onUploadError={handleUploadError}
-                label="Upload audio"
+                label="Upload audio file"
               />
               <button
                 type="button"
@@ -242,13 +238,13 @@ export default function GenerateVariantsPage() {
             ) : null}
 
             {lastUpload ? (
-              <div className="border-border bg-background mt-4 rounded-[var(--radius)] border p-3">
+              <div className="border-border bg-raised mt-4 rounded-[var(--radius)] border p-3">
                 <p className="text-muted-foreground truncate text-xs">{lastUpload.sourceName}</p>
                 <button
                   type="button"
                   onClick={handleUseStoredUpload}
                   disabled={useStoredUpload}
-                  className="border-primary/40 bg-primary/10 text-primary hover:border-primary/70 mt-3 w-full rounded-[var(--radius)] border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  className="border-primary/50 bg-primary-deep text-primary-bright hover:border-primary focus-visible:ring-ring mt-3 w-full rounded-[var(--radius)] border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {useStoredUpload ? "Using this upload" : "Use my last upload"}
                 </button>
@@ -259,7 +255,7 @@ export default function GenerateVariantsPage() {
           <div className="border-border space-y-4 border-t pt-6">
             <Label>Transformation</Label>
             <div>
-              <p className="text-muted-foreground mb-2 text-xs">Mood</p>
+              <p className="text-secondary-foreground mb-2 text-sm">Mood</p>
               <Pills
                 options={["Happy", "Neutral", "Sad"]}
                 value={selectedMood}
@@ -268,7 +264,7 @@ export default function GenerateVariantsPage() {
               />
             </div>
             <div>
-              <p className="text-muted-foreground mb-2 text-xs">Scale</p>
+              <p className="text-secondary-foreground mb-2 text-sm">Scale</p>
               <Pills
                 options={["Original", "Major", "Minor"]}
                 value={selectedScale}
@@ -291,7 +287,7 @@ export default function GenerateVariantsPage() {
           <div className="border-border space-y-3 border-t pt-6">
             <div className="flex items-center justify-between">
               <Label>Temperature per variant</Label>
-              <span className="text-muted-foreground font-mono text-[9px]">0.3 – 2.0</span>
+              <span className="text-muted-foreground font-mono text-[11px]">0.3–2.0</span>
             </div>
             <div className="space-y-3">
               {Array.from({ length: nVariants }, (_, index) => (
@@ -315,12 +311,12 @@ export default function GenerateVariantsPage() {
             {loading ? (
               <Spinner size="sm" label="Generating variants" />
             ) : (
-              `Generate ${nVariants} Variants`
+              `Generate ${nVariants} variants`
             )}
           </button>
         </Card>
 
-        <Card className="min-h-[520px]" variant="muted">
+        <Card className="min-h-[520px] border-dashed" variant="muted">
           {!result ? (
             <EmptyState
               title="Configure on the left"
@@ -352,7 +348,7 @@ export default function GenerateVariantsPage() {
             </div>
           ) : (
             <div
-              className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100"
+              className="border-danger/40 bg-danger/8 text-foreground rounded-[var(--radius)] border p-4 text-sm"
               data-testid="generation-error-failed"
             >
               {error.message}
@@ -365,9 +361,7 @@ export default function GenerateVariantsPage() {
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="font-display text-foreground text-2xl font-light">
-                Rendered variants
-              </h2>
+              <h2 className="font-title text-foreground text-2xl">Rendered variants</h2>
               <p className="text-muted-foreground mt-2 text-sm">
                 Generated on {result.model_status.device}. Play each melody below, or download the
                 MIDI.
@@ -396,7 +390,7 @@ export default function GenerateVariantsPage() {
               <p className="mt-2">{result.n_variants} variants</p>
               <p className="mt-1">Temperatures: {result.temperatures.join(", ")}</p>
               {result.model_status.load_error ? (
-                <p className="mt-2 text-red-300">{result.model_status.load_error}</p>
+                <p className="text-danger mt-2">{result.model_status.load_error}</p>
               ) : null}
             </Card>
           </div>

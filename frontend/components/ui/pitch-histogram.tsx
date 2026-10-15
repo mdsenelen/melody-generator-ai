@@ -24,7 +24,7 @@ export function PitchHistogram({
                 className="w-full rounded-[2px] transition-all duration-300"
                 style={{
                   height: `${Math.max(value * 100, 8)}%`,
-                  backgroundColor: active ? "#AC20E8" : "#2e2e34",
+                  backgroundColor: active ? "var(--color-primary)" : "var(--color-raised-hover)",
                 }}
               />
             </div>

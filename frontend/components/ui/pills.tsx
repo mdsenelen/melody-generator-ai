@@ -25,12 +25,12 @@ export function Pills({
             onClick={() => onChange(option)}
             aria-pressed={active}
             className={cn(
-              "rounded-[var(--radius)] border font-mono tracking-wide transition-all",
-              small ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-[11px]",
+              "rounded-full border font-mono transition-colors",
+              small ? "px-2.5 py-0.5 text-[11px]" : "px-3.5 py-1.5 text-[12px]",
               active
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:border-border-strong hover:text-secondary-foreground",
-              "focus-visible:ring-ring/60 focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none",
+                ? "border-primary bg-primary-deep text-primary-bright"
+                : "border-border-strong text-secondary-foreground hover:bg-raised hover:text-foreground",
+              "focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
             )}
           >
             {option}
