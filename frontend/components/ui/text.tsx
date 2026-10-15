@@ -35,7 +35,7 @@ export function PageHeader({
     <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
       <div className="max-w-2xl">
         <Label>{eyebrow}</Label>
-        <h1 className="font-title text-foreground mt-3 text-[clamp(2.25rem,4vw,3rem)] leading-[1.05] font-medium tracking-[-0.015em]">
+        <h1 className="font-title text-foreground mt-3 text-[clamp(2.25rem,4vw,3rem)] leading-[1.25]">
           {title}
         </h1>
         {lead ? <p className="text-secondary-foreground mt-3 text-lg leading-7">{lead}</p> : null}

@@ -27,7 +27,7 @@ export default function Nav() {
             href={link.href}
             aria-current={active ? "page" : undefined}
             className={
-              "focus-visible:ring-ring shrink-0 rounded-full px-4 py-1.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none " +
+              "focus-visible:ring-ring font-title shrink-0 rounded-full px-4 py-1.5 text-[15px] transition-colors focus-visible:ring-2 focus-visible:outline-none " +
               (active
                 ? "bg-foreground text-background"
                 : "text-secondary-foreground hover:text-foreground")

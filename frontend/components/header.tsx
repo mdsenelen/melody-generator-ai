@@ -8,7 +8,7 @@ export default function Header() {
     >
       {/* Decorative: the wordmark beside it names the link. */}
       <img src="/logo.svg" alt="" width={28} height={28} className="h-7 w-7" />
-      <span className="font-title text-foreground text-lg font-medium tracking-tight">Melodia</span>
+      <span className="font-title text-foreground text-2xl leading-none">Melodia</span>
     </Link>
   );
 }
