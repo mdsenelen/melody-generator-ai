@@ -6,9 +6,22 @@ const WHITE_PCS = [0, 2, 4, 5, 7, 9, 11];
 // Left edge of each black key, in white-key widths from the octave's C.
 const BLACK_OFFSETS: Record<number, number> = { 1: 0.65, 3: 1.7, 6: 3.65, 8: 4.68, 10: 5.72 };
 
-/** A two-octave keyboard that lights the given pitch classes in steel. Display only. */
+/** Key indexes (0 = the strip's first C) of a root-position voicing: each note the next one up. */
+function rootPositionVoicing(pitchClasses: number[]): Set<number> {
+  const keys = new Set<number>();
+  let previous = -1;
+  for (const pc of pitchClasses) {
+    let key = pc;
+    while (key <= previous) key += 12;
+    keys.add(key);
+    previous = key;
+  }
+  return keys;
+}
+
+/** A two-octave keyboard that lights the chord's notes (root first) as one voicing. Display only. */
 export function KeyboardStrip({ pitchClasses }: { pitchClasses: number[] }) {
-  const lit = new Set(pitchClasses);
+  const lit = rootPositionVoicing(pitchClasses);
   const whiteCount = WHITE_PCS.length * OCTAVES;
   const label =
     pitchClasses.length > 0
@@ -24,11 +37,13 @@ export function KeyboardStrip({ pitchClasses }: { pitchClasses: number[] }) {
       {Array.from({ length: OCTAVES }, (_, octave) =>
         WHITE_PCS.map((pc, index) => {
           const position = octave * WHITE_PCS.length + index;
-          const active = lit.has(pc);
+          const midi = octave * 12 + pc;
+          const active = lit.has(midi);
           return (
             <span
               key={`w-${octave}-${pc}`}
               data-key
+              data-midi={midi}
               data-active={active}
               className={cn(
                 "absolute top-0 bottom-0 border-r border-[#14171c]/35 transition-colors",
@@ -45,11 +60,13 @@ export function KeyboardStrip({ pitchClasses }: { pitchClasses: number[] }) {
       {Array.from({ length: OCTAVES }, (_, octave) =>
         Object.entries(BLACK_OFFSETS).map(([pcText, offset]) => {
           const pc = Number(pcText);
-          const active = lit.has(pc);
+          const midi = octave * 12 + pc;
+          const active = lit.has(midi);
           return (
             <span
               key={`b-${octave}-${pc}`}
               data-key
+              data-midi={midi}
               data-active={active}
               className={cn(
                 "absolute top-0 h-[60%] rounded-b-[3px] transition-colors",
