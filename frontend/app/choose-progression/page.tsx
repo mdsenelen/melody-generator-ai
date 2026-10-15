@@ -7,6 +7,7 @@ import { ChordGraph } from "../../components/chord-graph";
 import { ChordPicker } from "../../components/chord-picker";
 import { KeyboardStrip } from "../../components/keyboard-strip";
 import { PlannedBadge } from "../../components/ui/badge";
+import { buttonClass } from "../../components/ui/button";
 import { cn } from "../../components/ui/cn";
 import { Label, PageHeader } from "../../components/ui/text";
 import { chordPitchClasses } from "../../data/chords";
@@ -23,6 +24,8 @@ export default function ChooseProgressionPage() {
   const [progression, setProgression] = useState<(string | null)[]>([null, null, null, null]);
   // The slot the readout + keyboard follow: whichever chord was edited last.
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  // Closed by default: players who read chords don't need the keyboard.
+  const [pianoOpen, setPianoOpen] = useState(false);
 
   const updateChord = (index: number, chord: string | null) => {
     setProgression((current) =>
@@ -100,7 +103,22 @@ export default function ChooseProgressionPage() {
                 : "Pick a chord to see its notes"}
             </p>
           </div>
-          <KeyboardStrip pitchClasses={focusPitchClasses} />
+          <div className="flex flex-col items-start gap-3">
+            <button
+              type="button"
+              aria-expanded={pianoOpen}
+              aria-controls="piano-preview"
+              onClick={() => setPianoOpen((open) => !open)}
+              className={buttonClass("ghost", { small: true, className: "rounded-full" })}
+            >
+              {pianoOpen ? "Hide piano preview" : "Open piano preview"}
+            </button>
+            {pianoOpen ? (
+              <div id="piano-preview" className="w-full">
+                <KeyboardStrip pitchClasses={focusPitchClasses} />
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
