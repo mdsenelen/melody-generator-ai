@@ -17,6 +17,7 @@ import { PitchHistogram } from "../../components/ui/pitch-histogram";
 import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
+import { retryOnWakeup, RetryCancelledError } from "../lib/retryOnWakeup";
 import { useSessionStore } from "../lib/session-store";
 import {
   createTranscribeJob,
@@ -90,6 +91,7 @@ export default function AnalysePage() {
   const transcribeReqRef = useRef(0);
   const analysisReqRef = useRef(0);
   const analysisAbortRef = useRef<AbortController | null>(null);
+  const transcribeAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
   const dismissError = useCallback(() => setErrorMessage(null), []);
@@ -99,6 +101,7 @@ export default function AnalysePage() {
     return () => {
       mountedRef.current = false;
       analysisAbortRef.current?.abort();
+      transcribeAbortRef.current?.abort();
     };
   }, []);
 
@@ -167,6 +170,11 @@ export default function AnalysePage() {
     setIsTranscribing(true);
     setStatusMessage(`Transcribing ${file.name}...`);
 
+    transcribeAbortRef.current?.abort();
+    const controller = new AbortController();
+    transcribeAbortRef.current = controller;
+    const isCancelled = () => requestId !== transcribeReqRef.current || !mountedRef.current;
+
     const slowTimer = window.setTimeout(() => {
       if (requestId === transcribeReqRef.current) {
         setStatusMessage(
@@ -179,33 +187,28 @@ export default function AnalysePage() {
       let stored = uploaded;
 
       if (!stored) {
-        const uploadResult = await uploadFile(file).catch(async (firstError) => {
-          if (requestId !== transcribeReqRef.current) {
-            throw firstError;
-          }
-          console.warn("[analysis] first upload attempt failed, retrying once", {
-            file: file.name,
-            error: firstError,
-          });
-          setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
-          await new Promise((resolve) => window.setTimeout(resolve, 1500));
-          return uploadFile(file);
+        const uploadResult = await retryOnWakeup((signal) => uploadFile(file, { signal }), {
+          signal: controller.signal,
+          onRetrying: () => {
+            if (!isCancelled()) {
+              setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+            }
+          },
         });
         stored = { id: uploadResult.id, filename: uploadResult.filename };
       }
 
-      const created = await createTranscribeJob(file, stored).catch(async (firstError) => {
-        if (requestId !== transcribeReqRef.current) {
-          throw firstError;
-        }
-        console.warn("[analysis] first job-creation attempt failed, retrying once", {
-          file: file.name,
-          error: firstError,
-        });
-        setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
-        await new Promise((resolve) => window.setTimeout(resolve, 1500));
-        return createTranscribeJob(file, stored);
-      });
+      const created = await retryOnWakeup(
+        (signal) => createTranscribeJob(file, stored, { signal }),
+        {
+          signal: controller.signal,
+          onRetrying: () => {
+            if (!isCancelled()) {
+              setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+            }
+          },
+        },
+      );
       window.clearTimeout(slowTimer);
 
       if (requestId !== transcribeReqRef.current) {
@@ -290,7 +293,10 @@ export default function AnalysePage() {
       void runAnalysis(created.job_id, window0);
     } catch (transcribeError) {
       window.clearTimeout(slowTimer);
-      if (transcribeError instanceof TranscribeJobSupersededError) {
+      if (
+        transcribeError instanceof TranscribeJobSupersededError ||
+        transcribeError instanceof RetryCancelledError
+      ) {
         return;
       }
       console.error("[analysis] failed", { file: file.name, error: transcribeError });

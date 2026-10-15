@@ -1,11 +1,20 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AnalysePage from "../../app/analyse/page";
 import { analyzeClip } from "../../app/lib/analyzeClip";
+import {
+  RETRY_ATTEMPT_TIMEOUT_MS,
+  RETRY_INITIAL_DELAY_MS,
+  RETRY_MAX_TOTAL_MS,
+} from "../../app/lib/retryOnWakeup";
 import { useSessionStore } from "../../app/lib/session-store";
 import { createTranscribeJob, pollTranscribeJob } from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
+
+function networkError() {
+  return Object.assign(new Error("Couldn't reach the server."), { code: "network_error" });
+}
 
 jest.mock("../../app/lib/upload", () => ({ uploadFile: jest.fn() }));
 jest.mock("../../app/lib/analyzeClip", () => ({ analyzeClip: jest.fn() }));
@@ -317,5 +326,56 @@ describe("Analyse page: transcription + clip analysis", () => {
     );
     expect(stateUpdateWarnings).toHaveLength(0);
     consoleError.mockRestore();
+  });
+
+  describe("server waking up during job creation", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("shows a calm waking-up status instead of the raw error, then completes once the retry lands", async () => {
+      mockedCreateJob.mockRejectedValueOnce(networkError()).mockResolvedValueOnce({
+        job_id: "job-1",
+        status: "queued",
+        progress: 0,
+        result: null,
+        error: null,
+      });
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("riff.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/still waking up/i)).toBeInTheDocument());
+      expect(screen.queryByText(/couldn't transcribe/i)).not.toBeInTheDocument();
+
+      await act(() => jest.advanceTimersByTimeAsync(RETRY_INITIAL_DELAY_MS));
+
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { name: "riff.wav" })).toBeInTheDocument(),
+      );
+    });
+
+    it("shows the real transcription error only once the retry budget is exhausted", async () => {
+      mockedCreateJob.mockRejectedValue(networkError());
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("riff.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/still waking up/i)).toBeInTheDocument());
+
+      await act(() => jest.advanceTimersByTimeAsync(RETRY_MAX_TOTAL_MS + RETRY_ATTEMPT_TIMEOUT_MS));
+
+      await waitFor(() =>
+        expect(screen.getByText("Couldn't reach the server.")).toBeInTheDocument(),
+      );
+    });
   });
 });
