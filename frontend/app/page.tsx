@@ -61,13 +61,6 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-x-0 -top-24 -z-10 mx-auto h-[420px] max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(143,169,204,0.16),transparent)] blur-2xl"
         />
         <div className="mx-auto max-w-4xl">
-          <div className="border-border-strong bg-card/70 mb-8 inline-flex items-center gap-2 rounded-full border py-1 pr-4 pl-1 text-sm">
-            <span className="bg-foreground text-background rounded-full px-2.5 py-0.5 text-xs font-medium">
-              New
-            </span>
-            <span className="text-secondary-foreground">AI melody generation, in your browser</span>
-          </div>
-
           <h1 className="font-hand text-foreground mx-auto max-w-4xl text-[clamp(3.25rem,8vw,5.5rem)] leading-[0.95] tracking-[-0.02em]">
             Turn a clip of audio into new, <span className="block">playable melodies</span>
           </h1>
