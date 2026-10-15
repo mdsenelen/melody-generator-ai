@@ -1,11 +1,5 @@
-import Link from "next/link";
-
-import { buttonClass } from "../components/ui/button";
 import { HandwrittenIntro } from "../components/handwritten-intro";
 import { Label } from "../components/ui/text";
-
-const COLAB_NOTEBOOK_URL =
-  "https://colab.research.google.com/github/mdsenelen/melody-generator-ai/blob/main/backend/melody_generation_ORDERED_FINAL_(1).ipynb";
 
 const INTRO =
   "I am an assistant tool to help you make a song from a simple hum or a phrase. You can upload a song too, and I will generate alternative variants from that.";
@@ -36,20 +30,6 @@ export default function LandingPage() {
         <div className="mx-auto flex min-h-[420px] max-w-4xl flex-col items-center justify-center gap-12">
           <h1 className="sr-only">Melodia</h1>
           <HandwrittenIntro text={INTRO} />
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="/analyse" className={buttonClass("primary")}>
-              Start analysing audio <span aria-hidden="true">↗</span>
-            </Link>
-            <a
-              href={COLAB_NOTEBOOK_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonClass("ghost")}
-            >
-              View the training notebook ↗
-            </a>
-          </div>
         </div>
       </section>
 

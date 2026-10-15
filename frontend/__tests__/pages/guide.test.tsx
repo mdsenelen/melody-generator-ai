@@ -16,4 +16,16 @@ describe("GuidePage (User's guide)", () => {
       expect(hrefs).toContain(route);
     }
   });
+
+  it("ends with the calls to action that used to be on the home page", () => {
+    render(<GuidePage />);
+    expect(screen.getByRole("link", { name: /start analysing audio/i })).toHaveAttribute(
+      "href",
+      "/analyse",
+    );
+    expect(screen.getByRole("link", { name: /view the training notebook/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("colab.research.google.com"),
+    );
+  });
 });

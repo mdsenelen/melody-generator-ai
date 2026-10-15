@@ -1,6 +1,10 @@
 import Link from "next/link";
 
+import { buttonClass } from "../../components/ui/button";
 import { PageHeader } from "../../components/ui/text";
+
+const COLAB_NOTEBOOK_URL =
+  "https://colab.research.google.com/github/mdsenelen/melody-generator-ai/blob/main/backend/melody_generation_ORDERED_FINAL_(1).ipynb";
 
 const PIPELINE_STEPS = [
   {
@@ -61,6 +65,19 @@ export default function GuidePage() {
           </li>
         ))}
       </ol>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Link href="/analyse" className={buttonClass("primary")}>
+          Start analysing audio <span aria-hidden="true">↗</span>
+        </Link>
+        <a
+          href={COLAB_NOTEBOOK_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClass("ghost")}
+        >
+          View the training notebook ↗
+        </a>
+      </div>
     </div>
   );
 }

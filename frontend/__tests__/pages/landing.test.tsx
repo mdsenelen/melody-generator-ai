@@ -9,12 +9,10 @@ describe("LandingPage", () => {
     expect(screen.queryByText(/turn a clip of audio/i)).not.toBeInTheDocument();
   });
 
-  it("links its primary call to action to /analyse", () => {
+  it("leaves the call-to-action buttons to the user's guide page", () => {
     render(<LandingPage />);
-    expect(screen.getByRole("link", { name: /start analysing audio/i })).toHaveAttribute(
-      "href",
-      "/analyse",
-    );
+    expect(screen.queryByRole("link", { name: /start analysing audio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /training notebook/i })).not.toBeInTheDocument();
   });
 
   it("leaves the how-it-works steps to the user's guide page", () => {
