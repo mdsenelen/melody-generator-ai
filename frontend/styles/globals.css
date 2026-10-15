@@ -28,6 +28,9 @@
   --color-success: #7fbf9c;
   --color-warning: #d9ab62;
   --color-danger: #e5847a;
+  /* Pink "Beta" tag only (user-requested); dark ink on it for contrast. */
+  --color-beta: #f2a7c8;
+  --color-beta-foreground: #2a0f1c;
 
   --radius: 10px;
   --radius-sm: 6px;
