@@ -61,11 +61,9 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-x-0 -top-24 -z-10 mx-auto h-[420px] max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(143,169,204,0.16),transparent)] blur-2xl"
         />
         <div className="mx-auto max-w-4xl">
-          <h1 className="font-hand text-foreground mx-auto max-w-4xl text-[clamp(3.25rem,8vw,5.5rem)] leading-[0.95] tracking-[-0.02em]">
-            Turn a clip of audio into new, <span className="block">playable melodies</span>
-          </h1>
+          <h1 className="sr-only">Melodia</h1>
 
-          <p className="text-secondary-foreground mx-auto mt-8 max-w-xl text-lg leading-7">
+          <p className="text-secondary-foreground mx-auto max-w-xl text-lg leading-7">
             Upload or record a short clip. Melodia analyses its harmonic content, then generates
             melodic variants you can preview, download, and use immediately, as MIDI or WAV.
           </p>

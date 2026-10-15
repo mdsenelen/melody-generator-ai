@@ -3,11 +3,10 @@ import { render, screen } from "@testing-library/react";
 import LandingPage from "../../app/page";
 
 describe("LandingPage", () => {
-  it("renders the hero heading", () => {
+  it("keeps a page heading for screen readers without the visible headline", () => {
     render(<LandingPage />);
-    expect(
-      screen.getByRole("heading", { name: /turn a clip of audio into new, playable melodies/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Melodia" })).toBeInTheDocument();
+    expect(screen.queryByText(/turn a clip of audio/i)).not.toBeInTheDocument();
   });
 
   it("links its primary call to action to /analyse", () => {
