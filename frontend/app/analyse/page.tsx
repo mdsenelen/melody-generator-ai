@@ -37,7 +37,7 @@ type Transcription = TranscriptionResult & {
 
 type AnalysisState =
   | { status: "idle" }
-  | { status: "loading" }
+  | { status: "loading"; message?: string }
   | { status: "ready"; data: ClipAnalysis }
   | { status: "error"; error: string };
 
@@ -123,9 +123,23 @@ export default function AnalysePage() {
     setAnalysis({ status: "loading" });
 
     try {
-      const data = await analyzeClip(
-        { job_id: jobId, clip_start_sec: window.start, clip_end_sec: window.end },
-        { signal: controller.signal },
+      const data = await retryOnWakeup(
+        (signal) =>
+          analyzeClip(
+            { job_id: jobId, clip_start_sec: window.start, clip_end_sec: window.end },
+            { signal },
+          ),
+        {
+          signal: controller.signal,
+          onRetrying: () => {
+            if (reqId === analysisReqRef.current && mountedRef.current) {
+              setAnalysis({
+                status: "loading",
+                message: "Server was still waking up — retrying analysis...",
+              });
+            }
+          },
+        },
       );
       if (reqId !== analysisReqRef.current || !mountedRef.current) {
         return;
@@ -148,7 +162,12 @@ export default function AnalysePage() {
         });
       }
     } catch (analysisError) {
-      if (controller.signal.aborted || reqId !== analysisReqRef.current || !mountedRef.current) {
+      if (
+        analysisError instanceof RetryCancelledError ||
+        controller.signal.aborted ||
+        reqId !== analysisReqRef.current ||
+        !mountedRef.current
+      ) {
         return;
       }
       setAnalysis({
@@ -164,6 +183,7 @@ export default function AnalysePage() {
   ) => {
     const requestId = ++transcribeReqRef.current;
     analysisReqRef.current += 1; // invalidate any in-flight analysis for the previous clip
+    analysisAbortRef.current?.abort(); // and stop it actually retrying in the background
     setErrorMessage(null);
     setTranscription(null);
     setAnalysis({ status: "idle" });
@@ -491,7 +511,7 @@ export default function AnalysePage() {
                 <div aria-live="polite">
                   {analysis.status === "loading" ? (
                     <div className="flex items-center justify-center py-10">
-                      <Spinner label="Analysing this section..." />
+                      <Spinner label={analysis.message ?? "Analysing this section..."} />
                     </div>
                   ) : analysis.status === "error" ? (
                     <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">

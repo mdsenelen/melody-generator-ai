@@ -378,4 +378,111 @@ describe("Analyse page: transcription + clip analysis", () => {
       );
     });
   });
+
+  describe("server waking up during analysis", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("shows a calm waking-up status instead of the raw error during analysis, then completes once the retry lands", async () => {
+      mockedAnalyzeClip.mockRejectedValueOnce(networkError()).mockResolvedValueOnce(BASE_ANALYSIS);
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("riff.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/still waking up/i)).toBeInTheDocument());
+      expect(screen.queryByText("Couldn't reach the server.")).not.toBeInTheDocument();
+
+      await act(() => jest.advanceTimersByTimeAsync(RETRY_INITIAL_DELAY_MS));
+
+      await waitFor(() => expect(screen.getByText("C major")).toBeInTheDocument());
+    });
+
+    it("shows the real analysis error only once the retry budget is exhausted", async () => {
+      mockedAnalyzeClip.mockRejectedValue(networkError());
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("riff.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/still waking up/i)).toBeInTheDocument());
+
+      await act(() => jest.advanceTimersByTimeAsync(RETRY_MAX_TOTAL_MS + RETRY_ATTEMPT_TIMEOUT_MS));
+
+      await waitFor(() =>
+        expect(screen.getByText("Couldn't reach the server.")).toBeInTheDocument(),
+      );
+    });
+
+    it("fails immediately on a non-wakeup error (e.g. a 500) without retrying", async () => {
+      const serverError = Object.assign(new Error("Internal error"), { status: 500 });
+      mockedAnalyzeClip.mockRejectedValue(serverError);
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("riff.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText("Internal error")).toBeInTheDocument());
+      expect(mockedAnalyzeClip).toHaveBeenCalledTimes(1);
+    });
+
+    it("aborts a mid-retry analysis and keeps only the newer result when a new upload supersedes it", async () => {
+      mockedUploadFile
+        .mockResolvedValueOnce({ id: "up-1", filename: "upload_up-1.wav" })
+        .mockResolvedValueOnce({ id: "up-2", filename: "upload_up-2.wav" });
+      mockedCreateJob
+        .mockResolvedValueOnce({
+          job_id: "job-1",
+          status: "queued",
+          progress: 0,
+          result: null,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          job_id: "job-2",
+          status: "queued",
+          progress: 0,
+          result: null,
+          error: null,
+        });
+      // job-1's clip analysis: never resolves on its own -- only ever retried
+      // or aborted, so the test can prove it was the latter.
+      mockedAnalyzeClip
+        .mockRejectedValueOnce(networkError())
+        .mockResolvedValueOnce({ ...BASE_ANALYSIS, key: "A minor" }); // job-2's analysis
+
+      render(<AnalysePage />);
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("first.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/still waking up/i)).toBeInTheDocument());
+      expect(mockedAnalyzeClip).toHaveBeenCalledTimes(1);
+
+      // A second upload completes its own transcription while job-1's
+      // analysis is still mid-retry (sleeping between attempts) -- this must
+      // abort the stale retry, not let it eventually land over the newer one.
+      fireEvent.change(screen.getByLabelText(/upload audio/i), {
+        target: { files: [makeFile("second.wav")] },
+      });
+
+      await waitFor(() => expect(screen.getByText(/A minor/)).toBeInTheDocument());
+      expect(mockedAnalyzeClip).toHaveBeenCalledTimes(2);
+
+      // Advancing past job-1's superseded retry backoff must not resurrect
+      // it -- no third call, no change to what's on screen, no stale error.
+      await act(() => jest.advanceTimersByTimeAsync(RETRY_MAX_TOTAL_MS + RETRY_ATTEMPT_TIMEOUT_MS));
+      expect(mockedAnalyzeClip).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/A minor/)).toBeInTheDocument();
+      expect(screen.queryByText(/couldn't reach the server/i)).not.toBeInTheDocument();
+    });
+  });
 });
