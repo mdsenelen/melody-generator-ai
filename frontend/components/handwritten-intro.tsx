@@ -1,3 +1,5 @@
+const SENTENCE_PAUSE_S = 2;
+
 type Word = { text: string; delay: number; duration: number };
 
 // Each word is "written" left to right; longer words take longer, like a pen would.
@@ -6,7 +8,8 @@ function scheduleWords(text: string): Word[] {
   return text.split(" ").map((word) => {
     const duration = 0.06 + word.length * 0.02;
     const scheduled = { text: word, delay: start, duration };
-    start += duration + 0.015;
+    // Lift the pen for a beat at the end of each sentence.
+    start += duration + (/[.!?]$/.test(word) ? SENTENCE_PAUSE_S : 0.015);
     return scheduled;
   });
 }

@@ -20,4 +20,15 @@ describe("HandwrittenIntro", () => {
     expect(starts).toEqual([...starts].sort((a, b) => a - b));
     expect(new Set(starts).size).toBe(starts.length);
   });
+
+  it("pauses two seconds after a sentence ends before writing the next one", () => {
+    const { container } = render(<HandwrittenIntro text="Hum a tune. Hear it back." />);
+    const words = Array.from(container.querySelectorAll<HTMLElement>("[data-word]"));
+    const start = (i: number) => parseFloat(words[i].style.animationDelay);
+    const end = (i: number) => start(i) + parseFloat(words[i].style.animationDuration);
+    // "tune." is word 2; "Hear" (word 3) waits at least 2s after it finishes.
+    expect(start(3) - end(2)).toBeGreaterThanOrEqual(2);
+    // Words inside a sentence follow on quickly.
+    expect(start(1) - end(0)).toBeLessThan(0.5);
+  });
 });
