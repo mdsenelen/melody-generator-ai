@@ -1,23 +1,7 @@
 import { HandwrittenIntro } from "../components/handwritten-intro";
-import { Label } from "../components/ui/text";
 
 const INTRO =
   "I am an assistant tool to help you make a song from a simple hum or a phrase. You can upload a song too, and I will generate alternative variants from that.";
-
-const GOOD_TO_KNOW = [
-  {
-    title: "Cold-server latency",
-    body: "The backend runs on Render's free tier — the first analysis after a period of inactivity can take a minute or two while it wakes up. Later ones are much faster.",
-  },
-  {
-    title: "Trained end to end",
-    body: "The CVAE + IDDM-PPO generation model is trained in the linked Colab notebook — open it to see how transcription, mood detection, and melody generation are trained.",
-  },
-  {
-    title: "Privacy",
-    body: "No account needed — everything runs from your browser, and audio is only kept as long as it takes to generate your results.",
-  },
-];
 
 export default function LandingPage() {
   return (
@@ -31,21 +15,6 @@ export default function LandingPage() {
           <h1 className="sr-only">Melodia</h1>
           <HandwrittenIntro text={INTRO} />
         </div>
-      </section>
-
-      <section aria-labelledby="good-to-know" className="border-border border-t pt-12">
-        <Label>Good to know</Label>
-        <h2 id="good-to-know" className="sr-only">
-          Good to know
-        </h2>
-        <dl className="mt-6 grid gap-8 md:grid-cols-3">
-          {GOOD_TO_KNOW.map((item) => (
-            <div key={item.title}>
-              <dt className="font-title text-foreground text-lg">{item.title}</dt>
-              <dd className="text-secondary-foreground mt-2 text-sm leading-6">{item.body}</dd>
-            </div>
-          ))}
-        </dl>
       </section>
     </div>
   );

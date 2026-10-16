@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer className="border-border text-muted-foreground mt-auto w-full border-t py-6 text-center font-mono text-[11px] tracking-wide">
+    <footer className="border-border text-muted-foreground font-title mt-auto w-full border-t py-6 text-center text-sm">
       <span>
         &copy; {new Date().getFullYear()} Merve Deniz Senelen
         {" · "}

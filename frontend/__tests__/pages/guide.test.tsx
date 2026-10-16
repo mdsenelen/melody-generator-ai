@@ -28,4 +28,12 @@ describe("GuidePage (User's guide)", () => {
       expect.stringContaining("colab.research.google.com"),
     );
   });
+
+  it("carries the 'Good to know' notes", () => {
+    render(<GuidePage />);
+    expect(screen.getByRole("heading", { name: "Good to know" })).toBeInTheDocument();
+    for (const term of ["Cold-server latency", "Trained end to end", "Privacy"]) {
+      expect(screen.getByText(term)).toBeInTheDocument();
+    }
+  });
 });

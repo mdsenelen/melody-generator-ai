@@ -19,4 +19,9 @@ describe("LandingPage", () => {
     render(<LandingPage />);
     expect(screen.queryByText(/how it works/i)).not.toBeInTheDocument();
   });
+
+  it("leaves 'Good to know' to the user's guide page", () => {
+    render(<LandingPage />);
+    expect(screen.queryByText(/good to know/i)).not.toBeInTheDocument();
+  });
 });
