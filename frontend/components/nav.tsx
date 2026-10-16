@@ -43,7 +43,7 @@ export default function Nav() {
                 "focus-visible:ring-ring font-title block rounded-full px-4 py-1.5 text-[15px] transition-colors focus-visible:ring-2 focus-visible:outline-none " +
                 (active
                   ? "bg-foreground text-background"
-                  : "text-secondary-foreground hover:text-foreground")
+                  : "text-secondary-foreground hover:bg-raised-hover hover:text-foreground focus-visible:bg-raised-hover")
               }
             >
               {link.label}

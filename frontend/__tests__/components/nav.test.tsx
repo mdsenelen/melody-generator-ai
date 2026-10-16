@@ -45,4 +45,9 @@ describe("Nav", () => {
       "aria-describedby",
     );
   });
+
+  it("gives inactive links a hover background", () => {
+    render(<Nav />);
+    expect(screen.getByRole("link", { name: "Analyse" })).toHaveClass("hover:bg-raised-hover");
+  });
 });

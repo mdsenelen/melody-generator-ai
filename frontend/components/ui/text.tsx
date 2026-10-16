@@ -19,7 +19,7 @@ export function SectionHeading({ children, sub }: { children: ReactNode; sub?: s
   );
 }
 
-/** The page opener every route shares: eyebrow, Lora title, one-line lead. */
+/** The page opener every route shares: eyebrow, title and one-line lead, both in the title face. */
 export function PageHeader({
   eyebrow,
   title,
@@ -38,7 +38,9 @@ export function PageHeader({
         <h1 className="font-title text-foreground mt-3 text-[clamp(2.25rem,4vw,3rem)] leading-[1.25]">
           {title}
         </h1>
-        {lead ? <p className="text-secondary-foreground mt-3 text-lg leading-7">{lead}</p> : null}
+        {lead ? (
+          <p className="font-title text-secondary-foreground mt-3 text-xl leading-8">{lead}</p>
+        ) : null}
       </div>
       {children ? <div className="shrink-0">{children}</div> : null}
     </header>

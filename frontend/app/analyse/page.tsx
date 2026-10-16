@@ -372,11 +372,7 @@ export default function AnalysePage() {
           <PageHeader
             eyebrow="Analyse"
             title="Analyse audio"
-            lead={
-              <span className="font-title text-xl leading-8">
-                Upload or record a clip to extract key, tempo, pitch content, and chord structure.
-              </span>
-            }
+            lead="Upload or record a clip to extract key, tempo, pitch content, and chord structure."
           >
             <div className="flex items-center gap-3" aria-live="polite">
               {showRecorder && !transcription ? (
