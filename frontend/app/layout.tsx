@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Caveat, Fraunces, Inter, JetBrains_Mono, Pacifico } from "next/font/google";
+import { Fraunces, Inter, JetBrains_Mono, Lora, Pacifico } from "next/font/google";
 import "../styles/globals.css";
 import Header from "../components/header";
 import Nav from "../components/nav";
@@ -28,10 +28,10 @@ const pacifico = Pacifico({
   display: "swap",
 });
 
-const caveat = Caveat({
+const lora = Lora({
   subsets: ["latin"],
-  weight: ["400", "600"],
-  variable: "--font-caveat",
+  weight: ["400"],
+  variable: "--font-lora",
   display: "swap",
 });
 
@@ -59,7 +59,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${fraunces.variable} ${pacifico.variable} ${caveat.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${fraunces.variable} ${pacifico.variable} ${lora.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-background text-foreground min-h-screen overflow-x-hidden font-sans antialiased">
         <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-10">

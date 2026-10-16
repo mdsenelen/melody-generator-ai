@@ -17,7 +17,7 @@ const GOOD_TO_KNOW = [
   },
   {
     title: "Privacy",
-    body: "No account needed — everything runs from your browser, and audio is only kept as long as it takes to generate your results.",
+    body: "No account needed, everything runs from your browser, and audio is only kept as long as it takes to generate your results.",
   },
 ];
 
@@ -81,27 +81,32 @@ export default function GuidePage() {
         ))}
       </ol>
       <section aria-labelledby="good-to-know" className="border-border border-t pt-10">
-        <h2 id="good-to-know" className="font-title text-foreground text-2xl">
+        <h2
+          id="good-to-know"
+          className="text-muted-foreground font-serif text-[26px] leading-[1.2] font-normal uppercase"
+        >
           Good to know
         </h2>
         <dl className="mt-6 grid gap-8 md:grid-cols-3">
           {GOOD_TO_KNOW.map((item) => (
             <div key={item.title}>
               <dt className="font-title text-foreground text-lg">{item.title}</dt>
-              <dd className="text-secondary-foreground mt-2 text-sm leading-6">{item.body}</dd>
+              <dd className="text-secondary-foreground mt-2 font-serif text-[26px] leading-[1.2]">
+                {item.body}
+              </dd>
             </div>
           ))}
         </dl>
       </section>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Link href="/analyse" className={buttonClass("primary")}>
+      <div className="font-title flex flex-wrap items-center justify-center gap-3">
+        <Link href="/analyse" className={buttonClass("primary", { className: "font-title" })}>
           Start analysing audio <span aria-hidden="true">↗</span>
         </Link>
         <a
           href={COLAB_NOTEBOOK_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className={buttonClass("ghost")}
+          className={buttonClass("ghost", { className: "font-title" })}
         >
           View the training notebook ↗
         </a>

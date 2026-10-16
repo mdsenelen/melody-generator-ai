@@ -19,7 +19,7 @@ export function HandwrittenIntro({ text }: { text: string }) {
   const words = scheduleWords(text);
 
   return (
-    <p className="font-hand text-foreground max-w-4xl text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.2] text-balance">
+    <p className="font-title text-foreground max-w-4xl text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.2] text-balance">
       <span className="sr-only">{text}</span>
       <span aria-hidden="true">
         {words.map((word, index) => (

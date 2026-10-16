@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Pacifico&family=Caveat:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Pacifico&family=Lora:wght@400&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -43,7 +43,8 @@
   --font-display: var(--font-fraunces), "Fraunces", Georgia, "Times New Roman", serif;
   /* Logo, headings and the main nav. Pacifico ships one weight, so no faux bold. */
   --font-title: var(--font-pacifico), "Pacifico", cursive;
-  --font-hand: var(--font-caveat), "Caveat", "Segoe Script", cursive;
+  /* "Good to know" on the User's guide. */
+  --font-serif: var(--font-lora), "Lora", Georgia, "Times New Roman", serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -94,7 +95,7 @@ img {
 
 /* Handwritten intro: each word is revealed left to right, like ink from a pen. */
 @keyframes ink {
-  /* Negative insets leave room for Caveat's slanted strokes past the glyph box. */
+  /* Negative insets leave room for the script face's slanted strokes past the glyph box. */
   /* Start fully shut: a right inset of 100% alone left a 0.3em sliver open
      on the left, where slanted glyphs showed through as white specks. */
   from {
