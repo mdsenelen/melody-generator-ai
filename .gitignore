@@ -3,9 +3,12 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+# Every .env variant (.env, .env.local, .env.production, .env.prod, ...);
+# only the committed *.example templates stay tracked.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 .venv/
 venv/
 
