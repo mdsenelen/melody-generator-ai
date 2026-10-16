@@ -95,9 +95,11 @@ img {
 /* Handwritten intro: each word is revealed left to right, like ink from a pen. */
 @keyframes ink {
   /* Negative insets leave room for Caveat's slanted strokes past the glyph box. */
+  /* Start fully shut: a right inset of 100% alone left a 0.3em sliver open
+     on the left, where slanted glyphs showed through as white specks. */
   from {
-    clip-path: inset(-0.3em 100% -0.3em -0.3em);
-    opacity: 0.2;
+    clip-path: inset(-0.3em calc(100% + 0.3em) -0.3em -0.3em);
+    opacity: 0;
   }
   to {
     clip-path: inset(-0.3em -0.3em -0.3em -0.3em);
@@ -107,7 +109,8 @@ img {
 
 .ink-word {
   display: inline-block;
-  clip-path: inset(-0.3em 100% -0.3em -0.3em);
+  clip-path: inset(-0.3em calc(100% + 0.3em) -0.3em -0.3em);
+  opacity: 0;
   animation-name: ink;
   animation-timing-function: ease-out;
   animation-fill-mode: forwards;
@@ -117,6 +120,7 @@ img {
   .ink-word {
     animation: none;
     clip-path: none;
+    opacity: 1;
   }
 }
 
