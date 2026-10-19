@@ -1,3 +1,4 @@
+import { explainUploadNetworkError } from "../../app/lib/explainUploadNetworkError";
 import { RetryCancelledError } from "../../app/lib/retryOnWakeup";
 import { uploadFile } from "../../app/lib/upload";
 import { uploadWhenAwake } from "../../app/lib/uploadWhenAwake";
@@ -5,9 +6,13 @@ import { waitForBackend } from "../../app/lib/waitForBackend";
 
 jest.mock("../../app/lib/upload", () => ({ uploadFile: jest.fn() }));
 jest.mock("../../app/lib/waitForBackend", () => ({ waitForBackend: jest.fn() }));
+jest.mock("../../app/lib/explainUploadNetworkError", () => ({
+  explainUploadNetworkError: jest.fn(),
+}));
 
 const mockedUploadFile = uploadFile as jest.Mock;
 const mockedWaitForBackend = waitForBackend as jest.Mock;
+const mockedExplain = explainUploadNetworkError as jest.Mock;
 
 function networkError() {
   return Object.assign(new Error("Couldn't reach the server."), { code: "network_error" });
@@ -23,6 +28,7 @@ describe("uploadWhenAwake", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockedWaitForBackend.mockResolvedValue(undefined);
+    mockedExplain.mockImplementation(async (error: unknown) => error);
     mockedUploadFile.mockResolvedValue({ id: "up-1", filename: "upload_up-1.wav" });
   });
 
@@ -95,6 +101,33 @@ describe("uploadWhenAwake", () => {
 
     await expect(uploadWhenAwake(file)).rejects.toMatchObject({ code: "network_error" });
     expect(mockedUploadFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("explains the final error, so the user can tell 'down' apart from 'rejected'", async () => {
+    const original = networkError();
+    const explained = Object.assign(new Error("explained"), { code: "network_error" });
+    mockedUploadFile.mockRejectedValue(original);
+    mockedExplain.mockResolvedValue(explained);
+    const controller = new AbortController();
+
+    await expect(uploadWhenAwake(file, { signal: controller.signal })).rejects.toBe(explained);
+    expect(mockedExplain).toHaveBeenCalledWith(original, controller.signal);
+  });
+
+  it("explains a wake that never succeeds too", async () => {
+    const explained = Object.assign(new Error("explained"), { code: "network_error" });
+    mockedWaitForBackend.mockRejectedValue(networkError());
+    mockedExplain.mockResolvedValue(explained);
+
+    await expect(uploadWhenAwake(file)).rejects.toBe(explained);
+    expect(mockedUploadFile).not.toHaveBeenCalled();
+  });
+
+  it("does not explain a cancellation", async () => {
+    mockedWaitForBackend.mockRejectedValue(new RetryCancelledError());
+
+    await expect(uploadWhenAwake(file)).rejects.toBeInstanceOf(RetryCancelledError);
+    expect(mockedExplain).not.toHaveBeenCalled();
   });
 
   it("rethrows a non-wake error (e.g. a 400) immediately without re-sending", async () => {

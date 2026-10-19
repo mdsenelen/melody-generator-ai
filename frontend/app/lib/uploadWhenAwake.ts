@@ -1,3 +1,4 @@
+import { explainUploadNetworkError } from "./explainUploadNetworkError";
 import { isWakeupSignature, RetryCancelledError } from "./retryOnWakeup";
 import { uploadFile, type UploadResponse } from "./upload";
 import { waitForBackend } from "./waitForBackend";
@@ -23,7 +24,14 @@ export async function uploadWhenAwake(
   const { signal, onPhase } = options;
 
   for (let cycle = 1; ; cycle++) {
-    await waitForBackend({ signal, onWaiting: () => onPhase?.("waking") });
+    try {
+      await waitForBackend({ signal, onWaiting: () => onPhase?.("waking") });
+    } catch (error) {
+      if (error instanceof RetryCancelledError) {
+        throw error;
+      }
+      throw await explainUploadNetworkError(error, signal);
+    }
     onPhase?.("uploading");
     try {
       return await uploadFile(file, { signal });
@@ -32,7 +40,7 @@ export async function uploadWhenAwake(
         throw new RetryCancelledError();
       }
       if (cycle >= MAX_CYCLES || !isWakeupSignature(error)) {
-        throw error;
+        throw await explainUploadNetworkError(error, signal);
       }
     }
   }

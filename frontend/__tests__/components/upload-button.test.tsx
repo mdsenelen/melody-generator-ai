@@ -63,12 +63,15 @@ describe("UploadButton", () => {
   });
 
   describe("server waking up", () => {
+    const originalFetch = global.fetch;
+
     beforeEach(() => {
       jest.useFakeTimers();
     });
 
     afterEach(() => {
       jest.useRealTimers();
+      global.fetch = originalFetch;
     });
 
     it("shows a calm waking status while the server wakes, then uploads once it's up", async () => {
@@ -125,8 +128,10 @@ describe("UploadButton", () => {
       expect(uploadSignal?.aborted).not.toBe(true);
     });
 
-    it("falls back to the real error message once the server never wakes", async () => {
+    it("says the server is restarting or unreachable once it never wakes", async () => {
       mockedWaitForBackend.mockRejectedValue(networkError());
+      // The reachability probe can't connect either.
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
       const onUploadError = jest.fn();
       render(<UploadButton onUploadSuccess={jest.fn()} onUploadError={onUploadError} />);
 
@@ -134,7 +139,11 @@ describe("UploadButton", () => {
         target: { files: [new File(["audio"], "clip.wav")] },
       });
 
-      await waitFor(() => expect(onUploadError).toHaveBeenCalledWith("Couldn't reach the server."));
+      await waitFor(() =>
+        expect(onUploadError).toHaveBeenCalledWith(
+          "The server is restarting or unreachable — try again in a minute.",
+        ),
+      );
       expect(mockedUploadFile).not.toHaveBeenCalled();
     });
   });
