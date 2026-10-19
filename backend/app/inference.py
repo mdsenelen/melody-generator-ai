@@ -958,15 +958,18 @@ def _waveform_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
     return out.read()
 
 
-def _probe_source_duration_sec(raw: bytes) -> Optional[float]:
+def _probe_source_duration_sec(source: bytes | str | Path) -> Optional[float]:
     """Best-effort duration of the raw upload from its header/frame count,
     without decoding any audio samples. Lets _read_audio_bytes below cap the
     actual decode to max_duration_sec while still reporting the true source
     clip length -- decoding a long upload in full before truncating it made
     peak memory scale with upload length instead of the analysis window,
-    which is what MAX_ANALYSIS_DURATION_SEC was meant to bound."""
+    which is what MAX_ANALYSIS_DURATION_SEC was meant to bound.
+
+    Also takes a file path, so /api/upload can probe the file it streamed to
+    disk instead of holding the whole body in memory."""
     try:
-        with sf.SoundFile(io.BytesIO(raw)) as f:
+        with sf.SoundFile(io.BytesIO(source) if isinstance(source, bytes) else source) as f:
             return float(len(f)) / float(f.samplerate)
     except Exception:
         return None
