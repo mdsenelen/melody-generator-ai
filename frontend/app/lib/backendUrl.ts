@@ -7,11 +7,23 @@ function isPlaceholderBackendUrl(value: string) {
 // Client-safe: only reads the NEXT_PUBLIC_ var, which Next.js inlines into
 // the browser bundle. Server-only vars (BACKEND_BASE_URL, BACKEND_URL) are
 // intentionally not read here since they aren't available client-side.
-export function getPublicBackendApiUrl(path: string) {
+function getPublicBackendOrigin() {
   const trimmed = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
   const configured = trimmed ? trimmed : DEFAULT_BACKEND_BASE_URL;
   const rawBaseUrl = isPlaceholderBackendUrl(configured) ? DEFAULT_BACKEND_BASE_URL : configured;
-  const baseUrl = rawBaseUrl.replace(/\/+$/, "").replace(/\/api$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${baseUrl}/api${normalizedPath}`;
+  return rawBaseUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+}
+
+function normalizePath(path: string) {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+export function getPublicBackendApiUrl(path: string) {
+  return `${getPublicBackendOrigin()}/api${normalizePath(path)}`;
+}
+
+// For the few routes registered on the FastAPI app directly rather than
+// under /api (e.g. /health -- see backend/app/main.py).
+export function getPublicBackendBaseUrl(path: string) {
+  return `${getPublicBackendOrigin()}${normalizePath(path)}`;
 }

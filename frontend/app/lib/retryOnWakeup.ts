@@ -28,7 +28,7 @@ export class RetryCancelledError extends Error {
   }
 }
 
-function isWakeupSignature(error: unknown): boolean {
+export function isWakeupSignature(error: unknown): boolean {
   const status = (error as RequestError).status;
   const code = (error as RequestError).code;
   return code === "network_error" || status === 502 || status === 503;
@@ -65,27 +65,37 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 // timeout, or immediately if the caller's `signal` aborts) so callers can
 // thread it into their own fetch call -- every attempt is cancellable, not
 // just the wait between them.
+//
+// The defaults suit a small request. Never wrap a large upload body in this:
+// the per-attempt timeout covers the whole request, so a slow upload gets
+// aborted and re-sent from zero -- use uploadWhenAwake instead.
 export async function retryOnWakeup<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   options: {
     signal?: AbortSignal;
     onRetrying?: (elapsedMs: number) => void;
+    attemptTimeoutMs?: number;
+    maxTotalMs?: number;
   } = {},
 ): Promise<T> {
-  const { signal } = options;
+  const {
+    signal,
+    attemptTimeoutMs = RETRY_ATTEMPT_TIMEOUT_MS,
+    maxTotalMs = RETRY_MAX_TOTAL_MS,
+  } = options;
   if (signal?.aborted) {
     throw new RetryCancelledError();
   }
 
   const startedAt = Date.now();
-  const deadline = startedAt + RETRY_MAX_TOTAL_MS;
+  const deadline = startedAt + maxTotalMs;
   let delay = RETRY_INITIAL_DELAY_MS;
 
   while (true) {
     const attemptController = new AbortController();
     const abortAttempt = () => attemptController.abort();
     signal?.addEventListener("abort", abortAttempt);
-    const timeoutId = setTimeout(abortAttempt, RETRY_ATTEMPT_TIMEOUT_MS);
+    const timeoutId = setTimeout(abortAttempt, attemptTimeoutMs);
 
     try {
       return await fn(attemptController.signal);

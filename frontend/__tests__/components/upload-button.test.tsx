@@ -3,15 +3,13 @@ import userEvent from "@testing-library/user-event";
 
 import { UploadButton } from "../../components/upload-button";
 import { uploadFile } from "../../app/lib/upload";
-import {
-  RETRY_ATTEMPT_TIMEOUT_MS,
-  RETRY_INITIAL_DELAY_MS,
-  RETRY_MAX_TOTAL_MS,
-} from "../../app/lib/retryOnWakeup";
+import { waitForBackend } from "../../app/lib/waitForBackend";
 
 jest.mock("../../app/lib/upload", () => ({ uploadFile: jest.fn() }));
+jest.mock("../../app/lib/waitForBackend", () => ({ waitForBackend: jest.fn() }));
 
 const mockedUploadFile = uploadFile as jest.Mock;
+const mockedWaitForBackend = waitForBackend as jest.Mock;
 
 function networkError() {
   return Object.assign(new Error("Couldn't reach the server."), { code: "network_error" });
@@ -27,6 +25,7 @@ function deferred<T>() {
 
 describe("UploadButton", () => {
   beforeEach(() => {
+    mockedWaitForBackend.mockResolvedValue(undefined);
     mockedUploadFile.mockResolvedValue({ id: "up-1", filename: "clip.wav" });
   });
 
@@ -45,7 +44,7 @@ describe("UploadButton", () => {
     expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Uploading");
 
-    pendingUpload.resolve({ id: "up-1", filename: "clip.wav" });
+    await act(async () => pendingUpload.resolve({ id: "up-1", filename: "clip.wav" }));
   });
 
   it("shows upload completion only briefly after a successful upload", async () => {
@@ -72,10 +71,12 @@ describe("UploadButton", () => {
       jest.useRealTimers();
     });
 
-    it("shows a calm waking-up status instead of the raw error, then succeeds once the retry lands", async () => {
-      mockedUploadFile
-        .mockRejectedValueOnce(networkError())
-        .mockResolvedValueOnce({ id: "up-1", filename: "clip.wav" });
+    it("shows a calm waking status while the server wakes, then uploads once it's up", async () => {
+      const awake = deferred<void>();
+      mockedWaitForBackend.mockImplementation((options: { onWaiting?: () => void }) => {
+        options.onWaiting?.();
+        return awake.promise;
+      });
       const onUploadSuccess = jest.fn();
       const onUploadError = jest.fn();
       render(<UploadButton onUploadSuccess={onUploadSuccess} onUploadError={onUploadError} />);
@@ -84,21 +85,48 @@ describe("UploadButton", () => {
         target: { files: [new File(["audio"], "clip.wav")] },
       });
 
-      await waitFor(() => expect(screen.getByText(/waking up/i)).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByRole("status", { name: /waking the server/i })).toBeInTheDocument(),
+      );
+      expect(mockedUploadFile).not.toHaveBeenCalled();
       expect(onUploadError).not.toHaveBeenCalled();
 
-      await act(() => jest.advanceTimersByTimeAsync(RETRY_INITIAL_DELAY_MS));
+      await act(async () => awake.resolve());
 
       await waitFor(() =>
         expect(onUploadSuccess).toHaveBeenCalledWith(
           expect.objectContaining({ id: "up-1", filename: "clip.wav" }),
         ),
       );
+      expect(mockedUploadFile).toHaveBeenCalledTimes(1);
       expect(onUploadError).not.toHaveBeenCalled();
     });
 
-    it("falls back to the real error message only once the retry budget is exhausted", async () => {
-      mockedUploadFile.mockRejectedValue(networkError());
+    it("never aborts or re-sends an upload that takes longer than 15s to send", async () => {
+      let uploadSignal: AbortSignal | undefined;
+      mockedUploadFile.mockImplementation(
+        (_file: File, options: { signal?: AbortSignal }) =>
+          new Promise((resolve) => {
+            uploadSignal = options.signal;
+            setTimeout(() => resolve({ id: "up-1", filename: "clip.wav" }), 40_000);
+          }),
+      );
+      const onUploadSuccess = jest.fn();
+      render(<UploadButton onUploadSuccess={onUploadSuccess} />);
+
+      fireEvent.change(screen.getByLabelText("Upload audio file"), {
+        target: { files: [new File(["audio"], "clip.wav")] },
+      });
+
+      await act(() => jest.advanceTimersByTimeAsync(40_000));
+
+      await waitFor(() => expect(onUploadSuccess).toHaveBeenCalled());
+      expect(mockedUploadFile).toHaveBeenCalledTimes(1);
+      expect(uploadSignal?.aborted).not.toBe(true);
+    });
+
+    it("falls back to the real error message once the server never wakes", async () => {
+      mockedWaitForBackend.mockRejectedValue(networkError());
       const onUploadError = jest.fn();
       render(<UploadButton onUploadSuccess={jest.fn()} onUploadError={onUploadError} />);
 
@@ -106,11 +134,8 @@ describe("UploadButton", () => {
         target: { files: [new File(["audio"], "clip.wav")] },
       });
 
-      expect(onUploadError).not.toHaveBeenCalled();
-
-      await act(() => jest.advanceTimersByTimeAsync(RETRY_MAX_TOTAL_MS + RETRY_ATTEMPT_TIMEOUT_MS));
-
       await waitFor(() => expect(onUploadError).toHaveBeenCalledWith("Couldn't reach the server."));
+      expect(mockedUploadFile).not.toHaveBeenCalled();
     });
   });
 });
