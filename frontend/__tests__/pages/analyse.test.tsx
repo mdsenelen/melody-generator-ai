@@ -11,12 +11,26 @@ import {
 import { useSessionStore } from "../../app/lib/session-store";
 import { createTranscribeJob, pollTranscribeJob } from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
+import { waitForBackend } from "../../app/lib/waitForBackend";
 
 function networkError() {
   return Object.assign(new Error("Couldn't reach the server."), { code: "network_error" });
 }
 
 jest.mock("../../app/lib/upload", () => ({ uploadFile: jest.fn() }));
+jest.mock("../../app/lib/waitForBackend", () => ({ waitForBackend: jest.fn() }));
+// The real recorder needs getUserMedia/MediaRecorder; a test only needs a
+// way to hand the page a finished recording.
+jest.mock("../../components/audio-recorder", () => ({
+  AudioRecorder: ({ onRecordingComplete }: { onRecordingComplete: (file: File) => void }) => (
+    <button
+      type="button"
+      onClick={() => onRecordingComplete(new File(["rec"], "take.webm", { type: "audio/webm" }))}
+    >
+      Finish test recording
+    </button>
+  ),
+}));
 jest.mock("../../app/lib/analyzeClip", () => ({ analyzeClip: jest.fn() }));
 jest.mock("../../app/lib/transcribeJob", () => {
   const actual = jest.requireActual("../../app/lib/transcribeJob");
@@ -24,6 +38,7 @@ jest.mock("../../app/lib/transcribeJob", () => {
 });
 
 const mockedUploadFile = uploadFile as jest.Mock;
+const mockedWaitForBackend = waitForBackend as jest.Mock;
 const mockedCreateJob = createTranscribeJob as jest.Mock;
 const mockedPollJob = pollTranscribeJob as jest.Mock;
 const mockedAnalyzeClip = analyzeClip as jest.Mock;
@@ -78,6 +93,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     jest.clearAllMocks();
     global.URL.createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
     global.URL.revokeObjectURL = jest.fn();
+    mockedWaitForBackend.mockResolvedValue(undefined);
     mockedUploadFile.mockResolvedValue({ id: "up-1", filename: "upload_up-1.wav" });
     mockedCreateJob.mockResolvedValue({
       job_id: "job-1",
@@ -326,6 +342,69 @@ describe("Analyse page: transcription + clip analysis", () => {
     );
     expect(stateUpdateWarnings).toHaveLength(0);
     consoleError.mockRestore();
+  });
+
+  describe("uploading a recording", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function finishRecording() {
+      fireEvent.click(screen.getByRole("button", { name: /record audio/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Finish test recording" }));
+    }
+
+    it("shows a calm waking status on a cold backend, then uploads and transcribes", async () => {
+      let markAwake!: () => void;
+      mockedWaitForBackend.mockImplementation((options: { onWaiting?: () => void }) => {
+        options.onWaiting?.();
+        return new Promise<void>((resolve) => {
+          markAwake = resolve;
+        });
+      });
+
+      render(<AnalysePage />);
+      finishRecording();
+
+      await waitFor(() =>
+        expect(screen.getByRole("status", { name: /waking the server/i })).toBeInTheDocument(),
+      );
+      expect(mockedUploadFile).not.toHaveBeenCalled();
+      expect(screen.queryByText(/couldn't transcribe/i)).not.toBeInTheDocument();
+
+      await act(async () => markAwake());
+
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { name: "take.webm" })).toBeInTheDocument(),
+      );
+      expect(mockedUploadFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("never aborts or re-sends a recording upload that takes longer than 15s", async () => {
+      let uploadSignal: AbortSignal | undefined;
+      mockedUploadFile.mockImplementation(
+        (_file: File, options: { signal?: AbortSignal }) =>
+          new Promise((resolve) => {
+            uploadSignal = options.signal;
+            setTimeout(() => resolve({ id: "up-1", filename: "upload_up-1.webm" }), 40_000);
+          }),
+      );
+
+      render(<AnalysePage />);
+      finishRecording();
+
+      await act(() => jest.advanceTimersByTimeAsync(40_000));
+
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { name: "take.webm" })).toBeInTheDocument(),
+      );
+      expect(mockedUploadFile).toHaveBeenCalledTimes(1);
+      expect(uploadSignal?.aborted).not.toBe(true);
+    });
   });
 
   describe("server waking up during job creation", () => {

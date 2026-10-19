@@ -27,7 +27,7 @@ import {
   type TranscriptionResult,
 } from "../lib/transcribeJob";
 import { topPitchClasses } from "../../utils/pitch";
-import { uploadFile } from "../lib/upload";
+import { uploadWhenAwake, WAKING_STATUS_MESSAGE, type UploadPhase } from "../lib/uploadWhenAwake";
 
 type Transcription = TranscriptionResult & {
   sourceName: string;
@@ -195,8 +195,12 @@ export default function AnalysePage() {
     transcribeAbortRef.current = controller;
     const isCancelled = () => requestId !== transcribeReqRef.current || !mountedRef.current;
 
+    // Set only while the recording upload below is in flight. The slow-timer
+    // copy is about transcription, so it mustn't replace the waking status.
+    let uploadPhase: UploadPhase | null = null;
+
     const slowTimer = window.setTimeout(() => {
-      if (requestId === transcribeReqRef.current) {
+      if (requestId === transcribeReqRef.current && uploadPhase !== "waking") {
         setStatusMessage(
           `Still transcribing ${file.name}... this can take a minute or two if the server was idle.`,
         );
@@ -207,14 +211,18 @@ export default function AnalysePage() {
       let stored = uploaded;
 
       if (!stored) {
-        const uploadResult = await retryOnWakeup((signal) => uploadFile(file, { signal }), {
+        const uploadResult = await uploadWhenAwake(file, {
           signal: controller.signal,
-          onRetrying: () => {
+          onPhase: (phase) => {
+            uploadPhase = phase;
             if (!isCancelled()) {
-              setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+              setStatusMessage(
+                phase === "waking" ? WAKING_STATUS_MESSAGE : `Uploading ${file.name}...`,
+              );
             }
           },
         });
+        uploadPhase = null;
         stored = { id: uploadResult.id, filename: uploadResult.filename };
       }
 

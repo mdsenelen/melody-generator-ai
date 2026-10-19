@@ -12,6 +12,18 @@ export type RequestError = Error & {
   retryAfterSeconds?: number;
 };
 
+// Say what the user can actually check instead of the opaque "Failed to
+// fetch". Tagged with a distinct code (rather than left as a bare Error) so
+// callers can tell "couldn't reach the server at all" apart from any other
+// status-less Error thrown elsewhere in their own request flow.
+export function createNetworkError(
+  message = "Couldn't reach the server. Check your connection and try again; if it keeps happening the server may be down or waking up.",
+): RequestError {
+  const networkError = new Error(message) as RequestError;
+  networkError.code = "network_error";
+  return networkError;
+}
+
 function isJsonContentType(contentType: string) {
   return contentType.toLowerCase().includes("application/json");
 }
@@ -34,15 +46,7 @@ export async function requestJson<T>(input: RequestInfo | URL, options: RequestJ
     if (!(error instanceof TypeError)) {
       throw error;
     }
-    // Say what the user can actually check instead of the opaque message.
-    // Tagged with a distinct code (rather than left as a bare Error) so
-    // callers can tell "couldn't reach the server at all" apart from any
-    // other status-less Error thrown elsewhere in their own request flow.
-    const networkError = new Error(
-      "Couldn't reach the server. Check your connection and try again; if it keeps happening the server may be down or waking up.",
-    ) as RequestError;
-    networkError.code = "network_error";
-    throw networkError;
+    throw createNetworkError();
   }
   const contentType = response.headers.get("content-type") ?? "";
   const rawBody = await response.text();
