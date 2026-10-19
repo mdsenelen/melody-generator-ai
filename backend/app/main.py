@@ -5,17 +5,19 @@ import contextlib
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, BinaryIO, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from app import inference
 from app.jobs import routes as job_routes
@@ -277,6 +279,16 @@ def health() -> dict[str, Any]:
     }
 
 
+UPLOAD_COPY_CHUNK_BYTES = 1024 * 1024
+
+
+def _stream_upload_to_disk(source: BinaryIO, dest_path: Path) -> int:
+    """Copy an upload to dest_path one chunk at a time; returns bytes written."""
+    with dest_path.open("wb") as dest:
+        shutil.copyfileobj(source, dest, UPLOAD_COPY_CHUNK_BYTES)
+        return dest.tell()
+
+
 @app.post("/api/upload")
 async def upload_audio(
     file: UploadFile = File(...),
@@ -286,25 +298,33 @@ async def upload_audio(
         raise HTTPException(
             status_code=400, detail="Supported formats: wav, mp3, flac, ogg, m4a, webm")
 
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Empty upload")
-
-    # Best-effort duration cap before a job exists. The header probe only reads
-    # wav/flac/ogg; mp3/m4a/webm return None and are hard-capped later in the
-    # chunked transcribe path (MAX_UPLOAD_DURATION_SEC).
-    probed = inference._probe_source_duration_sec(raw)
-    if probed is not None and probed > inference.MAX_UPLOAD_DURATION_SEC:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Audio is too long (max {inference.MAX_UPLOAD_DURATION_SEC / 60:.0f} minutes)",
-        )
-
     unique_id = uuid.uuid4().hex
     suffix = Path(file.filename).suffix.lower() or ".wav"
     filename = f"upload_{unique_id}{suffix}"
     file_path = UPLOAD_DIR / filename
-    file_path.write_bytes(raw)
+
+    # Stream the (already spooled) body to disk in chunks rather than
+    # `await file.read()`: uploads aren't serialized by HEAVY_WORK_LOCK, so a
+    # 50MB body materialized in RAM during a transcription, or on a container
+    # left at the post-generation floor, could OOM-kill the 512MB instance
+    # mid-request. Anything rejected below is deleted before raising.
+    try:
+        written = await run_in_threadpool(_stream_upload_to_disk, file.file, file_path)
+        if not written:
+            raise HTTPException(status_code=400, detail="Empty upload")
+
+        # Best-effort duration cap before a job exists. The header probe only
+        # reads wav/flac/ogg; mp3/m4a/webm return None and are hard-capped
+        # later in the chunked transcribe path (MAX_UPLOAD_DURATION_SEC).
+        probed = inference._probe_source_duration_sec(file_path)
+        if probed is not None and probed > inference.MAX_UPLOAD_DURATION_SEC:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio is too long (max {inference.MAX_UPLOAD_DURATION_SEC / 60:.0f} minutes)",
+            )
+    except BaseException:
+        file_path.unlink(missing_ok=True)
+        raise
 
     log_event(unique_id, {
         "id": unique_id,

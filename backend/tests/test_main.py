@@ -90,6 +90,97 @@ def test_upload_allows_audio_whose_duration_cannot_be_probed(monkeypatch):
     (main.UPLOAD_DIR / response.json()["filename"]).unlink(missing_ok=True)
 
 
+def _wav_bytes(duration_sec: float, sample_rate: int = 8000) -> bytes:
+    import io
+
+    import numpy as np
+    import soundfile as sf
+
+    buffer = io.BytesIO()
+    sf.write(buffer, np.zeros(int(duration_sec * sample_rate), dtype=np.float32),
+             sample_rate, format="WAV", subtype="PCM_16")
+    return buffer.getvalue()
+
+
+def test_empty_upload_is_rejected_and_leaves_nothing_behind():
+    before = set(main.UPLOAD_DIR.glob("*"))
+
+    response = client.post("/api/upload", files={"file": ("clip.wav", b"", "audio/wav")})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Empty upload"}
+    assert set(main.UPLOAD_DIR.glob("*")) == before
+
+
+def test_real_over_duration_wav_is_rejected_and_its_file_deleted(monkeypatch):
+    # No probe monkeypatch: a real WAV header, probed from the file on disk.
+    monkeypatch.setattr(inference, "MAX_UPLOAD_DURATION_SEC", 1.0)
+    before = set(main.UPLOAD_DIR.glob("*"))
+
+    response = client.post(
+        "/api/upload", files={"file": ("long.wav", _wav_bytes(2.0), "audio/wav")},
+    )
+
+    assert response.status_code == 400
+    assert "minutes" in response.json()["detail"].lower()
+    assert set(main.UPLOAD_DIR.glob("*")) == before
+
+
+def test_real_wav_within_duration_cap_is_stored_intact():
+    payload = _wav_bytes(0.5)
+
+    response = client.post("/api/upload", files={"file": ("ok.wav", payload, "audio/wav")})
+
+    assert response.status_code == 201
+    stored = main.UPLOAD_DIR / response.json()["filename"]
+    try:
+        assert stored.read_bytes() == payload
+    finally:
+        stored.unlink(missing_ok=True)
+
+
+def test_upload_streams_to_disk_without_materialising_the_body(monkeypatch):
+    # The whole point: never `await file.read()` (up to MAX_UPLOAD_BYTES in
+    # RAM on a 512MB container). Fail loudly if anything reads the body in
+    # one go, and check the probe gets a path, not bytes.
+    import fastapi.datastructures
+    import starlette.datastructures
+
+    async def no_full_read(self, size=-1):
+        raise AssertionError("upload_audio must not read the whole UploadFile into memory")
+
+    monkeypatch.setattr(starlette.datastructures.UploadFile, "read", no_full_read)
+    monkeypatch.setattr(fastapi.datastructures.UploadFile, "read", no_full_read)
+    probed_sources = []
+    monkeypatch.setattr(
+        inference, "_probe_source_duration_sec",
+        lambda source: probed_sources.append(source) or None,
+    )
+
+    response = client.post(
+        "/api/upload", files={"file": ("song.mp3", b"ID3\x04" + b"\x00" * 4096, "audio/mpeg")},
+    )
+
+    assert response.status_code == 201
+    stored = main.UPLOAD_DIR / response.json()["filename"]
+    try:
+        assert len(probed_sources) == 1
+        assert not isinstance(probed_sources[0], (bytes, bytearray))
+        assert Path(probed_sources[0]) == stored
+    finally:
+        stored.unlink(missing_ok=True)
+
+
+def test_probe_reads_duration_from_a_path_and_from_bytes_alike(tmp_path):
+    payload = _wav_bytes(1.5)
+    path = tmp_path / "clip.wav"
+    path.write_bytes(payload)
+
+    assert inference._probe_source_duration_sec(payload) == pytest.approx(1.5)
+    assert inference._probe_source_duration_sec(path) == pytest.approx(1.5)
+    assert inference._probe_source_duration_sec(b"not audio") is None
+
+
 # --- global unhandled-exception handler --------------------------------------
 
 
