@@ -2574,6 +2574,69 @@ def _generate_lanes_payload(
     return _package_audio_bytes(_waveform_to_wav_bytes(mix, sample_rate), "lanes")
 
 
+def _build_transcription_result(
+    transcription: dict[str, Any],
+    *,
+    transcribed_by: str,
+    tfjs_backend: Optional[str] = None,
+) -> dict[str, Any]:
+    """The persisted /api/transcribe result shape, shared by the server path
+    (run_basic_pitch) and browser registrations (register_browser_transcription)
+    so the two can't drift. MIDI + note events only -- the analysis fields
+    (mood/key/tempo/chords/histogram/avg-pitch) come from POST /api/analyze,
+    which slices `note_events` to a clip window (plan step 5, contract step 3)."""
+    midi_filename, _ = _save_bytes(transcription["midi_bytes"], "transcription", ".mid")
+    result: dict[str, Any] = {
+        "n_notes": int(transcription["n_notes"]),
+        "duration_sec": round(float(transcription["duration_sec"]), 2),
+        "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
+        "truncated": bool(transcription["truncated"]),
+        "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
+        "wav_b64": None,
+        "midi_filename": midi_filename,
+        "wav_filename": "",
+        "note_events": _trim_note_events(transcription.get("note_events") or []),
+        "transcribed_by": transcribed_by,
+    }
+    if "n_chunks" in transcription:
+        result["n_chunks"] = int(transcription["n_chunks"])
+    if tfjs_backend is not None:
+        result["tfjs_backend"] = tfjs_backend
+    return result
+
+
+def register_browser_transcription(
+    note_events: list[dict[str, float | int]],
+    source_duration_sec: float,
+    tfjs_backend: Optional[str] = None,
+) -> dict[str, Any]:
+    """Result for note events the browser already transcribed with Basic
+    Pitch (TF.js). Only the cheap tail of the server path runs here -- MIDI
+    from notes, same tempo estimate as _transcribe_and_mood_chunked -- so no
+    Basic Pitch, no torch, no HEAVY_WORK_LOCK, and it's safe to run during the
+    boot warm-up."""
+    if source_duration_sec > MAX_UPLOAD_DURATION_SEC:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Audio is too long (max {MAX_UPLOAD_DURATION_SEC / 60:.0f} minutes)",
+        )
+    midi_bytes = _tokens_to_midi_bytes(
+        note_events, bpm=_estimate_tempo(note_events), instrument=0
+    )
+    return _build_transcription_result(
+        {
+            "midi_bytes": midi_bytes,
+            "note_events": note_events,
+            "n_notes": len(note_events),
+            "duration_sec": source_duration_sec,
+            "source_duration_sec": source_duration_sec,
+            "truncated": False,
+        },
+        transcribed_by="browser",
+        tfjs_backend=tfjs_backend,
+    )
+
+
 def run_basic_pitch(
     file_bytes: bytes,
     original_filename: str,
@@ -2602,27 +2665,7 @@ def run_basic_pitch(
         # No WAV preview for the full-length MIDI: mood/key/BPM/chords and any
         # clip audio come from POST /api/analyze instead.
         transcription = _transcribe_and_mood_chunked(file_bytes, on_progress=on_progress)
-
-        midi_filename, _ = _save_bytes(
-            transcription["midi_bytes"], "transcription", ".mid")
-
-        # /api/transcribe returns the MIDI + note events only. The computed
-        # analysis fields (mood/key/tempo/chords/histogram/avg-pitch) moved to
-        # POST /api/analyze, which slices `note_events` to a clip window (plan
-        # step 5, contract step 3).
-        result = {
-            "n_notes": int(transcription["n_notes"]),
-            "duration_sec": round(float(transcription["duration_sec"]), 2),
-            "source_duration_sec": round(float(transcription["source_duration_sec"]), 2),
-            "truncated": bool(transcription["truncated"]),
-            "midi_b64": base64.b64encode(transcription["midi_bytes"]).decode("utf-8"),
-            "wav_b64": None,
-            "midi_filename": midi_filename,
-            "wav_filename": "",
-            "note_events": _trim_note_events(transcription.get("note_events") or []),
-        }
-        if "n_chunks" in transcription:
-            result["n_chunks"] = int(transcription["n_chunks"])
+        result = _build_transcription_result(transcription, transcribed_by="server")
         _log_memory_rss("after transcribe", duration_sec=result["duration_sec"])
         return result
     finally:

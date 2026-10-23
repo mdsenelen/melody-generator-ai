@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -9,17 +10,25 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from app.rate_limit import rate_limiter
-from app.schemas import AnalyzeRequest
+from app.schemas import AnalyzeRequest, RegisterTranscriptionRequest
 
 from .models import COMPLETED, EXPIRED, FAILED, Job
-from .service import create_transcription_job, get_job_store
+from .service import create_completed_job, create_transcription_job, get_job_store
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Both trigger real Basic Pitch inference cost with no auth in front of
 # them -- see CLAUDE.md's Production Readiness/Security notes.
 TRANSCRIBE_RATE_LIMIT = int(os.environ.get("TRANSCRIBE_RATE_LIMIT", "5"))
 TRANSCRIBE_RATE_WINDOW_SECONDS = float(os.environ.get("TRANSCRIBE_RATE_WINDOW_SECONDS", "300"))
+
+# POST /api/transcriptions gets its own bucket rather than sharing
+# "transcribe": a browser attempt whose registration 422s falls back to
+# POST /api/transcribe, and sharing would count that one user action twice
+# (a surprise 429 on the fallback). Higher limit than "transcribe" because
+# registration is cheap -- MIDI-from-notes, no Basic Pitch, no heavy lock.
+REGISTER_TRANSCRIPTION_RATE_LIMIT = int(os.environ.get("REGISTER_TRANSCRIPTION_RATE_LIMIT", "10"))
 
 
 @router.post(
@@ -59,6 +68,41 @@ async def create_transcribe_job(
     # job.status directly -- an idempotent reuse can return a job that's
     # still in 'creating' if the original request is still mid-flight.
     return JSONResponse(status_code=202, content={"job_id": job.id, "status": job.to_status_payload()["status"]})
+
+
+@router.post(
+    "/transcriptions",
+    dependencies=[
+        Depends(
+            rate_limiter(
+                "register_transcription",
+                REGISTER_TRANSCRIPTION_RATE_LIMIT,
+                TRANSCRIBE_RATE_WINDOW_SECONDS,
+            )
+        )
+    ],
+)
+async def register_transcription(payload: RegisterTranscriptionRequest) -> dict[str, Any]:
+    """Register note events the browser already transcribed (Basic Pitch via
+    TF.js) as a completed job -- same result shape as a server transcription,
+    so /api/analyze, GET /transcribe/{id} and generate-variants' jobId
+    shortcut need no changes. Additive: the server path is untouched and
+    remains the frontend's fallback."""
+    from app import inference  # lazy import, see create_transcribe_job above
+
+    note_events = [n.model_dump() for n in payload.note_events]
+    result = await run_in_threadpool(
+        inference.register_browser_transcription,
+        note_events,
+        payload.source_duration_sec,
+        payload.tfjs_backend,
+    )
+    job = await run_in_threadpool(create_completed_job, payload.source_filename, result)
+    logger.info(
+        "Registered browser transcription job %s (n_notes=%d, duration_sec=%.2f, tfjs_backend=%s)",
+        job.id, result["n_notes"], result["source_duration_sec"], payload.tfjs_backend,
+    )
+    return job.to_status_payload()
 
 
 def _is_past_retention(job: Job, retention_hours: float) -> bool:
