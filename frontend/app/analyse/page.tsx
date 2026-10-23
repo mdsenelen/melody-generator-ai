@@ -17,6 +17,10 @@ import { PitchHistogram } from "../../components/ui/pitch-histogram";
 import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
 import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
+import {
+  runBrowserTranscription,
+  type StoredUpload,
+} from "../lib/browserTranscribe/runBrowserTranscription";
 import { retryOnWakeup, RetryCancelledError } from "../lib/retryOnWakeup";
 import { useSessionStore } from "../lib/session-store";
 import {
@@ -198,9 +202,13 @@ export default function AnalysePage() {
     // Set only while the recording upload below is in flight. The slow-timer
     // copy is about transcription, so it mustn't replace the waking status.
     let uploadPhase: UploadPhase | null = null;
+    // While Basic Pitch runs in the browser, the status shows its progress;
+    // the upload runs alongside it silently, and the slow-timer's
+    // cold-server copy doesn't apply.
+    let inBrowser = false;
 
     const slowTimer = window.setTimeout(() => {
-      if (requestId === transcribeReqRef.current && uploadPhase !== "waking") {
+      if (requestId === transcribeReqRef.current && uploadPhase !== "waking" && !inBrowser) {
         setStatusMessage(
           `Still transcribing ${file.name}... this can take a minute or two if the server was idle.`,
         );
@@ -208,88 +216,135 @@ export default function AnalysePage() {
     }, 8000);
 
     try {
-      let stored = uploaded;
-
-      if (!stored) {
-        const uploadResult = await uploadWhenAwake(file, {
+      // Recordings aren't uploaded yet (file uploads are, by UploadButton).
+      // Memoised so the browser path's parallel upload and the server
+      // fallback share one upload rather than sending the file twice.
+      let uploadOnce: Promise<StoredUpload> | null = null;
+      const ensureUploaded = (): Promise<StoredUpload> => {
+        if (uploaded) {
+          return Promise.resolve(uploaded);
+        }
+        uploadOnce ??= uploadWhenAwake(file, {
           signal: controller.signal,
           onPhase: (phase) => {
             uploadPhase = phase;
-            if (!isCancelled()) {
+            if (!isCancelled() && !inBrowser) {
               setStatusMessage(
                 phase === "waking" ? WAKING_STATUS_MESSAGE : `Uploading ${file.name}...`,
               );
             }
           },
+        }).then(({ id, filename }) => {
+          uploadPhase = null;
+          return { id, filename };
         });
-        uploadPhase = null;
-        stored = { id: uploadResult.id, filename: uploadResult.filename };
-      }
+        return uploadOnce;
+      };
 
-      const created = await retryOnWakeup(
-        (signal) => createTranscribeJob(file, stored, { signal }),
-        {
-          signal: controller.signal,
-          onRetrying: () => {
-            if (!isCancelled()) {
-              setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
-            }
-          },
-        },
-      );
-      window.clearTimeout(slowTimer);
-
-      if (requestId !== transcribeReqRef.current) {
-        return;
-      }
-      setStatusMessage(`Queued for transcription...`);
-
-      const result = await pollTranscribeJob(created.job_id, {
-        isSuperseded: () => requestId !== transcribeReqRef.current || !mountedRef.current,
-        onStatusChange: (status, elapsedMs) => {
-          if (requestId !== transcribeReqRef.current || !mountedRef.current) {
+      let lastProgressStep = -1;
+      inBrowser = true;
+      const browser = await runBrowserTranscription({
+        file,
+        signal: controller.signal,
+        ensureUploaded,
+        // 10% steps: the status is a live region, and every Basic Pitch
+        // batch would otherwise be a screen-reader announcement.
+        onProgress: (fraction) => {
+          const step = Math.min(10, Math.floor(fraction * 10));
+          if (step === lastProgressStep || isCancelled()) {
             return;
           }
-          // The worker bounces a job queued for up to WARMUP_MAX_SECONDS
-          // without ever marking it failed (see backend/app/jobs/worker.py)
-          // -- a calm, specific status, not the generic "still queued"
-          // wording, and never the red ErrorToast (that's reserved for a
-          // real terminal failure, in the catch block below).
-          if (status.status === "queued" && status.waiting_reason === "warming_up") {
-            setStatusMessage(
-              "The server is starting up. Your clip will be transcribed automatically, " +
-                "this can take about 2 to 4 minutes.",
-            );
-            return;
-          }
-          const stillWaking = elapsedMs > 8000;
-          if (status.status === "queued") {
-            setStatusMessage(
-              stillWaking
-                ? `Still queued for ${file.name}... this can take a minute or two if the server was idle.`
-                : `Queued for transcription...`,
-            );
-          } else if (status.status === "processing") {
-            setStatusMessage(
-              stillWaking
-                ? `Still transcribing ${file.name}... longer clips take longer, and a cold server can add a minute or two on top.`
-                : `Transcribing ${file.name}...`,
-            );
-          }
-        },
-        onRestarting: () => {
-          if (requestId !== transcribeReqRef.current || !mountedRef.current) {
-            return;
-          }
-          // Not the red ErrorToast -- the job survives the restart in
-          // Postgres, so this is still a normal in-progress state, just a
-          // calmer explanation than a generic "still transcribing" while
-          // we keep polling underneath.
+          lastProgressStep = step;
           setStatusMessage(
-            "The server restarted and is coming back up. Your clip is safe -- we'll keep checking automatically.",
+            step === 10
+              ? `Transcribed ${file.name} in your browser. Saving the notes...`
+              : `Transcribing ${file.name} in your browser... ${step * 10}%`,
           );
         },
+        onRegisterRetrying: () => {
+          if (!isCancelled()) {
+            setStatusMessage(`Server was still waking up — saving the notes for ${file.name}...`);
+          }
+        },
       });
+      inBrowser = false;
+
+      let stored: StoredUpload;
+      let jobId: string;
+      let result: TranscriptionResult;
+      if (browser.kind === "completed") {
+        window.clearTimeout(slowTimer);
+        ({ stored, result } = browser);
+        jobId = browser.job.job_id;
+      } else {
+        stored = browser.stored ?? (await ensureUploaded());
+        const serverUpload = stored;
+        const created = await retryOnWakeup(
+          (signal) => createTranscribeJob(file, serverUpload, { signal }),
+          {
+            signal: controller.signal,
+            onRetrying: () => {
+              if (!isCancelled()) {
+                setStatusMessage(`Server was still waking up — retrying ${file.name}...`);
+              }
+            },
+          },
+        );
+        window.clearTimeout(slowTimer);
+        jobId = created.job_id;
+
+        if (requestId !== transcribeReqRef.current) {
+          return;
+        }
+        setStatusMessage(`Queued for transcription...`);
+
+        result = await pollTranscribeJob(jobId, {
+          isSuperseded: () => requestId !== transcribeReqRef.current || !mountedRef.current,
+          onStatusChange: (status, elapsedMs) => {
+            if (requestId !== transcribeReqRef.current || !mountedRef.current) {
+              return;
+            }
+            // The worker bounces a job queued for up to WARMUP_MAX_SECONDS
+            // without ever marking it failed (see backend/app/jobs/worker.py)
+            // -- a calm, specific status, not the generic "still queued"
+            // wording, and never the red ErrorToast (that's reserved for a
+            // real terminal failure, in the catch block below).
+            if (status.status === "queued" && status.waiting_reason === "warming_up") {
+              setStatusMessage(
+                "The server is starting up. Your clip will be transcribed automatically, " +
+                  "this can take about 2 to 4 minutes.",
+              );
+              return;
+            }
+            const stillWaking = elapsedMs > 8000;
+            if (status.status === "queued") {
+              setStatusMessage(
+                stillWaking
+                  ? `Still queued for ${file.name}... this can take a minute or two if the server was idle.`
+                  : `Queued for transcription...`,
+              );
+            } else if (status.status === "processing") {
+              setStatusMessage(
+                stillWaking
+                  ? `Still transcribing ${file.name}... longer clips take longer, and a cold server can add a minute or two on top.`
+                  : `Transcribing ${file.name}...`,
+              );
+            }
+          },
+          onRestarting: () => {
+            if (requestId !== transcribeReqRef.current || !mountedRef.current) {
+              return;
+            }
+            // Not the red ErrorToast -- the job survives the restart in
+            // Postgres, so this is still a normal in-progress state, just a
+            // calmer explanation than a generic "still transcribing" while
+            // we keep polling underneath.
+            setStatusMessage(
+              "The server restarted and is coming back up. Your clip is safe -- we'll keep checking automatically.",
+            );
+          },
+        });
+      }
 
       if (requestId !== transcribeReqRef.current || !mountedRef.current) {
         return;
@@ -299,7 +354,7 @@ export default function AnalysePage() {
         ...result,
         sourceName: file.name,
         uploadedFilename: stored.filename,
-        jobId: created.job_id,
+        jobId,
       });
       setStatusMessage(`Transcription ready for ${file.name}.`);
 
@@ -311,19 +366,22 @@ export default function AnalysePage() {
         uploadId: stored.id,
         filename: stored.filename,
         sourceName: file.name,
-        jobId: created.job_id,
+        jobId,
         transcription: { chords: [], key: "", moodLabel: "neutral", pitchHistogram: [] },
       });
 
       const defaultEnd = Math.min(DEFAULT_CLIP_SEC, Math.max(1, result.source_duration_sec));
       const window0: ClipWindow = { start: 0, end: defaultEnd };
       setClipWindow(window0);
-      void runAnalysis(created.job_id, window0);
+      void runAnalysis(jobId, window0);
     } catch (transcribeError) {
       window.clearTimeout(slowTimer);
       if (
         transcribeError instanceof TranscribeJobSupersededError ||
-        transcribeError instanceof RetryCancelledError
+        transcribeError instanceof RetryCancelledError ||
+        // Cancelling the browser path (new clip, or leaving the page)
+        // terminates the worker and rejects with a plain AbortError.
+        (transcribeError instanceof DOMException && transcribeError.name === "AbortError")
       ) {
         return;
       }

@@ -22,6 +22,22 @@ export type TranscriptionResult = {
   // are NOT here -- POST /api/analyze slices these note events to a clip
   // window and computes them (plan step 5, contract step 3).
   note_events: NoteEvent[];
+  // Which path produced this result. Optional: jobs persisted before the
+  // browser path existed have neither field.
+  transcribed_by?: "browser" | "server";
+  tfjs_backend?: TfjsBackend;
+};
+
+export type TfjsBackend = "webgl" | "wasm" | "cpu";
+
+// POST /api/transcriptions body -- mirrors backend/app/schemas.py's
+// RegisterTranscriptionRequest.
+export type RegisterTranscriptionRequest = {
+  upload_id: string | null;
+  source_filename: string;
+  source_duration_sec: number;
+  tfjs_backend: TfjsBackend;
+  note_events: NoteEvent[];
 };
 
 export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed" | "expired";
@@ -72,6 +88,22 @@ export async function createTranscribeJob(
   return requestJson<TranscribeJobStatusResponse>(getPublicBackendApiUrl("/transcribe"), {
     method: "POST",
     body: formData,
+    expectedContentType: "application/json",
+    signal: options.signal,
+  });
+}
+
+// Registers note events the browser already transcribed (Basic Pitch via
+// TF.js) as a completed job. Same response shape as a finished
+// GET /transcribe/{id}, so the caller skips polling entirely.
+export async function registerBrowserTranscription(
+  payload: RegisterTranscriptionRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<TranscribeJobStatusResponse> {
+  return requestJson<TranscribeJobStatusResponse>(getPublicBackendApiUrl("/transcriptions"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
     expectedContentType: "application/json",
     signal: options.signal,
   });

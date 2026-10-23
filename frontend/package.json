@@ -4,6 +4,8 @@
   "description": "",
   "main": "tailwind.config.js",
   "scripts": {
+    "predev": "node scripts/copy-ml-assets.mjs",
+    "prebuild": "node scripts/copy-ml-assets.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -19,6 +21,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@spotify/basic-pitch": "1.0.1",
+    "@tensorflow/tfjs-backend-wasm": "3.21.0",
     "@tonejs/midi": "^2.0.28",
     "lodash": "^4.18.1",
     "moment": "2.29.4",

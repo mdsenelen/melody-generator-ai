@@ -3,6 +3,7 @@ import {
   getTranscribeJob,
   POLL_MAX_TOTAL_MS,
   pollTranscribeJob,
+  registerBrowserTranscription,
   TranscribeJobLostError,
   TranscribeJobSupersededError,
   TranscribeJobTimeoutError,
@@ -322,5 +323,57 @@ describe("pollTranscribeJob", () => {
     expect(POLL_MAX_TOTAL_MS).toBeGreaterThanOrEqual(minimumRequiredSec * 1000);
     // Real margin on top, not just barely clearing the minimum.
     expect(POLL_MAX_TOTAL_MS - minimumRequiredSec * 1000).toBeGreaterThanOrEqual(120 * 1000);
+  });
+});
+
+describe("registerBrowserTranscription", () => {
+  it("POSTs JSON note events to /api/transcriptions and returns the completed job", async () => {
+    const completed = statusResponse({
+      status: "completed",
+      progress: 100,
+      result: COMPLETED_RESULT,
+    });
+    (global.fetch as jest.Mock).mockResolvedValueOnce(jsonResponse(200, completed));
+    const controller = new AbortController();
+
+    const out = await registerBrowserTranscription(
+      {
+        upload_id: "up-1",
+        source_filename: "vokal izole.mp3",
+        source_duration_sec: 185.74,
+        tfjs_backend: "webgl",
+        note_events: [{ start: 0, end: 0.5, pitch: 60, velocity: 90 }],
+      },
+      { signal: controller.signal },
+    );
+
+    expect(out).toEqual(completed);
+    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/transcriptions$/);
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(init.signal).toBe(controller.signal);
+    expect(JSON.parse(init.body)).toEqual({
+      upload_id: "up-1",
+      source_filename: "vokal izole.mp3",
+      source_duration_sec: 185.74,
+      tfjs_backend: "webgl",
+      note_events: [{ start: 0, end: 0.5, pitch: 60, velocity: 90 }],
+    });
+  });
+
+  it("rejects with the response status so callers can tell a 422 apart", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      jsonResponse(422, { detail: "note_events extend past source_duration_sec" }),
+    );
+    await expect(
+      registerBrowserTranscription({
+        upload_id: null,
+        source_filename: "a.wav",
+        source_duration_sec: 1,
+        tfjs_backend: "cpu",
+        note_events: [],
+      }),
+    ).rejects.toMatchObject({ status: 422 });
   });
 });
