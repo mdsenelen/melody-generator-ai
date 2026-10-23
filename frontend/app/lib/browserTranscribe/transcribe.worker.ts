@@ -2,13 +2,19 @@
 // The ONLY module that imports TF.js / Basic Pitch. Loaded via
 // createWorker.ts's `new URL(..., import.meta.url)`, so all of it lands in
 // the worker chunk and never in a page bundle.
+// Must stay the first import: ES modules evaluate in import order, and the
+// `window` shim has to exist before TF.js does (see installWindowShim).
+import "./workerWindowShim";
 import { BasicPitch, noteFramesToTime, outputToNotesPoly } from "@spotify/basic-pitch";
 import * as tf from "@tensorflow/tfjs";
 // Pinned to the exact @tensorflow/tfjs version @spotify/basic-pitch resolves
 // (package.json) -- a core/backend version mismatch fails at runtime.
 import { setWasmPaths } from "@tensorflow/tfjs-backend-wasm";
 import type { TfjsBackend } from "../transcribeJob";
-import type { BasicPitchNote, WorkerFailureStage, WorkerRequest, WorkerResponse } from "./protocol";
+import type { BasicPitchNote, WorkerRequest, WorkerResponse } from "./protocol";
+import { attachTranscribeHandlers, StageError } from "./workerScope";
+
+const scope = self as unknown as DedicatedWorkerGlobalScope;
 
 // Python basic-pitch==0.4.0's predict() defaults, so browser and server
 // notes stay close: onset_threshold 0.5, frame_threshold 0.3,
@@ -18,19 +24,8 @@ const ONSET_THRESHOLD = 0.5;
 const FRAME_THRESHOLD = 0.3;
 const MIN_NOTE_LENGTH_FRAMES = 11;
 
-const scope = self as unknown as DedicatedWorkerGlobalScope;
-
 function post(message: WorkerResponse) {
   scope.postMessage(message);
-}
-
-class StageError extends Error {
-  constructor(
-    readonly stage: WorkerFailureStage,
-    cause: unknown,
-  ) {
-    super(cause instanceof Error ? cause.message : String(cause));
-  }
 }
 
 // Explicit order: WebGL needs OffscreenCanvas inside a worker; wasm is the
@@ -94,12 +89,4 @@ async function transcribe({ audio, modelUrl, wasmPath }: WorkerRequest) {
   post({ type: "done", notes, backend });
 }
 
-scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
-  transcribe(event.data).catch((error: unknown) => {
-    post({
-      type: "error",
-      stage: error instanceof StageError ? error.stage : "inference",
-      message: error instanceof Error ? error.message : String(error),
-    });
-  });
-};
+attachTranscribeHandlers(scope, transcribe);

@@ -7,7 +7,10 @@ import { createTranscribeWorker } from "../../app/lib/browserTranscribe/createWo
 import { decodeToMono22050 } from "../../app/lib/browserTranscribe/decode";
 import { checkBrowserEligibility } from "../../app/lib/browserTranscribe/eligibility";
 import type { WorkerRequest, WorkerResponse } from "../../app/lib/browserTranscribe/protocol";
-import type { WorkerLike } from "../../app/lib/browserTranscribe/transcribeInBrowser";
+import {
+  WORKER_WATCHDOG_MS,
+  type WorkerLike,
+} from "../../app/lib/browserTranscribe/transcribeInBrowser";
 import {
   createTranscribeJob,
   pollTranscribeJob,
@@ -53,6 +56,7 @@ const mockedPollJob = pollTranscribeJob as jest.Mock;
 class FakeWorker implements WorkerLike {
   onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
   terminate = jest.fn();
   // Set per test: how the "worker" answers once it's handed the audio.
   reply: ((worker: FakeWorker) => void) | null = null;
@@ -98,8 +102,7 @@ const ANALYSIS = {
 
 let worker: FakeWorker;
 
-async function uploadClip() {
-  const user = userEvent.setup();
+async function uploadClip(user = userEvent.setup()) {
   await user.upload(
     screen.getByLabelText(/upload audio/i) as HTMLInputElement,
     new File(["audio-bytes"], "vokal izole.mp3", { type: "audio/mpeg" }),
@@ -228,6 +231,27 @@ describe("Analyse page: transcription in the browser", () => {
     await expectServerPathWithoutErrorToast();
     expect(mockedCreateWorker).not.toHaveBeenCalled();
     expect(mockedDecode).not.toHaveBeenCalled();
+  });
+
+  it("a silent worker is terminated by the watchdog and the clip finishes on the server", async () => {
+    // The real hang: tfjs threw inside the worker where nothing caught it,
+    // so no message ever came back and the UI sat at 0% forever.
+    jest.useFakeTimers();
+    try {
+      worker.reply = (w) => w.emit({ type: "progress", fraction: 0 }); // then silence
+      render(<AnalysePage />);
+      await uploadClip(userEvent.setup({ advanceTimers: jest.advanceTimersByTime }));
+      await waitFor(() => expect(mockedCreateWorker).toHaveBeenCalled());
+      expect(mockedCreateJob).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(WORKER_WATCHDOG_MS);
+
+      expect(worker.terminate).toHaveBeenCalled();
+      await expectServerPathWithoutErrorToast();
+      expect(mockedRegister).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("terminates the worker on cancel (unmount) and makes no further state updates", async () => {
