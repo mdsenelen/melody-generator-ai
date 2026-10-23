@@ -61,3 +61,7 @@ frontend/public/*.mp4
 
 
 .DS_Store
+
+# Basic Pitch model + TF.js wasm, copied from node_modules by
+# frontend/scripts/copy-ml-assets.mjs on predev/prebuild.
+frontend/public/ml/
