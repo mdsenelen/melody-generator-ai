@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { buttonClass } from "../components/ui/button";
+import { PlannedBadge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
 import { Label } from "../components/ui/text";
 
@@ -58,24 +59,14 @@ const GOOD_TO_KNOW = [
 
 export default function LandingPage() {
   return (
-    <div className="space-y-16">
-      <section className="pt-4 pb-8 text-center">
-        <div className="mx-auto max-w-3xl">
-          <div className="border-primary/75 text-primary mb-8 inline-flex items-center rounded-[var(--radius)] border px-3 py-1.5 font-mono text-[10px] tracking-widest uppercase">
-            AI music generation
-          </div>
-
-          <h1 className="font-display text-foreground text-[clamp(2.4rem,5vw,4.4rem)] leading-[0.98] font-light">
-            Turn a clip of audio into new,
-            <span className="block">playable melodies</span>
+    <div>
+      <section className="border-border -mx-4 border-b px-6 py-16 sm:-mx-6 md:px-16 md:py-24 lg:-mx-10">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-foreground text-4xl leading-tight font-light md:text-5xl">
+            Turn your humming into a new melody, or analyse an audio clip
           </h1>
 
-          <p className="text-secondary-foreground mx-auto mt-8 max-w-2xl text-base leading-relaxed">
-            Upload or record a short clip. Melodia analyses its harmonic content, then generates
-            melodic variants you can preview, download, and use immediately, as MIDI or WAV.
-          </p>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link href="/analyse" className={buttonClass("primary")}>
               Start analysing audio
             </Link>
@@ -91,54 +82,79 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section>
-        <p className="text-muted-foreground mb-8 text-center font-mono text-[11px] tracking-widest uppercase">
-          How it works
-        </p>
-        <div className="mx-auto max-w-2xl space-y-0">
-          {PIPELINE_STEPS.map((step, index) => (
-            <div key={step.title} className="group flex gap-6">
-              <div className="flex flex-col items-center">
-                <div className="border-border group-hover:border-primary/40 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors">
-                  <span className="text-muted-foreground font-mono text-[9px]">{step.n}</span>
+      <div className="mx-auto grid max-w-5xl gap-12 py-14 md:grid-cols-[1fr_320px]">
+        <section>
+          <p className="text-muted-foreground mb-8 font-mono text-[10px] tracking-widest uppercase">
+            How it works
+          </p>
+          <div className="space-y-0">
+            {PIPELINE_STEPS.map((step, index) => (
+              <div key={step.title} className="group flex gap-6">
+                <div className="flex flex-col items-center">
+                  <div className="border-border group-hover:border-primary/40 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors">
+                    <span className="text-muted-foreground font-mono text-[9px]">{step.n}</span>
+                  </div>
+                  {index < PIPELINE_STEPS.length - 1 ? (
+                    <div className="bg-border my-1 w-px flex-1" style={{ minHeight: 32 }} />
+                  ) : null}
                 </div>
-                {index < PIPELINE_STEPS.length - 1 ? (
-                  <div className="bg-border my-1 w-px flex-1" style={{ minHeight: 32 }} />
-                ) : null}
-              </div>
-              <div className="pb-8">
-                <p className="font-display text-foreground mb-1 text-base font-light">
-                  {step.title}
-                </p>
-                <p className="text-muted-foreground text-sm leading-relaxed">{step.description}</p>
-                <Link
-                  href={step.href}
-                  className="text-primary mt-1 inline-block text-xs hover:underline"
-                >
-                  {step.linkLabel} →
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-2xl">
-        <Card className="space-y-4">
-          <Label>Good to know</Label>
-          <div className="space-y-4">
-            {GOOD_TO_KNOW.map((item) => (
-              <div key={item.title} className="space-y-1">
-                <p className="text-foreground flex items-center gap-2 text-sm">
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.title}
-                </p>
-                <p className="text-muted-foreground pl-6 text-xs leading-relaxed">{item.body}</p>
+                <div className="pb-8">
+                  <p className="font-display text-foreground mb-1 text-base font-light">
+                    {step.title}
+                  </p>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
-        </Card>
-      </section>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["/analyse", "Analyse"],
+              ["/listen-progressions", "Progressions"],
+              ["/choose-progression", "Compose"],
+              ["/generate-variants", "Variants"],
+            ].map(([href, label]) => (
+              <Link
+                key={href}
+                href={href}
+                className="border-border text-muted-foreground hover:border-primary/40 hover:text-primary rounded-[var(--radius)] border py-2.5 text-center font-mono text-xs tracking-widest uppercase transition-all"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <aside>
+          <p className="text-muted-foreground mb-4 font-mono text-[10px] tracking-widest uppercase">
+            Good to know
+          </p>
+          <Card className="space-y-4">
+            <div className="space-y-4">
+              {GOOD_TO_KNOW.map((item) => (
+                <div key={item.title} className="space-y-1">
+                  <p className="text-foreground flex items-center gap-2 text-sm">
+                    <span aria-hidden="true">{item.icon}</span>
+                    {item.title}
+                  </p>
+                  <p className="text-muted-foreground pl-6 text-xs leading-relaxed">{item.body}</p>
+                </div>
+              ))}
+            </div>
+            <div className="border-border space-y-2 border-t pt-4">
+              <Label>Coming soon</Label>
+              {["Sharing & collaboration", "Account & history", "Publishing"].map((feature) => (
+                <div key={feature} className="flex items-center justify-between">
+                  <span className="text-border-strong text-xs">{feature}</span>
+                  <PlannedBadge />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
