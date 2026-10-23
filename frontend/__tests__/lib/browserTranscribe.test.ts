@@ -10,6 +10,7 @@ import {
   BrowserWorkerError,
   shouldFallBackToServer,
   transcribeInBrowser,
+  WORKER_WATCHDOG_MS,
   type WorkerLike,
 } from "../../app/lib/browserTranscribe/transcribeInBrowser";
 import { RetryCancelledError } from "../../app/lib/retryOnWakeup";
@@ -97,6 +98,7 @@ describe("shouldFallBackToServer", () => {
 class FakeWorker implements WorkerLike {
   onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
   posted: unknown[] = [];
   terminate = jest.fn();
   postMessage(message: unknown) {
@@ -150,7 +152,9 @@ describe("transcribeInBrowser", () => {
     await flush();
     worker.emit({ type: "error", stage: "model", message: "404 model.json" });
 
-    await expect(pending).rejects.toMatchObject({ name: "BrowserWorkerError", stage: "model" });
+    const error: unknown = await pending.catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: "BrowserWorkerError", stage: "model" });
+    expect(shouldFallBackToServer(error)).toBe(true);
     expect(worker.terminate).toHaveBeenCalled();
   });
 
@@ -160,7 +164,75 @@ describe("transcribeInBrowser", () => {
     await flush();
     worker.onerror?.({ message: "chunk load failed" } as ErrorEvent);
 
-    await expect(pending).rejects.toBeInstanceOf(BrowserWorkerError);
+    const error: unknown = await pending.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BrowserWorkerError);
+    expect(shouldFallBackToServer(error)).toBe(true);
+    expect(worker.terminate).toHaveBeenCalled();
+  });
+
+  it("rejects when a worker message can't be deserialized", async () => {
+    const { worker, deps } = setup();
+    const pending = transcribeInBrowser(new File(["x"], "a.mp3"), { deps });
+    await flush();
+    worker.onmessageerror?.({} as MessageEvent);
+
+    const error: unknown = await pending.catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: "BrowserWorkerError", stage: "crash" });
+    expect(shouldFallBackToServer(error)).toBe(true);
+    expect(worker.terminate).toHaveBeenCalled();
+  });
+
+  describe("watchdog", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("terminates a silent worker and rejects with a BrowserWorkerError", async () => {
+      const { worker, deps } = setup();
+      const pending = transcribeInBrowser(new File(["x"], "a.mp3"), { deps });
+      const settled = pending.catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(0);
+
+      await jest.advanceTimersByTimeAsync(WORKER_WATCHDOG_MS - 1);
+      expect(worker.terminate).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(1);
+
+      const error = await settled;
+      expect(error).toMatchObject({ name: "BrowserWorkerError", stage: "timeout" });
+      expect(shouldFallBackToServer(error)).toBe(true);
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+
+    it("restarts the countdown on every progress message", async () => {
+      const { worker, deps } = setup();
+      const pending = transcribeInBrowser(new File(["x"], "a.mp3"), { deps });
+      await jest.advanceTimersByTimeAsync(0);
+
+      await jest.advanceTimersByTimeAsync(WORKER_WATCHDOG_MS - 1);
+      worker.emit({ type: "progress", fraction: 0.1 });
+      await jest.advanceTimersByTimeAsync(WORKER_WATCHDOG_MS - 1);
+      worker.emit({ type: "done", backend: "cpu", notes: [] });
+
+      await expect(pending).resolves.toMatchObject({ tfjsBackend: "cpu" });
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+
+    it("an abort cancels quietly and the watchdog never fires afterwards", async () => {
+      const { worker, deps } = setup();
+      const controller = new AbortController();
+      const pending = transcribeInBrowser(new File(["x"], "a.mp3"), {
+        signal: controller.signal,
+        deps,
+      });
+      const settled = pending.catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(0);
+      controller.abort();
+
+      const error = await settled;
+      expect(error).toMatchObject({ name: "AbortError" });
+      expect(shouldFallBackToServer(error)).toBe(false);
+      await jest.advanceTimersByTimeAsync(WORKER_WATCHDOG_MS * 2);
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("terminates the worker and rejects with AbortError when cancelled", async () => {
