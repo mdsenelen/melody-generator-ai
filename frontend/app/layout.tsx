@@ -45,13 +45,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}>
       <body className="bg-background text-foreground min-h-screen overflow-x-hidden font-sans antialiased">
-        <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-10">
-          <header className="border-border flex flex-col gap-3 border-b py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-h-screen w-full flex-col">
+          <header className="border-border flex flex-col gap-3 border-b px-6 py-4 md:flex-row md:items-center md:justify-between md:px-10">
             <Header />
             <Nav />
           </header>
           <ErrorBoundary>
-            <main className="flex-1 py-8">{children}</main>
+            <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">{children}</main>
           </ErrorBoundary>
           <Footer />
         </div>

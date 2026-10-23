@@ -6,8 +6,15 @@ describe("LandingPage", () => {
   it("renders the hero heading", () => {
     render(<LandingPage />);
     expect(
-      screen.getByRole("heading", { name: /turn a clip of audio into new, playable melodies/i }),
+      screen.getByRole("heading", {
+        name: /turn your humming into a new melody, or analyse an audio clip/i,
+      }),
     ).toBeInTheDocument();
+  });
+
+  it("does not render the removed AI music generation tag", () => {
+    render(<LandingPage />);
+    expect(screen.queryByText(/ai music generation/i)).not.toBeInTheDocument();
   });
 
   it("links its primary call to action to /analyse", () => {
