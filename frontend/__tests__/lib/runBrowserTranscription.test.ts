@@ -102,14 +102,19 @@ describe("runBrowserTranscription", () => {
     expect(deps.register).not.toHaveBeenCalled();
   });
 
-  it.each([422, 429])("falls back (not an error) when registration returns %s", async (status) => {
-    const { deps, ensureUploaded, signal } = setup();
-    deps.register.mockRejectedValueOnce(httpError(status));
+  // 404/405: the frontend deployed (Vercel) before the backend (Render) had
+  // POST /api/transcriptions.
+  it.each([404, 405, 422, 429])(
+    "falls back (not an error) when registration returns %s",
+    async (status) => {
+      const { deps, ensureUploaded, signal } = setup();
+      deps.register.mockRejectedValueOnce(httpError(status));
 
-    const outcome = await runBrowserTranscription({ file: FILE, signal, ensureUploaded, deps });
+      const outcome = await runBrowserTranscription({ file: FILE, signal, ensureUploaded, deps });
 
-    expect(outcome).toEqual({ kind: "fallback", reason: "register_rejected", stored: STORED });
-  });
+      expect(outcome).toEqual({ kind: "fallback", reason: "register_rejected", stored: STORED });
+    },
+  );
 
   it("propagates other registration errors", async () => {
     const { deps, ensureUploaded, signal } = setup();
