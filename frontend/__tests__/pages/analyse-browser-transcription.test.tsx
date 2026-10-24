@@ -223,6 +223,19 @@ describe("Analyse page: transcription in the browser", () => {
     await expectServerPathWithoutErrorToast();
   });
 
+  it.each([404, 405])(
+    "falls back to the server, with no error toast, when the backend predates POST /api/transcriptions (%s)",
+    async (status) => {
+      mockedRegister.mockRejectedValueOnce(
+        Object.assign(new Error(`Request failed (${status})`), { status }),
+      );
+      render(<AnalysePage />);
+      await uploadClip();
+
+      await expectServerPathWithoutErrorToast();
+    },
+  );
+
   it("sends an ineligible file straight to the server without starting a worker", async () => {
     mockedEligibility.mockResolvedValueOnce({ eligible: false, reason: "too_long" });
     render(<AnalysePage />);

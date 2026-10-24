@@ -41,12 +41,16 @@ const DEFAULT_DEPS: Deps = {
 };
 
 // Rejected registrations go to the server path rather than the error toast:
-// 422 means the server wouldn't accept these notes (e.g. over the note-count
-// cap), 429 means the registration bucket is spent -- POST /api/transcribe
-// has its own bucket, so the fallback isn't charged twice.
+// 404/405 mean the backend predates POST /api/transcriptions (Vercel usually
+// deploys before Render), 422 means the server wouldn't accept these notes
+// (e.g. over the note-count cap), 429 means the registration bucket is
+// spent -- POST /api/transcribe has its own bucket, so the fallback isn't
+// charged twice.
+const REGISTER_REJECTION_STATUSES = new Set([404, 405, 422, 429]);
+
 function isRegisterRejection(error: unknown): boolean {
   const status = (error as RequestError | undefined)?.status;
-  return status === 422 || status === 429;
+  return status !== undefined && REGISTER_REJECTION_STATUSES.has(status);
 }
 
 // Transcribes in the browser (Basic Pitch on TF.js in a Worker) while the
