@@ -187,6 +187,33 @@ describe("Analyse page: transcription in the browser", () => {
     );
   });
 
+  it("logs path, backend, note count and pick-to-ready time for a browser transcription", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {});
+    render(<AnalysePage />);
+    await uploadClip();
+
+    await waitFor(() =>
+      expect(info).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^\[transcribe\] path=browser backend=webgl notes=1 elapsed=\d+\.\ds$/,
+        ),
+      ),
+    );
+  });
+
+  it("logs path=server backend=none when the clip was transcribed on the server", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {});
+    mockedEligibility.mockResolvedValueOnce({ eligible: false, reason: "too_long" });
+    render(<AnalysePage />);
+    await uploadClip();
+
+    await waitFor(() =>
+      expect(info).toHaveBeenCalledWith(
+        expect.stringMatching(/^\[transcribe\] path=server backend=none notes=1 elapsed=\d+\.\ds$/),
+      ),
+    );
+  });
+
   it("shows browser progress in the status", async () => {
     worker.reply = (w) => w.emit({ type: "progress", fraction: 0.42 });
     render(<AnalysePage />);

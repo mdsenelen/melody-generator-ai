@@ -98,7 +98,13 @@ describe("UploadButton", () => {
 
       await waitFor(() =>
         expect(onUploadSuccess).toHaveBeenCalledWith(
-          expect.objectContaining({ id: "up-1", filename: "clip.wav" }),
+          // pickedAt: the moment the file was chosen, so /analyse can time
+          // pick -> "Transcription ready" including this upload.
+          expect.objectContaining({
+            id: "up-1",
+            filename: "clip.wav",
+            pickedAt: expect.any(Number),
+          }),
         ),
       );
       expect(mockedUploadFile).toHaveBeenCalledTimes(1);

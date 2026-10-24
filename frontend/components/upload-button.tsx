@@ -10,6 +10,9 @@ export type UploadSuccessPayload = {
   id: string;
   filename: string;
   file: File;
+  // performance.now() when the file was chosen, before this upload -- lets
+  // the caller time pick -> "Transcription ready" end to end.
+  pickedAt: number;
 };
 
 // `idle` carries the transient "Upload complete" note; `error` keeps the
@@ -60,6 +63,7 @@ export function UploadButton({
   }, []);
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const pickedAt = performance.now();
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
@@ -85,7 +89,7 @@ export function UploadButton({
         },
       });
       setState({ status: "idle", note: "Upload complete" });
-      onUploadSuccess({ id, filename, file });
+      onUploadSuccess({ id, filename, file, pickedAt });
       statusTimerRef.current = setTimeout(() => setState({ status: "idle", note: "" }), 2000);
     } catch (error) {
       if (error instanceof RetryCancelledError || controller.signal.aborted) {
