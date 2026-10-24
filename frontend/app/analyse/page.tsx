@@ -21,6 +21,7 @@ import {
   runBrowserTranscription,
   type StoredUpload,
 } from "../lib/browserTranscribe/runBrowserTranscription";
+import { formatTranscribeLog, type TranscribePath } from "../lib/transcribeTiming";
 import { retryOnWakeup, RetryCancelledError } from "../lib/retryOnWakeup";
 import { useSessionStore } from "../lib/session-store";
 import {
@@ -184,6 +185,7 @@ export default function AnalysePage() {
   const runTranscription = async (
     file: File,
     uploaded: { id: string; filename: string } | null,
+    pickedAt: number,
   ) => {
     const requestId = ++transcribeReqRef.current;
     analysisReqRef.current += 1; // invalidate any in-flight analysis for the previous clip
@@ -272,6 +274,7 @@ export default function AnalysePage() {
       let stored: StoredUpload;
       let jobId: string;
       let result: TranscriptionResult;
+      const path: TranscribePath = browser.kind === "completed" ? "browser" : "server";
       if (browser.kind === "completed") {
         window.clearTimeout(slowTimer);
         ({ stored, result } = browser);
@@ -357,6 +360,14 @@ export default function AnalysePage() {
         jobId,
       });
       setStatusMessage(`Transcription ready for ${file.name}.`);
+      console.info(
+        formatTranscribeLog({
+          path,
+          backend: path === "browser" ? (result.tfjs_backend ?? null) : null,
+          notes: result.n_notes,
+          elapsedMs: performance.now() - pickedAt,
+        }),
+      );
 
       // generate-variants / choose-progression reference the upload by id.
       // jobId lets generate-variants skip re-transcribing this same audio.
@@ -406,19 +417,21 @@ export default function AnalysePage() {
     }
   };
 
-  const handleUploadSuccess = ({ id, filename, file }: UploadSuccessPayload) => {
+  const handleUploadSuccess = ({ id, filename, file, pickedAt }: UploadSuccessPayload) => {
     setSelectedFile(file);
     setErrorMessage(null);
     setStatusMessage(`Uploaded ${file.name}. Starting transcription...`);
-    void runTranscription(file, { id, filename });
+    void runTranscription(file, { id, filename }, pickedAt);
   };
 
   const handleRecordingComplete = (file: File) => {
+    // A recording has no pick; timing starts when it's handed over.
+    const pickedAt = performance.now();
     setShowRecorder(true);
     setSelectedFile(file);
     setErrorMessage(null);
     setStatusMessage(`Recording ready. Transcribing ${file.name}...`);
-    void runTranscription(file, null);
+    void runTranscription(file, null, pickedAt);
   };
 
   const handleClipCommit = (next: ClipWindow) => {
