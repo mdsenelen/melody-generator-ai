@@ -67,7 +67,12 @@ export default function LandingPage() {
           </h1>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link href="/analyse" className={buttonClass("primary")}>
+            <Link
+              href="/analyse"
+              className={buttonClass("primary", {
+                className: "text-foreground bg-[#263b50] px-6 py-3 hover:bg-[#324b65]",
+              })}
+            >
               Start analysing audio
             </Link>
             <a
