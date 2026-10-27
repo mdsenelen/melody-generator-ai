@@ -157,8 +157,12 @@ export default function GenerateVariantsPage() {
         formData.append("file", selectedFile);
       } else if (lastUpload?.jobId) {
         // Already transcribed (via /analyse) -- skip re-transcribing the
-        // same audio server-side.
+        // same audio server-side. The upload reference rides along: a job
+        // registered from a browser transcription before the backend kept
+        // its audio can only find that audio through it.
         formData.append("job_id", lastUpload.jobId);
+        formData.append("filename", lastUpload.filename);
+        formData.append("upload_id", lastUpload.uploadId);
       } else if (lastUpload) {
         formData.append("filename", lastUpload.filename);
         formData.append("upload_id", lastUpload.uploadId);
@@ -320,14 +324,89 @@ export default function GenerateVariantsPage() {
           </button>
         </Card>
 
-        <Card className="min-h-[520px]" variant="muted">
-          {!result ? (
+        {/* Results take the placeholder's slot (right of the controls on wide
+            screens, below them on narrow ones) instead of rendering below an
+            empty 520px panel. */}
+        {result ? (
+          <Card className="self-start">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-foreground text-2xl font-light">
+                  Rendered variants
+                </h2>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Generated on {result.model_status.device}. Play each melody below, or download the
+                  MIDI.
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Heads up: running a full transcription right after generating variants can make
+                  the server restart. If that happens, wait a few minutes. Your clip is picked up
+                  again automatically. If it has not finished after about 20 minutes, upload it
+                  again.
+                </p>
+              </div>
+              {mood ? <MoodBadge mood={mood} label={`Mood: ${mood}`} /> : null}
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Card variant="muted" className="text-muted-foreground text-sm">
+                <p className="text-foreground">Checkpoint status</p>
+                <p className="mt-2">
+                  CVAE loaded: {result.model_status.cvae.loaded ? "yes" : "no"}
+                </p>
+                <p>IDDM-PPO loaded: {result.model_status.iddm_ppo.loaded ? "yes" : "no"}</p>
+                <p className="text-muted-foreground mt-2 font-mono text-xs">
+                  CVAE {result.model_status.cvae.size_mb} MB, IDDM-PPO{" "}
+                  {result.model_status.iddm_ppo.size_mb} MB
+                </p>
+              </Card>
+              <Card variant="muted" className="text-muted-foreground text-sm">
+                <p className="text-foreground">Variant controls used</p>
+                <p className="mt-2">{result.n_variants} variants</p>
+                <p className="mt-1">Temperatures: {result.temperatures.join(", ")}</p>
+                {result.model_status.load_error ? (
+                  <p className="mt-2 text-red-300">{result.model_status.load_error}</p>
+                ) : null}
+              </Card>
+            </div>
+
+            <div className="mt-6">
+              <VariantPicker
+                count={result.variants.length}
+                active={activeVariant}
+                onSelect={setActiveVariant}
+              />
+            </div>
+
+            {result.variants[activeVariant] ? (
+              <div className="border-border bg-background mt-6 rounded-[var(--radius)] border p-5">
+                <p className="text-muted-foreground text-sm">
+                  Temperature:{" "}
+                  <span className="text-foreground">
+                    {result.variants[activeVariant].temperature}
+                  </span>
+                </p>
+                <MidiPlayer
+                  key={result.variants[activeVariant].index}
+                  midiB64={result.variants[activeVariant].midi_b64}
+                  className="mt-4"
+                />
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href={`/result/${result.job_id}`} className={buttonClass("secondary")}>
+                    View &amp; download result
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </Card>
+        ) : (
+          <Card className="min-h-[520px]" variant="muted">
             <EmptyState
               title="Configure on the left"
               body="Load audio, set transformation parameters, and generate."
             />
-          ) : null}
-        </Card>
+          </Card>
+        )}
       </div>
 
       {error ? (
@@ -359,77 +438,6 @@ export default function GenerateVariantsPage() {
             </div>
           )}
         </div>
-      ) : null}
-
-      {result ? (
-        <Card>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-display text-foreground text-2xl font-light">
-                Rendered variants
-              </h2>
-              <p className="text-muted-foreground mt-2 text-sm">
-                Generated on {result.model_status.device}. Play each melody below, or download the
-                MIDI.
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Heads up: running a full transcription right after generating variants can make the
-                server restart. If that happens, wait a few minutes. Your clip is picked up again
-                automatically. If it has not finished after about 20 minutes, upload it again.
-              </p>
-            </div>
-            {mood ? <MoodBadge mood={mood} label={`Mood: ${mood}`} /> : null}
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Card variant="muted" className="text-muted-foreground text-sm">
-              <p className="text-foreground">Checkpoint status</p>
-              <p className="mt-2">CVAE loaded: {result.model_status.cvae.loaded ? "yes" : "no"}</p>
-              <p>IDDM-PPO loaded: {result.model_status.iddm_ppo.loaded ? "yes" : "no"}</p>
-              <p className="text-muted-foreground mt-2 font-mono text-xs">
-                CVAE {result.model_status.cvae.size_mb} MB, IDDM-PPO{" "}
-                {result.model_status.iddm_ppo.size_mb} MB
-              </p>
-            </Card>
-            <Card variant="muted" className="text-muted-foreground text-sm">
-              <p className="text-foreground">Variant controls used</p>
-              <p className="mt-2">{result.n_variants} variants</p>
-              <p className="mt-1">Temperatures: {result.temperatures.join(", ")}</p>
-              {result.model_status.load_error ? (
-                <p className="mt-2 text-red-300">{result.model_status.load_error}</p>
-              ) : null}
-            </Card>
-          </div>
-
-          <div className="mt-6">
-            <VariantPicker
-              count={result.variants.length}
-              active={activeVariant}
-              onSelect={setActiveVariant}
-            />
-          </div>
-
-          {result.variants[activeVariant] ? (
-            <div className="border-border bg-background mt-6 rounded-[var(--radius)] border p-5">
-              <p className="text-muted-foreground text-sm">
-                Temperature:{" "}
-                <span className="text-foreground">
-                  {result.variants[activeVariant].temperature}
-                </span>
-              </p>
-              <MidiPlayer
-                key={result.variants[activeVariant].index}
-                midiB64={result.variants[activeVariant].midi_b64}
-                className="mt-4"
-              />
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link href={`/result/${result.job_id}`} className={buttonClass("secondary")}>
-                  View &amp; download result
-                </Link>
-              </div>
-            </div>
-          ) : null}
-        </Card>
       ) : null}
     </div>
   );
