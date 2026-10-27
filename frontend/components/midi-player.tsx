@@ -45,44 +45,49 @@ export function MidiPlayer({ midiB64, className = "" }: MidiPlayerProps) {
   const durationSec = state.durationSec;
   const pct = durationSec > 0 ? Math.min(100, (positionSec / durationSec) * 100) : 0;
 
+  // The credit sits below the controls row, not inside it: as a flex sibling
+  // it squeezed the time column to a sliver on phones, so "0:04 / 0:56"
+  // wrapped on top of the credit text.
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={isLoading}
-        aria-pressed={isPlaying}
-        aria-label={isPlaying ? "Pause melody" : "Play melody"}
-        className="border-primary/60 bg-primary/20 text-foreground hover:bg-primary/30 focus-visible:ring-primary/60 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isLoading ? (
-          <Spinner size="sm" label="Loading piano" className="[&>span:last-child]:sr-only" />
-        ) : isPlaying ? (
-          <PauseIcon />
-        ) : (
-          <PlayIcon />
-        )}
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <div
-          role="progressbar"
-          aria-valuenow={Math.round(positionSec)}
-          aria-valuemin={0}
-          aria-valuemax={Math.round(durationSec)}
-          aria-label="Playback position"
-          className="bg-border h-px w-full overflow-hidden"
+    <div className={className}>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={isLoading}
+          aria-pressed={isPlaying}
+          aria-label={isPlaying ? "Pause melody" : "Play melody"}
+          className="border-primary/60 bg-primary/20 text-foreground hover:bg-primary/30 focus-visible:ring-primary/60 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
+          {isLoading ? (
+            <Spinner size="sm" label="Loading piano" className="[&>span:last-child]:sr-only" />
+          ) : isPlaying ? (
+            <PauseIcon />
+          ) : (
+            <PlayIcon />
+          )}
+        </button>
+
+        <div className="min-w-0 flex-1">
           <div
-            className="bg-primary h-full transition-[width] duration-200 ease-linear motion-reduce:transition-none"
-            style={{ width: `${pct}%` }}
-          />
+            role="progressbar"
+            aria-valuenow={Math.round(positionSec)}
+            aria-valuemin={0}
+            aria-valuemax={Math.round(durationSec)}
+            aria-label="Playback position"
+            className="bg-border h-px w-full overflow-hidden"
+          >
+            <div
+              className="bg-primary h-full transition-[width] duration-200 ease-linear motion-reduce:transition-none"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-muted-foreground mt-1 font-mono text-[11px] tabular-nums">
+            {formatTime(positionSec)} / {formatTime(durationSec)}
+          </p>
         </div>
-        <p className="text-muted-foreground mt-1 font-mono text-[11px] tabular-nums">
-          {formatTime(positionSec)} / {formatTime(durationSec)}
-        </p>
       </div>
-      <p className="text-muted-foreground w-full basis-full text-[10px]">
+      <p className="text-muted-foreground mt-2 text-[10px]">
         Piano samples: Salamander Grand Piano by Alexander Holm, licensed{" "}
         <a
           href="https://creativecommons.org/licenses/by/3.0/"
