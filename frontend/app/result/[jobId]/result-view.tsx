@@ -21,7 +21,7 @@ const DOWNLOAD_WAV_CLASS =
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <Card>
+    <Card className="mx-auto max-w-3xl">
       <div aria-live="polite">{children}</div>
     </Card>
   );

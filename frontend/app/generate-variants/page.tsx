@@ -205,10 +205,10 @@ export default function GenerateVariantsPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <div>
         <Label>Variants</Label>
-        <h1 className="font-display text-foreground mt-2 text-3xl font-light">
+        <h1 className="font-display text-foreground mt-2 text-2xl font-light">
           Transform your audio
         </h1>
         <p className="text-muted-foreground mt-2 max-w-xl text-sm">

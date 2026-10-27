@@ -94,11 +94,11 @@ export default function ListenProgressionsPage() {
   });
 
   return (
-    <div className="space-y-8">
-      <div className="border-border flex flex-col gap-5 border-b pb-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-5xl space-y-8">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Label>Curated library</Label>
-          <h1 className="font-display text-foreground mt-2 text-3xl font-light">Progressions</h1>
+          <h1 className="font-display text-foreground mt-2 text-2xl font-light">Progressions</h1>
           <p className="text-muted-foreground mt-2 max-w-xl text-sm">
             Explore chord movements, hear them in context, and download the progression as MIDI.
           </p>
