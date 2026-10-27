@@ -30,7 +30,7 @@ const PIPELINE_STEPS = [
   {
     n: "04",
     title: "Generate & listen",
-    description: "A trained CVAE + IDDM-PPO model generates variants — preview, compare, download.",
+    description: "A trained CVAE + IDDM-PPO model generates variants. Preview, compare, download.",
     href: "/generate-variants",
     linkLabel: "Generate variants",
   },
