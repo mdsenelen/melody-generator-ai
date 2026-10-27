@@ -80,6 +80,18 @@ it("credits the Salamander Grand Piano samples with a CC BY 3.0 link, since play
   expect(screen.getByText(/Alexander Holm/i)).toBeInTheDocument();
 });
 
+it("puts the sample credit on its own row, not squeezed beside the play button and time", () => {
+  renderWith({ status: "playing", positionSec: 4, durationSec: 56 });
+
+  const button = screen.getByRole("button", { name: /pause/i });
+  const time = screen.getByText("0:04 / 0:56");
+  const credit = screen.getByText(/Salamander Grand Piano/i);
+  // Sharing the button's flex row is what squeezed the time column to a
+  // sliver on phones, so "0:04 / 0:56" wrapped on top of the credit text.
+  expect(button.parentElement?.contains(time)).toBe(true);
+  expect(button.parentElement?.contains(credit)).toBe(false);
+});
+
 it("does not show the sample credit when there is nothing to play", () => {
   renderWith({ status: "empty" });
 
