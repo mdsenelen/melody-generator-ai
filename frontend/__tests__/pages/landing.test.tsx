@@ -34,4 +34,12 @@ describe("LandingPage", () => {
       );
     }
   });
+
+  it("drops the outdated Good to know notes but keeps the Coming soon list", () => {
+    render(<LandingPage />);
+    expect(screen.queryByText(/good to know/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/cold-server latency/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(screen.getByText("Sharing & collaboration")).toBeInTheDocument();
+  });
 });

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { buttonClass } from "../components/ui/button";
 import { PlannedBadge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
-import { Label } from "../components/ui/text";
 
 const COLAB_NOTEBOOK_URL =
   "https://colab.research.google.com/github/mdsenelen/melody-generator-ai/blob/main/backend/melody_generation_ORDERED_FINAL_(1).ipynb";
@@ -38,24 +37,6 @@ const PIPELINE_STEPS = [
     linkLabel: "Generate variants",
   },
 ] as const;
-
-const GOOD_TO_KNOW = [
-  {
-    icon: "⏱",
-    title: "Cold-server latency",
-    body: "The backend runs on Render's free tier — the first analysis after a period of inactivity can take a minute or two while it wakes up. Later ones are much faster.",
-  },
-  {
-    icon: "🎵",
-    title: "Trained end to end",
-    body: "The CVAE + IDDM-PPO generation model is trained in the linked Colab notebook — open it to see how transcription, mood detection, and melody generation are trained.",
-  },
-  {
-    icon: "🔒",
-    title: "Privacy",
-    body: "No account needed — everything runs from your browser, and audio is only kept as long as it takes to generate your results.",
-  },
-];
 
 export default function LandingPage() {
   return (
@@ -134,29 +115,15 @@ export default function LandingPage() {
 
         <aside>
           <p className="text-muted-foreground mb-4 font-mono text-[10px] tracking-widest uppercase">
-            Good to know
+            Coming soon
           </p>
-          <Card className="space-y-4">
-            <div className="space-y-4">
-              {GOOD_TO_KNOW.map((item) => (
-                <div key={item.title} className="space-y-1">
-                  <p className="text-foreground flex items-center gap-2 text-sm">
-                    <span aria-hidden="true">{item.icon}</span>
-                    {item.title}
-                  </p>
-                  <p className="text-muted-foreground pl-6 text-xs leading-relaxed">{item.body}</p>
-                </div>
-              ))}
-            </div>
-            <div className="border-border space-y-2 border-t pt-4">
-              <Label>Coming soon</Label>
-              {["Sharing & collaboration", "Account & history", "Publishing"].map((feature) => (
-                <div key={feature} className="flex items-center justify-between">
-                  <span className="text-border-strong text-xs">{feature}</span>
-                  <PlannedBadge />
-                </div>
-              ))}
-            </div>
+          <Card className="space-y-2">
+            {["Sharing & collaboration", "Account & history", "Publishing"].map((feature) => (
+              <div key={feature} className="flex items-center justify-between">
+                <span className="text-border-strong text-xs">{feature}</span>
+                <PlannedBadge />
+              </div>
+            ))}
           </Card>
         </aside>
       </div>
