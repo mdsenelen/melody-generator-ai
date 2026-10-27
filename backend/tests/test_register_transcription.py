@@ -144,3 +144,71 @@ def test_has_its_own_rate_limit_bucket_separate_from_transcribe(client):
         "/api/transcribe", files={"file": ("clip.wav", b"audio-bytes", "audio/wav")}
     )
     assert fallback.status_code == 202
+
+
+# --- the registered job keeps its audio -------------------------------------
+# A browser-transcribed job used to be stored with storage_key="" and no
+# upload reference, so generate-variants' job_id path called
+# read_bytes("") and 500'd ("An unexpected error occurred") the moment a
+# user picked "Use my last upload" after analysing a clip.
+
+
+@pytest.fixture
+def upload_dir(tmp_path, monkeypatch):
+    directory = tmp_path / "recordings"
+    directory.mkdir()
+    monkeypatch.setattr(inference, "UPLOAD_DIR", directory)
+    return directory
+
+
+def _stored_upload(upload_dir, data=b"recorded-webm-bytes", suffix=".webm"):
+    upload_id = "0123456789abcdef0123456789abcdef"
+    (upload_dir / f"upload_{upload_id}{suffix}").write_bytes(data)
+    return upload_id
+
+
+def test_a_registered_job_keeps_a_copy_of_its_uploaded_audio(client, upload_dir):
+    upload_id = _stored_upload(upload_dir)
+    payload = _payload(upload_id=upload_id, source_filename="recording.webm")
+    job_id = client.post("/api/transcriptions", json=payload).json()["job_id"]
+
+    job = service.get_job_store().get_job(job_id)
+    assert job.upload_id == upload_id
+    assert job.storage_key == f"transcribe-jobs/{job_id}/input.webm"
+    assert service.get_object_storage().read_bytes(job.storage_key) == b"recorded-webm-bytes"
+
+
+def test_registration_still_succeeds_when_the_upload_is_gone(client, upload_dir):
+    # e.g. the container restarted between upload and registration: the
+    # notes are still worth keeping; generate-variants handles the rest.
+    payload = _payload(upload_id="f" * 32)
+    response = client.post("/api/transcriptions", json=payload)
+    assert response.status_code == 200, response.text
+    assert service.get_job_store().get_job(response.json()["job_id"]).storage_key == ""
+
+
+@pytest.mark.parametrize("upload_id", ["*", "../../etc/passwd", "ABC", "0" * 31])
+def test_rejects_a_malformed_upload_id(client, upload_dir, upload_id):
+    # upload ids are uuid4().hex; anything else could glob another user's file.
+    assert client.post("/api/transcriptions", json=_payload(upload_id=upload_id)).status_code == 422
+
+
+def test_generate_variants_works_from_a_browser_registered_job(client, upload_dir, monkeypatch):
+    import asyncio
+
+    upload_id = _stored_upload(upload_dir)
+    payload = _payload(upload_id=upload_id, source_filename="recording.webm")
+    job_id = client.post("/api/transcriptions", json=payload).json()["job_id"]
+
+    captured = {}
+
+    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None, **kwargs):
+        captured["audio_bytes"] = audio_bytes
+        captured["known_note_events"] = kwargs.get("known_note_events")
+        return {"n_variants": n_variants, "temperatures": temperatures, "variants": []}
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+    asyncio.run(inference.generate_variants_route(job_id=job_id, n_variants=1, temperatures="[0.7]"))
+
+    assert captured["audio_bytes"] == b"recorded-webm-bytes"
+    assert len(captured["known_note_events"]) == 4

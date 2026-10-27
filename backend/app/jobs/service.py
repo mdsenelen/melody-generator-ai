@@ -5,7 +5,7 @@ import logging
 import threading
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .models import QUEUED, Job
 from .queue import JobQueue, create_job_queue_from_env
@@ -110,19 +110,40 @@ def create_transcription_job(
     return job
 
 
-def create_completed_job(source_filename: str, result: dict[str, Any]) -> Job:
+def create_completed_job(
+    source_filename: str,
+    result: dict[str, Any],
+    *,
+    input_bytes: Optional[bytes] = None,
+    upload_id: Optional[str] = None,
+) -> Job:
     """Persist an already-computed result -- from a synchronous generation
     endpoint (generate-variants, generate-progression) that has no timeout
     problem to fix and no async work left to do -- as a completed job, so it
     gets a shareable job_id backed by the same jobs table and result page as
-    transcription jobs (see GP3 in docs/GUIDED-PASS.md). No queue or object
-    storage involvement: this drives the store straight through its normal
-    create -> ready -> claim -> complete sequence so the row ends up
-    indistinguishable from one a real worker processed, without adding any
-    new store method."""
+    transcription jobs (see GP3 in docs/GUIDED-PASS.md). No queue involvement:
+    this drives the store straight through its normal create -> ready ->
+    claim -> complete sequence so the row ends up indistinguishable from one
+    a real worker processed, without adding any new store method.
+
+    `input_bytes` (browser-registered transcriptions) is stored under the same
+    transcribe-jobs/{id}/input{ext} key a server transcription uses, so
+    generate-variants' job_id path can read it back after a restart. Storing
+    it is best-effort: a failed write leaves storage_key="" and the job still
+    completes -- generate-variants then falls back to `upload_id`'s local file
+    or answers 409, never 500."""
     store = get_job_store()
+    job_id = uuid.uuid4().hex
+    storage_key = ""
+    if input_bytes is not None:
+        candidate_key = f"transcribe-jobs/{job_id}/input{Path(source_filename).suffix.lower() or '.wav'}"
+        try:
+            get_object_storage().write_bytes(candidate_key, input_bytes)
+            storage_key = candidate_key
+        except Exception:
+            logger.exception("Could not store input audio for completed job %s", job_id)
     job, _ = store.create_job(
-        job_id=uuid.uuid4().hex, source_filename=source_filename, storage_key=""
+        job_id=job_id, source_filename=source_filename, storage_key=storage_key, upload_id=upload_id
     )
     store.mark_creation_ready(job.id)
     claimed = store.claim_job(job.id, lease_seconds=60.0)
