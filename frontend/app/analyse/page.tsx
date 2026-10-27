@@ -446,7 +446,7 @@ export default function AnalysePage() {
 
   return (
     <ErrorBoundary>
-      <>
+      <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-start justify-between">
           <SectionHeading sub="Upload or record a clip to extract key, tempo, pitch content, and chord structure.">
             Analyse Audio
@@ -470,7 +470,7 @@ export default function AnalysePage() {
           </div>
         </div>
 
-        <main className="space-y-8">
+        <div className="space-y-8">
           <section className="grid gap-6 xl:grid-cols-2">
             <Card>
               <Label>Upload audio</Label>
@@ -704,10 +704,10 @@ export default function AnalysePage() {
               </Card>
             ) : null}
           </div>
-        </main>
+        </div>
 
         {errorMessage ? <ErrorToast message={errorMessage} onDismiss={dismissError} /> : null}
-      </>
+      </div>
     </ErrorBoundary>
   );
 }
