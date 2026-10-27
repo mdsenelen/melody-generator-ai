@@ -1230,6 +1230,29 @@ def _package_audio_bytes(raw: bytes, prefix: str) -> dict[str, Any]:
     }
 
 
+def _read_job_audio(
+    job: Any, filename: Optional[str], upload_id: Optional[str]
+) -> Optional[bytes]:
+    """The audio behind a completed transcribe job, for generate-variants'
+    job_id path. Tries, in order: the job's stored copy (server
+    transcriptions, and browser ones registered with their upload), the
+    job's own upload on local disk, then the upload reference the page sent.
+    The last two cover browser-registered rows from before the job kept its
+    audio (storage_key=""). None when none of them exist any more -- e.g.
+    the stored object expired, or a restart wiped the ephemeral upload dir."""
+    from app.jobs.service import get_object_storage
+
+    if job.storage_key:
+        try:
+            return get_object_storage().read_bytes(job.storage_key)
+        except Exception:
+            logger.warning("Stored audio for job %s is unreadable; trying its upload", job.id)
+    for candidate in (_resolve_upload_path(None, job.upload_id), _resolve_upload_path(filename, upload_id)):
+        if candidate is not None:
+            return candidate.read_bytes()
+    return None
+
+
 def _resolve_upload_path(filename: Optional[str], upload_id: Optional[str]) -> Optional[Path]:
     if filename:
         candidate = (UPLOAD_DIR / Path(filename).name).resolve()
@@ -2888,7 +2911,7 @@ async def generate_variants_route(
         # memory investigation). 404/409 mirror /api/analyze's checks
         # exactly (jobs/routes.py's analyze_clip_route) for consistency.
         from app.jobs.models import COMPLETED
-        from app.jobs.service import get_job_store, get_object_storage
+        from app.jobs.service import get_job_store
 
         job = await run_in_threadpool(get_job_store().get_job, job_id)
         if job is None:
@@ -2903,7 +2926,20 @@ async def generate_variants_route(
                 status_code=409,
                 detail="This transcription has no stored note data — upload audio directly instead.",
             )
-        raw = await run_in_threadpool(get_object_storage().read_bytes, job.storage_key)
+        raw = await run_in_threadpool(
+            _read_job_audio,
+            job,
+            filename if isinstance(filename, str) else None,
+            upload_id if isinstance(upload_id, str) else None,
+        )
+        if raw is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "The audio for this clip is no longer on the server. "
+                    "Record or upload it again."
+                ),
+            )
         source_name = job.source_filename
     elif file is not None:
         raw = await _read_upload_bytes(file)

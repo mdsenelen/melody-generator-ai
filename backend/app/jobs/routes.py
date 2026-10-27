@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -97,10 +98,26 @@ async def register_transcription(payload: RegisterTranscriptionRequest) -> dict[
         payload.source_duration_sec,
         payload.tfjs_backend,
     )
-    job = await run_in_threadpool(create_completed_job, payload.source_filename, result)
+    # Keep the audio with the job, like a server transcription does --
+    # generate-variants' job_id path needs it for style conditioning.
+    upload_path = (
+        inference._resolve_upload_path(None, payload.upload_id) if payload.upload_id else None
+    )
+    input_bytes = await run_in_threadpool(upload_path.read_bytes) if upload_path else None
+    job = await run_in_threadpool(
+        partial(
+            create_completed_job,
+            payload.source_filename,
+            result,
+            input_bytes=input_bytes,
+            upload_id=payload.upload_id,
+        )
+    )
     logger.info(
-        "Registered browser transcription job %s (n_notes=%d, duration_sec=%.2f, tfjs_backend=%s)",
+        "Registered browser transcription job %s (n_notes=%d, duration_sec=%.2f, tfjs_backend=%s, "
+        "audio_stored=%s)",
         job.id, result["n_notes"], result["source_duration_sec"], payload.tfjs_backend,
+        bool(job.storage_key),
     )
     return job.to_status_payload()
 

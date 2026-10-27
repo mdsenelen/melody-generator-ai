@@ -69,7 +69,9 @@ class RegisterTranscriptionRequest(BaseModel):
     source_duration_sec's upper bound (MAX_UPLOAD_DURATION_SEC) is checked in
     the route, which can import inference lazily; this module can't."""
 
-    upload_id: Optional[str] = None
+    # /api/upload's ids are uuid4().hex. Anything else is rejected so it can't
+    # glob another upload (_resolve_upload_path matches upload_{id}.*).
+    upload_id: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     source_filename: str = Field(min_length=1, max_length=255)
     source_duration_sec: float = Field(gt=0.0)
     tfjs_backend: Optional[Literal["webgl", "wasm", "cpu"]] = None

@@ -686,6 +686,101 @@ def test_generate_variants_route_job_id_409_when_no_note_events(tmp_path):
     assert exc.value.status_code == 409
 
 
+def _completed_job_without_stored_audio(note_events, upload_id=None):
+    """What POST /api/transcriptions produced before it kept a copy of the
+    audio: a completed job with note_events but storage_key="". Existing rows
+    like this must keep working (release gate: existing jobs keep resolving)."""
+    store = job_service.get_job_store()
+    job, _ = store.create_job(source_filename="recording.webm", storage_key="", upload_id=upload_id)
+    store.mark_creation_ready(job.id)
+    claimed = store.claim_job(job.id, lease_seconds=60.0)
+    result = {"n_notes": len(note_events), "note_events": note_events, "midi_b64": "AAA="}
+    assert store.mark_completed(job.id, result, lease_token=claimed.lease_token)
+    return store.get_job(job.id)
+
+
+def _capture_variant_audio(monkeypatch):
+    captured = {}
+
+    def fake_generate_iddm_variants(audio_bytes, n_variants, temperatures, seed=None, **kwargs):
+        captured["audio_bytes"] = audio_bytes
+        return {"n_variants": n_variants, "temperatures": temperatures, "variants": []}
+
+    monkeypatch.setattr(inference, "generate_iddm_variants", fake_generate_iddm_variants)
+    return captured
+
+
+_NOTES = [{"start": 0.0, "end": 0.5, "pitch": 64, "velocity": 90}]
+
+
+def test_job_id_without_stored_audio_falls_back_to_the_jobs_upload(tmp_path, monkeypatch):
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    monkeypatch.setattr(inference, "UPLOAD_DIR", tmp_path)
+    upload_id = "a" * 32
+    (tmp_path / f"upload_{upload_id}.webm").write_bytes(b"upload-bytes")
+    job = _completed_job_without_stored_audio(_NOTES, upload_id=upload_id)
+    captured = _capture_variant_audio(monkeypatch)
+
+    asyncio.run(inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures="[0.7]"))
+
+    assert captured["audio_bytes"] == b"upload-bytes"
+
+
+def test_job_id_without_stored_audio_falls_back_to_the_form_upload_reference(tmp_path, monkeypatch):
+    # Rows registered before the job kept its upload_id: the page also sends
+    # the upload reference it already holds.
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    monkeypatch.setattr(inference, "UPLOAD_DIR", tmp_path)
+    upload_id = "b" * 32
+    (tmp_path / f"upload_{upload_id}.webm").write_bytes(b"form-upload-bytes")
+    job = _completed_job_without_stored_audio(_NOTES)
+    captured = _capture_variant_audio(monkeypatch)
+
+    asyncio.run(
+        inference.generate_variants_route(
+            job_id=job.id, upload_id=upload_id, filename=f"upload_{upload_id}.webm",
+            n_variants=1, temperatures="[0.7]",
+        )
+    )
+
+    assert captured["audio_bytes"] == b"form-upload-bytes"
+
+
+def test_job_id_whose_audio_is_gone_is_a_clear_409_not_a_500(tmp_path, monkeypatch):
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    monkeypatch.setattr(inference, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(inference, "generate_iddm_variants", lambda *a, **k: pytest.fail("no audio"))
+    job = _completed_job_without_stored_audio(_NOTES)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures=None))
+    assert exc.value.status_code == 409
+    assert "record or upload" in exc.value.detail.lower()
+
+
+def test_job_id_whose_stored_object_is_missing_is_a_clear_409_not_a_500(tmp_path, monkeypatch):
+    from app.jobs.storage import LocalFilesystemStorage
+
+    job_service._OBJECT_STORAGE = LocalFilesystemStorage(tmp_path / "storage")
+    monkeypatch.setattr(inference, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(inference, "generate_iddm_variants", lambda *a, **k: pytest.fail("no audio"))
+    store = job_service.get_job_store()
+    job, _ = store.create_job(source_filename="clip.wav", storage_key="transcribe-jobs/gone/input.wav")
+    store.mark_creation_ready(job.id)
+    claimed = store.claim_job(job.id, lease_seconds=60.0)
+    store.mark_completed(job.id, {"n_notes": 1, "note_events": _NOTES}, lease_token=claimed.lease_token)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(inference.generate_variants_route(job_id=job.id, n_variants=1, temperatures=None))
+    assert exc.value.status_code == 409
+
+
 def test_generate_variants_route_rejects_temperature_length_mismatch(monkeypatch):
     monkeypatch.setattr(inference, "generate_iddm_variants", lambda *args, **kwargs: pytest.fail("should not be called"))
 
