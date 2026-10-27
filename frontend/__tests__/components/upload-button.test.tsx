@@ -33,6 +33,14 @@ describe("UploadButton", () => {
     jest.clearAllMocks();
   });
 
+  it("shows a caption under the drop zone only when given a label", () => {
+    const { rerender } = render(<UploadButton onUploadSuccess={jest.fn()} />);
+    expect(screen.queryByText(/^upload audio/i)).not.toBeInTheDocument();
+
+    rerender(<UploadButton onUploadSuccess={jest.fn()} label="Upload audio" />);
+    expect(screen.getByText("UPLOAD AUDIO")).toBeInTheDocument();
+  });
+
   it("keeps only the animated uploading status visible while uploading", async () => {
     const pendingUpload = deferred<{ id: string; filename: string }>();
     mockedUploadFile.mockReturnValue(pendingUpload.promise);

@@ -106,6 +106,11 @@ describe("Analyse page: transcription + clip analysis", () => {
     mockedAnalyzeClip.mockResolvedValue(BASE_ANALYSIS);
   });
 
+  it("titles the upload card once, without a second caption under the drop zone", () => {
+    render(<AnalysePage />);
+    expect(screen.getAllByText(/^upload audio$/i)).toHaveLength(1);
+  });
+
   it("transcribes, then auto-runs a default-window analysis", async () => {
     const user = userEvent.setup();
     render(<AnalysePage />);
