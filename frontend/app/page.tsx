@@ -16,7 +16,7 @@ const PIPELINE_STEPS = [
   {
     n: "02",
     title: "Analyse",
-    description: "We transcribe pitch, chords, key and mood from what you gave us.",
+    description: "Melodia transcribes pitch, chords, key and mood from whatever you gave it.",
     href: "/analyse",
     linkLabel: "See the analyse page",
   },
