@@ -478,7 +478,6 @@ export default function AnalysePage() {
                 <UploadButton
                   onUploadSuccess={handleUploadSuccess}
                   onUploadError={setErrorMessage}
-                  label="Upload Audio"
                 />
               </div>
 

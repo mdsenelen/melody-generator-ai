@@ -40,14 +40,12 @@ function statusText(state: UploadState) {
 type UploadButtonProps = {
   onUploadSuccess: (payload: UploadSuccessPayload) => void;
   onUploadError?: (message: string) => void;
+  // Optional caption under the drop zone. Omit it when the surrounding card
+  // already titles the upload, so the same words don't appear twice.
   label?: string;
 };
 
-export function UploadButton({
-  onUploadSuccess,
-  onUploadError,
-  label = "Upload audio file",
-}: UploadButtonProps) {
+export function UploadButton({ onUploadSuccess, onUploadError, label }: UploadButtonProps) {
   const [state, setState] = useState<UploadState>({ status: "idle", note: "" });
   const isBusy = state.status === "waking" || state.status === "uploading";
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,9 +136,11 @@ export function UploadButton({
       </label>
 
       <div className="w-full">
-        <p className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
-          {label.toUpperCase()}
-        </p>
+        {label ? (
+          <p className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
+            {label.toUpperCase()}
+          </p>
+        ) : null}
         <p className="text-muted-foreground min-h-[1.25rem] text-sm" aria-live="polite">
           {statusText(state)}
         </p>
