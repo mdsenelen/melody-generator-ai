@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { MidiPlayer } from "../../components/midi-player";
@@ -15,8 +15,14 @@ import { Slider, TemperatureInput } from "../../components/ui/slider";
 import { Label } from "../../components/ui/text";
 import { VariantPicker } from "../../components/ui/variant-picker";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
+import {
+  runBrowserTranscription,
+  type StoredUpload,
+} from "../lib/browserTranscribe/runBrowserTranscription";
 import { requestJson, type RequestError } from "../lib/request";
+import { RetryCancelledError } from "../lib/retryOnWakeup";
 import { useSessionStore } from "../lib/session-store";
+import { uploadWhenAwake } from "../lib/uploadWhenAwake";
 
 type Variant = {
   index: number;
@@ -70,6 +76,23 @@ function appendRetryHint(message: string, retryAfterSeconds: number | undefined)
   return retryAfterSeconds ? `${message} (retry in ~${retryAfterSeconds}s)` : message;
 }
 
+// A selected file or recording, once transcribed in the browser: the job
+// lets generation skip server-side Basic Pitch.
+type TranscribedSelection = { file: File; jobId: string; stored: StoredUpload };
+
+// What generation can send for the selected clip.
+type ClipSource =
+  | { kind: "job"; jobId: string; stored: StoredUpload }
+  // The browser path couldn't finish; `stored` is the upload if it happened.
+  | { kind: "clip"; stored: StoredUpload | null };
+
+function isCancellation(error: unknown): boolean {
+  return (
+    error instanceof RetryCancelledError ||
+    (error instanceof DOMException && error.name === "AbortError")
+  );
+}
+
 function buildDefaultTemperatures(count: number) {
   if (count === 4) {
     return [0.7, 0.9, 1.0, 1.3];
@@ -94,6 +117,11 @@ export default function GenerateVariantsPage() {
   const [error, setError] = useState<GenerationError | null>(null);
   const [result, setResult] = useState<VariantsResponse | null>(null);
   const [activeVariant, setActiveVariant] = useState(0);
+  const [progressLabel, setProgressLabel] = useState<string | null>(null);
+  const transcribedRef = useRef<TranscribedSelection | null>(null);
+  const generateAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => generateAbortRef.current?.abort(), []);
 
   const mood = useMemo(() => (result ? result.mood_label : null), [result]);
 
@@ -119,6 +147,7 @@ export default function GenerateVariantsPage() {
     setSelectedSourceName(file.name);
     setStoredFilename(filename);
     setStoredUploadId(id);
+    transcribedRef.current = null;
     setUseStoredUpload(false);
     setError(null);
   };
@@ -128,6 +157,7 @@ export default function GenerateVariantsPage() {
     setSelectedSourceName(file.name);
     setStoredFilename(null);
     setStoredUploadId(null);
+    transcribedRef.current = null;
     setUseStoredUpload(false);
     setError(null);
     setShowRecorder(false);
@@ -144,6 +174,63 @@ export default function GenerateVariantsPage() {
 
   const handleUploadError = (message: string) => setError({ kind: "failed", message });
 
+  // Basic Pitch inside the 60 s generation request timed out on the free
+  // tier's 0.1 vCPU ("Generation timed out after 60s"). Transcribing in the
+  // browser first (same path as /analyse) hands the server a job instead,
+  // so it only decodes and generates. Any browser-side failure returns a
+  // "clip" source and generation falls back to sending the clip as before.
+  const transcribeSelection = async (file: File, signal: AbortSignal): Promise<ClipSource> => {
+    const cached = transcribedRef.current;
+    if (cached?.file === file) {
+      return { kind: "job", jobId: cached.jobId, stored: cached.stored };
+    }
+    const uploaded =
+      storedFilename && storedUploadId ? { id: storedUploadId, filename: storedFilename } : null;
+    let uploadOnce: Promise<StoredUpload> | null = null;
+    const ensureUploaded = (): Promise<StoredUpload> => {
+      if (uploaded) {
+        return Promise.resolve(uploaded);
+      }
+      uploadOnce ??= uploadWhenAwake(file, { signal }).then(({ id, filename }) => ({
+        id,
+        filename,
+      }));
+      return uploadOnce;
+    };
+
+    let lastStep = -1;
+    try {
+      const outcome = await runBrowserTranscription({
+        file,
+        signal,
+        ensureUploaded,
+        // 10% steps: the spinner label is a live region.
+        onProgress: (fraction) => {
+          const step = Math.min(10, Math.floor(fraction * 10));
+          if (step !== lastStep) {
+            lastStep = step;
+            setProgressLabel(`Transcribing ${file.name} in your browser... ${step * 10}%`);
+          }
+        },
+      });
+      if (outcome.kind === "completed") {
+        transcribedRef.current = { file, jobId: outcome.job.job_id, stored: outcome.stored };
+        return { kind: "job", jobId: outcome.job.job_id, stored: outcome.stored };
+      }
+      return { kind: "clip", stored: outcome.stored };
+    } catch (error) {
+      if (isCancellation(error)) {
+        throw error;
+      }
+      console.warn("[variants] browser transcription failed; sending the clip instead", {
+        error,
+      });
+      return { kind: "clip", stored: null };
+    } finally {
+      setProgressLabel(null);
+    }
+  };
+
   const generateVariants = async () => {
     if (!selectedFile && !useStoredUpload) {
       setError({
@@ -155,9 +242,23 @@ export default function GenerateVariantsPage() {
 
     setLoading(true);
     setError(null);
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
     try {
       const formData = new FormData();
-      if (selectedFile && storedFilename && storedUploadId) {
+      const transcribed = selectedFile
+        ? await transcribeSelection(selectedFile, controller.signal)
+        : null;
+      if (transcribed?.kind === "job") {
+        formData.append("job_id", transcribed.jobId);
+        formData.append("filename", transcribed.stored.filename);
+        formData.append("upload_id", transcribed.stored.id);
+      } else if (transcribed?.stored) {
+        // The browser path uploaded it before falling back.
+        formData.append("filename", transcribed.stored.filename);
+        formData.append("upload_id", transcribed.stored.id);
+      } else if (selectedFile && storedFilename && storedUploadId) {
         // Already on the backend (UploadButton uploads straight to it). This
         // request goes through a Vercel function, which rejects bodies over
         // ~4.5 MB with a 413, so send the reference, not the bytes again.
@@ -185,6 +286,7 @@ export default function GenerateVariantsPage() {
         method: "POST",
         body: formData,
         expectedContentType: "application/json",
+        signal: controller.signal,
       });
       if (!Array.isArray(data.variants)) {
         throw new Error("Variant generation failed");
@@ -192,6 +294,9 @@ export default function GenerateVariantsPage() {
       setResult(data);
       setActiveVariant(0);
     } catch (generationError) {
+      if (isCancellation(generationError)) {
+        return;
+      }
       const requestError =
         generationError instanceof Error ? (generationError as RequestError) : undefined;
       const message = requestError?.message ?? "Variant generation failed";
@@ -328,7 +433,7 @@ export default function GenerateVariantsPage() {
             className={buttonClass("primary", { className: "mt-2 w-full" })}
           >
             {loading ? (
-              <Spinner size="sm" label="Generating variants" />
+              <Spinner size="sm" label={progressLabel ?? "Generating variants"} />
             ) : (
               `Generate ${nVariants} Variants`
             )}
