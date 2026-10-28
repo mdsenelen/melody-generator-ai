@@ -83,6 +83,8 @@ export default function GenerateVariantsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
   const [storedFilename, setStoredFilename] = useState<string | null>(null);
+  // Set only for a file UploadButton already sent to the backend.
+  const [storedUploadId, setStoredUploadId] = useState<string | null>(null);
   const [useStoredUpload, setUseStoredUpload] = useState(false);
   const [nVariants, setNVariants] = useState(4);
   const [selectedMood, setSelectedMood] = useState("Neutral");
@@ -112,10 +114,11 @@ export default function GenerateVariantsPage() {
     );
   };
 
-  const handleUploadSuccess = ({ filename, file }: UploadSuccessPayload) => {
+  const handleUploadSuccess = ({ id, filename, file }: UploadSuccessPayload) => {
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setStoredFilename(filename);
+    setStoredUploadId(id);
     setUseStoredUpload(false);
     setError(null);
   };
@@ -124,6 +127,7 @@ export default function GenerateVariantsPage() {
     setSelectedFile(file);
     setSelectedSourceName(file.name);
     setStoredFilename(null);
+    setStoredUploadId(null);
     setUseStoredUpload(false);
     setError(null);
     setShowRecorder(false);
@@ -153,7 +157,14 @@ export default function GenerateVariantsPage() {
     setError(null);
     try {
       const formData = new FormData();
-      if (selectedFile) {
+      if (selectedFile && storedFilename && storedUploadId) {
+        // Already on the backend (UploadButton uploads straight to it). This
+        // request goes through a Vercel function, which rejects bodies over
+        // ~4.5 MB with a 413, so send the reference, not the bytes again.
+        formData.append("filename", storedFilename);
+        formData.append("upload_id", storedUploadId);
+      } else if (selectedFile) {
+        // A fresh recording: small, and not uploaded anywhere yet.
         formData.append("file", selectedFile);
       } else if (lastUpload?.jobId) {
         // Already transcribed (via /analyse) -- skip re-transcribing the
