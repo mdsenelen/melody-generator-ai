@@ -94,6 +94,17 @@ from .model.tokens import (
     tokens_to_midi,
 )
 from .chord_utils import get_all_chord_labels
+from .generation_controls import (
+    CURRENT_CONTROLS,
+    GenerationControls,
+    apply_length,
+    latent_for_variant,
+    notes_to_midi_bytes,
+    pitch_range_for,
+    quantize_notes,
+    sample_tokens,
+    tokens_to_notes,
+)
 from .schemas import GenerateProgressionRequest, GenerateRequest
 
 try:  # pragma: no cover - optional dependency
@@ -2453,6 +2464,159 @@ def _variant_entry(index: int, temperature: float, midi_bytes: bytes) -> dict[st
     }
 
 
+def _build_variant_context(
+    audio_bytes: bytes,
+    known_note_events: Optional[list[dict[str, float | int]]] = None,
+    clip_start_sec: float = 0.0,
+    clip_end_sec: Optional[float] = None,
+) -> dict[str, Any]:
+    """Everything the variant sampler needs that doesn't depend on the
+    temperature or the generation controls: loaded models, the seed melody's
+    latent mean, the conditioning vector and the actor's latent distribution.
+    Split out of generate_iddm_variants so scripts/compare_generation_controls.py
+    measures the exact production path."""
+    build_mood_onehot = _lazy_model("build_mood_onehot")  # torch-backed, gen path only
+
+    bundle = _load_cvae_iddm()
+    # Decode once and share it: _transcribe_and_mood and
+    # _audio_to_iddm_mel both decode at the same
+    # NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"], so decoding twice
+    # meant two full copies of the same clip (plus a Basic Pitch
+    # inference) resident at once on a memory-constrained instance.
+    decoded = _read_audio_bytes(audio_bytes, NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"])
+    if known_note_events is not None:
+        # The caller already has a completed transcription (job_id) --
+        # skip re-running Basic Pitch on the same audio a second time.
+        # The audio still gets decoded above: _audio_to_iddm_mel below
+        # needs it for style conditioning, which only a real decode
+        # provides -- only the redundant Basic Pitch pass is skipped.
+        transcription = _transcription_summary_from_note_events(
+            known_note_events, clip_start_sec, clip_end_sec)
+    else:
+        transcription = _transcribe_and_mood(audio_bytes, decoded=decoded)
+    mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"], audio=decoded[0])
+    cfg = bundle["cfg"]
+    n_moods = int(cfg.get("n_moods", 3))
+    seq_len = int(cfg.get("seq_len", 129))
+    n_bar_bins = int(cfg.get("n_bar_bins", 8))
+
+    # Build seed tokens from transcription MIDI (used for base_mu and chord/bar conditioning)
+    seed_tokens: list[int] = []
+    if pretty_midi is not None and transcription.get("midi_bytes"):
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp:
+                tmp.write(transcription["midi_bytes"])
+                tmp_path = Path(tmp.name)
+            seed_tokens = midi_to_tokens(tmp_path, max_notes=64)
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            seed_tokens = []
+
+    # The notes those seed tokens encode (midi_to_tokens keeps the first 64 by
+    # onset). Only read by the opt-in pitch-range and length controls.
+    seed_notes: list[dict[str, float | int]] = []
+    if transcription.get("midi_bytes"):
+        seed_notes = sorted(
+            _note_events_from_midi_bytes(transcription["midi_bytes"]),
+            key=lambda note: float(note["start"]),
+        )[:64]
+
+    # Pad or truncate seed tokens to seq_len
+    if len(seed_tokens) < seq_len:
+        from .model.tokens import PAD_TOKEN
+        seed_tokens = seed_tokens + [PAD_TOKEN] * (seq_len - len(seed_tokens))
+    else:
+        seed_tokens = seed_tokens[:seq_len]
+
+    seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=_resolve_device()).unsqueeze(0)
+    mood_idx = int(transcription["mood_idx"])
+    tempo_bpm = float(transcription.get("tempo_bpm", 120.0))
+    chord_idx_val = tokens_to_chord_idx(seed_tokens)
+    bar_idx_val = tokens_to_bar_idx(seed_tokens, n_bins=n_bar_bins)
+
+    with torch.no_grad():
+        s_enc = bundle["state_enc"](mel_window)
+        dist, _ = bundle["ac"].dist_and_value(s_enc)
+        base_mu = bundle["cvae_model"].encode_mu(seed_t)
+        mood_oh = build_mood_onehot([mood_idx], n_moods=n_moods, device=_resolve_device())
+        chord_t = torch.tensor([chord_idx_val], dtype=torch.long, device=_resolve_device())
+        bar_t = torch.tensor([bar_idx_val], dtype=torch.long, device=_resolve_device())
+        cond = bundle["cvae_model"].build_cond(mood_oh, chord_t, bar_t)
+        alpha = bundle["alpha"].clamp(0.0, 1.0)
+
+    seed_duration_sec = (
+        float(seed_notes[-1]["end"]) - float(seed_notes[0]["start"]) if seed_notes else 0.0
+    )
+    return {
+        "bundle": bundle,
+        "transcription": transcription,
+        "seq_len": seq_len,
+        "tempo_bpm": tempo_bpm,
+        "seed_tokens": seed_tokens,
+        "seed_pitches": [int(note["pitch"]) for note in seed_notes],
+        "seed_note_count": len(seed_notes),
+        "seed_duration_sec": max(0.0, seed_duration_sec),
+        "dist": dist,
+        "base_mu": base_mu,
+        "cond": cond,
+        "alpha": alpha,
+    }
+
+
+def _generate_variant_tokens(
+    context: dict[str, Any],
+    temperature: float,
+    generator: Optional[torch.Generator],
+    controls: GenerationControls = CURRENT_CONTROLS,
+) -> list[int]:
+    """One variant's raw token ids. With CURRENT_CONTROLS this is exactly the
+    pre-existing production computation (same calls, same RNG draws)."""
+    bundle = context["bundle"]
+    dist = context["dist"]
+    temp = float(temperature)
+    with torch.no_grad():
+        delta_z = dist.loc + dist.scale * _randn_like(dist.loc, generator) * temp
+        z_final = latent_for_variant(context["base_mu"], context["alpha"], delta_z, controls)
+        z_cond = torch.cat([z_final, context["cond"]], dim=-1)
+        if controls.needs_custom_sampler:
+            gen_tokens = sample_tokens(
+                bundle["cvae_model"].decoder,
+                z_cond,
+                seq_len=context["seq_len"],
+                temperature=temp,
+                generator=generator,
+                controls=controls,
+                pitch_range=pitch_range_for(context["seed_pitches"], controls.pitch_margin),
+            )
+        else:
+            gen_tokens, _, _ = bundle["cvae_model"].decoder.sample(
+                z_cond,
+                seq_len=context["seq_len"],
+                temperature=temp,
+                generator=generator,
+            )
+    return gen_tokens.squeeze(0).detach().cpu().tolist()
+
+
+def _variant_tokens_to_midi_bytes(
+    context: dict[str, Any],
+    token_ids: list[int],
+    controls: GenerationControls = CURRENT_CONTROLS,
+) -> bytes:
+    bpm = context["tempo_bpm"]
+    if not controls.needs_postprocessing:
+        return _token_ids_to_midi_bytes(token_ids, bpm=bpm)
+    notes = apply_length(
+        tokens_to_notes(token_ids),
+        controls,
+        target_notes=context["seed_note_count"],
+        target_duration_sec=context["seed_duration_sec"],
+    )
+    if controls.quantize_subdivision is not None:
+        notes = quantize_notes(notes, bpm, controls.quantize_subdivision)
+    return notes_to_midi_bytes(notes, bpm)
+
+
 def generate_iddm_variants(
     audio_bytes: bytes,
     n_variants: int,
@@ -2461,86 +2625,19 @@ def generate_iddm_variants(
     known_note_events: Optional[list[dict[str, float | int]]] = None,
     clip_start_sec: float = 0.0,
     clip_end_sec: Optional[float] = None,
+    controls: GenerationControls = CURRENT_CONTROLS,
 ) -> dict[str, Any]:
-    build_mood_onehot = _lazy_model("build_mood_onehot")  # torch-backed, gen path only
-
     try:
         generator = _seed_generator(seed)
-        bundle = _load_cvae_iddm()
-        # Decode once and share it: _transcribe_and_mood and
-        # _audio_to_iddm_mel both decode at the same
-        # NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"], so decoding twice
-        # meant two full copies of the same clip (plus a Basic Pitch
-        # inference) resident at once on a memory-constrained instance.
-        decoded = _read_audio_bytes(audio_bytes, NOTEBOOK_VARIANT_AUDIO_DEFAULTS["sample_rate"])
-        if known_note_events is not None:
-            # The caller already has a completed transcription (job_id) --
-            # skip re-running Basic Pitch on the same audio a second time.
-            # The audio still gets decoded above: _audio_to_iddm_mel below
-            # needs it for style conditioning, which only a real decode
-            # provides -- only the redundant Basic Pitch pass is skipped.
-            transcription = _transcription_summary_from_note_events(
-                known_note_events, clip_start_sec, clip_end_sec)
-        else:
-            transcription = _transcribe_and_mood(audio_bytes, decoded=decoded)
-        mel_window = _audio_to_iddm_mel(audio_bytes, bundle["cfg"], audio=decoded[0])
-        cfg = bundle["cfg"]
-        latent_dim = int(cfg.get("latent_dim", 32))
-        n_moods = int(cfg.get("n_moods", 3))
-        seq_len = int(cfg.get("seq_len", 129))
-        n_bar_bins = int(cfg.get("n_bar_bins", 8))
+        context = _build_variant_context(
+            audio_bytes, known_note_events, clip_start_sec, clip_end_sec)
+        transcription = context["transcription"]
         variants: list[dict[str, Any]] = []
 
-        # Build seed tokens from transcription MIDI (used for base_mu and chord/bar conditioning)
-        seed_tokens: list[int] = []
-        if pretty_midi is not None and transcription.get("midi_bytes"):
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp:
-                    tmp.write(transcription["midi_bytes"])
-                    tmp_path = Path(tmp.name)
-                seed_tokens = midi_to_tokens(tmp_path, max_notes=64)
-                tmp_path.unlink(missing_ok=True)
-            except Exception:
-                seed_tokens = []
-
-        # Pad or truncate seed tokens to seq_len
-        if len(seed_tokens) < seq_len:
-            from .model.tokens import PAD_TOKEN
-            seed_tokens = seed_tokens + [PAD_TOKEN] * (seq_len - len(seed_tokens))
-        else:
-            seed_tokens = seed_tokens[:seq_len]
-
-        seed_t = torch.tensor(seed_tokens, dtype=torch.long, device=_resolve_device()).unsqueeze(0)
-        mood_idx = int(transcription["mood_idx"])
-        tempo_bpm = float(transcription.get("tempo_bpm", 120.0))
-        chord_idx_val = tokens_to_chord_idx(seed_tokens)
-        bar_idx_val = tokens_to_bar_idx(seed_tokens, n_bins=n_bar_bins)
-
-        with torch.no_grad():
-            s_enc = bundle["state_enc"](mel_window)
-            dist, _ = bundle["ac"].dist_and_value(s_enc)
-            base_mu = bundle["cvae_model"].encode_mu(seed_t)
-            mood_oh = build_mood_onehot([mood_idx], n_moods=n_moods, device=_resolve_device())
-            chord_t = torch.tensor([chord_idx_val], dtype=torch.long, device=_resolve_device())
-            bar_t = torch.tensor([bar_idx_val], dtype=torch.long, device=_resolve_device())
-            cond = bundle["cvae_model"].build_cond(mood_oh, chord_t, bar_t)
-            alpha = bundle["alpha"].clamp(0.0, 1.0)
-
-            for index, temperature in enumerate(temperatures[:n_variants]):
-                temp = float(temperature)
-                delta_z = dist.loc + dist.scale * _randn_like(dist.loc, generator) * temp
-                z_final = base_mu + alpha * delta_z
-                gen_tokens, _, _ = bundle["cvae_model"].decoder.sample(
-                    torch.cat([z_final, cond], dim=-1),
-                    seq_len=seq_len,
-                    temperature=temp,
-                    generator=generator,
-                )
-                midi_bytes = _token_ids_to_midi_bytes(
-                    gen_tokens.squeeze(0).detach().cpu().tolist(),
-                    bpm=tempo_bpm,
-                )
-                variants.append(_variant_entry(index, temp, midi_bytes))
+        for index, temperature in enumerate(temperatures[:n_variants]):
+            token_ids = _generate_variant_tokens(context, temperature, generator, controls)
+            midi_bytes = _variant_tokens_to_midi_bytes(context, token_ids, controls)
+            variants.append(_variant_entry(index, float(temperature), midi_bytes))
 
         return {
             "n_variants": n_variants,
