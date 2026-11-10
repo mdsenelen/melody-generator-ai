@@ -146,7 +146,19 @@ describe("GenerateVariantsPage", () => {
             load_error: null,
             fluidsynth_available: true,
           },
-          variants: [{ index: 0, temperature: 0.7, midi_b64: "AAA=" }],
+          // Every field _variant_entry sends (backend/app/inference.py).
+          variants: [
+            {
+              index: 0,
+              temperature: 0.7,
+              midi_b64: "AAA=",
+              midi_filename: "variant_1.mid",
+              midi_download_path: "/api/download/variant_1.mid",
+              wav_b64: null,
+              wav_filename: "",
+              wav_download_path: "",
+            },
+          ],
           job_id: "job-variants-placeholder",
         }),
     }) as unknown as typeof fetch;

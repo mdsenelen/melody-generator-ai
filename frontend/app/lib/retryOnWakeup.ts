@@ -1,25 +1,32 @@
-import type { RequestError } from "./request";
+import {
+  backoffDelayMs,
+  isTransientFailure,
+  RETRY_ATTEMPT_TIMEOUT_MS,
+  RETRY_MAX_TOTAL_MS,
+} from "../../src/domain/retryPolicy";
 
-// How long a single attempt gets before we treat it as hung and move on.
-// Measured against the deployed Render free-tier backend: a healthy
-// response (warm or a normal cold start) lands in low single-digit seconds
-// -- see CLAUDE.md's "poisoned floor" section. But Render's own
-// hibernate-wake path can also fail silently: a request can sit with no
-// response at all (confirmed live -- see docs/PROGRESS.md) until Render's
-// edge itself gives up and returns a bare 503 with no CORS headers, which
-// the browser then hides behind an opaque network error. Without a
-// per-attempt timeout, retryOnWakeup would never even get a chance to
-// retry: the very first attempt could hang for that entire multi-minute
-// window before `fn` ever rejects.
-export const RETRY_ATTEMPT_TIMEOUT_MS = 15_000;
-export const RETRY_INITIAL_DELAY_MS = 2_000;
-export const RETRY_MAX_DELAY_MS = 10_000;
-const RETRY_BACKOFF_FACTOR = 2;
-// Target budget for a Render free-tier cold start (~30-60s) plus margin --
-// see CLAUDE.md. A hibernate-wake failure can take much longer than this in
-// the worst case; this bound exists so the UI doesn't hang indefinitely,
-// not to guarantee recovery from every possible outage.
-export const RETRY_MAX_TOTAL_MS = 90_000;
+// The timing constants live in src/domain/retryPolicy.ts, shared with the
+// QueryClient's retry policy. RETRY_ATTEMPT_TIMEOUT_MS: how long a single
+// attempt gets before we treat it as hung and move on. Measured against the
+// deployed Render free-tier backend: a healthy response (warm or a normal
+// cold start) lands in low single-digit seconds -- see CLAUDE.md's
+// "poisoned floor" section. But Render's own hibernate-wake path can also
+// fail silently: a request can sit with no response at all (confirmed live
+// -- see docs/PROGRESS.md) until Render's edge itself gives up and returns a
+// bare 503 with no CORS headers, which the browser then hides behind an
+// opaque network error. Without a per-attempt timeout, retryOnWakeup would
+// never even get a chance to retry: the very first attempt could hang for
+// that entire multi-minute window before `fn` ever rejects.
+// RETRY_MAX_TOTAL_MS: target budget for a Render free-tier cold start
+// (~30-60s) plus margin. A hibernate-wake failure can take much longer than
+// this in the worst case; this bound exists so the UI doesn't hang
+// indefinitely, not to guarantee recovery from every possible outage.
+export {
+  RETRY_ATTEMPT_TIMEOUT_MS,
+  RETRY_INITIAL_DELAY_MS,
+  RETRY_MAX_DELAY_MS,
+  RETRY_MAX_TOTAL_MS,
+} from "../../src/domain/retryPolicy";
 
 export class RetryCancelledError extends Error {
   constructor() {
@@ -28,11 +35,9 @@ export class RetryCancelledError extends Error {
   }
 }
 
-export function isWakeupSignature(error: unknown): boolean {
-  const status = (error as RequestError).status;
-  const code = (error as RequestError).code;
-  return code === "network_error" || status === 502 || status === 503;
-}
+// A network/CORS-opaque error, a hung attempt, or a bare 502/503. One
+// definition, shared with the QueryClient's retry policy.
+export const isWakeupSignature = isTransientFailure;
 
 // Abortable so a cancellation mid-backoff rejects immediately instead of
 // waiting out the rest of the delay.
@@ -89,7 +94,7 @@ export async function retryOnWakeup<T>(
 
   const startedAt = Date.now();
   const deadline = startedAt + maxTotalMs;
-  let delay = RETRY_INITIAL_DELAY_MS;
+  let retryIndex = 0;
 
   while (true) {
     const attemptController = new AbortController();
@@ -107,12 +112,13 @@ export async function retryOnWakeup<T>(
       if (!hung && !isWakeupSignature(error)) {
         throw error;
       }
+      const delay = backoffDelayMs(retryIndex);
       if (Date.now() + delay >= deadline) {
         throw error;
       }
       options.onRetrying?.(Date.now() - startedAt);
       await sleep(delay, signal);
-      delay = Math.min(delay * RETRY_BACKOFF_FACTOR, RETRY_MAX_DELAY_MS);
+      retryIndex += 1;
     } finally {
       clearTimeout(timeoutId);
       signal?.removeEventListener("abort", abortAttempt);

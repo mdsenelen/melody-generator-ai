@@ -1,4 +1,4 @@
-import type { TfjsBackend } from "../transcribeJob";
+import type { TfjsBackend } from "../../../src/domain/contracts/job";
 
 // Messages between transcribeInBrowser (main thread) and
 // transcribe.worker.ts. Type-only on purpose: importing this file must

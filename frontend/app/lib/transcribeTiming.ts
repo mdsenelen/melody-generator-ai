@@ -1,4 +1,4 @@
-import type { TfjsBackend } from "./transcribeJob";
+import type { TfjsBackend } from "../../src/domain/contracts/job";
 
 export type TranscribePath = "browser" | "server";
 

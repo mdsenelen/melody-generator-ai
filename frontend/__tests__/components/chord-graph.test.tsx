@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ChordGraph } from "../../components/chord-graph";
+import { renderWithQueryClient } from "../../src/test/query/render";
 
 function mockGenerateProgressionFetch() {
   global.fetch = jest.fn().mockResolvedValue({
@@ -37,7 +38,9 @@ describe("ChordGraph", () => {
     mockGenerateProgressionFetch();
     const user = userEvent.setup();
 
-    render(<ChordGraph title="Custom progression" progression={["C", "G", "Am", "F"]} />);
+    renderWithQueryClient(
+      <ChordGraph title="Custom progression" progression={["C", "G", "Am", "F"]} />,
+    );
 
     await user.click(screen.getByRole("button", { name: /play progression/i }));
 

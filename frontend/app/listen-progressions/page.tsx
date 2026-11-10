@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ChordGraph } from "../../components/chord-graph";
 import { Spinner } from "../../components/spinner";
@@ -8,18 +8,11 @@ import { GenreBadge } from "../../components/ui/badge";
 import { Card } from "../../components/ui/card";
 import { Pills } from "../../components/ui/pills";
 import { Label } from "../../components/ui/text";
-import { requestJson } from "../lib/request";
+import { useProgressions } from "../../hooks/use-progressions";
+import type { Progression } from "../../src/domain/contracts/progressions";
+import { WAKING_STATUS_MESSAGE } from "../../src/domain/statusCopy";
 
-type Progression = {
-  id: string;
-  name: string;
-  genre: string;
-  source: string;
-  chords: string[];
-  song_title: string | null;
-  artist: string | null;
-  year: number | null;
-};
+const NO_PROGRESSIONS: Progression[] = [];
 
 function ProgressionCard({ prog }: { prog: Progression }) {
   const subtitle =
@@ -38,42 +31,10 @@ function ProgressionCard({ prog }: { prog: Progression }) {
 }
 
 export default function ListenProgressionsPage() {
-  const [progressions, setProgressions] = useState<Progression[]>([]);
+  const library = useProgressions();
   const [activeGenre, setActiveGenre] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProgressions() {
-      try {
-        const data = await requestJson<{ progressions: Progression[] }>("/api/progressions", {
-          expectedContentType: "application/json",
-        });
-        if (!cancelled) {
-          setProgressions(data.progressions ?? []);
-        }
-      } catch (fetchError) {
-        if (!cancelled) {
-          setError(
-            fetchError instanceof Error ? fetchError.message : "Failed to load progressions",
-          );
-          setProgressions([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadProgressions();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const progressions = library.status === "ready" ? library.progressions : NO_PROGRESSIONS;
 
   const genres = ["All", "Pop", "Jazz", "Blues", "Classical", "Flamenco", "J-Pop"];
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -126,13 +87,18 @@ export default function ListenProgressionsPage() {
         name="Filter by genre"
       />
 
-      {loading ? (
+      {library.status === "loading" || library.status === "waking" ? (
         <div className="flex justify-center py-20">
-          <Spinner size="lg" label="Loading chord progressions" />
+          <Spinner
+            size="lg"
+            label={
+              library.status === "waking" ? WAKING_STATUS_MESSAGE : "Loading chord progressions"
+            }
+          />
         </div>
-      ) : error ? (
+      ) : library.status === "failed" ? (
         <div className="rounded-[var(--radius)] border border-red-500/40 bg-[#120808] p-4 text-sm text-red-100">
-          Couldn&apos;t load chord progressions: {error}
+          Couldn&apos;t load chord progressions: {library.error}
         </div>
       ) : progressions.length === 0 ? (
         <Card

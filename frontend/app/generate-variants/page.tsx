@@ -20,6 +20,7 @@ import {
   type StoredUpload,
 } from "../lib/browserTranscribe/runBrowserTranscription";
 import { requestJson } from "../lib/request";
+import { variantsResponseSchema, type VariantsResponse } from "../../src/domain/contracts/variants";
 import { useSessionStore } from "../lib/session-store";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
 import { usePipeline } from "../../hooks/use-pipeline";
@@ -32,33 +33,6 @@ import {
 } from "../../src/domain/errors";
 import type { AudioSource } from "../../src/domain/pipeline";
 import { describeVariantsProgress } from "../../src/domain/statusCopy";
-
-type Variant = {
-  index: number;
-  temperature: number;
-  midi_b64: string;
-  midi_filename: string;
-  midi_download_path: string;
-  wav_b64: string | null;
-  wav_filename: string;
-  wav_download_path: string;
-};
-
-type VariantsResponse = {
-  n_variants: number;
-  temperatures: number[];
-  mood_idx: number;
-  mood_label: "happy" | "sad" | "neutral";
-  model_status: {
-    cvae: { path: string; exists: boolean; size_mb: number; loaded: boolean };
-    iddm_ppo: { path: string; exists: boolean; size_mb: number; loaded: boolean };
-    device: string;
-    load_error: string | null;
-    fluidsynth_available: boolean;
-  };
-  variants: Variant[];
-  job_id: string;
-};
 
 const GREEK = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ"];
 
@@ -263,15 +237,13 @@ export default function GenerateVariantsPage() {
       formData.append("n_variants", String(nVariants));
       formData.append("temperatures", JSON.stringify(temperatures.slice(0, nVariants)));
 
-      const data = await requestJson<VariantsResponse>("/api/generate-variants", {
+      // A body without a variants array fails the contract (ContractError).
+      const data = await requestJson("/api/generate-variants", variantsResponseSchema, {
         method: "POST",
         body: formData,
         expectedContentType: "application/json",
         signal,
       });
-      if (!Array.isArray(data.variants)) {
-        throw new Error("Variant generation failed");
-      }
       if (signal.aborted) {
         return;
       }

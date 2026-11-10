@@ -8,7 +8,7 @@ import { Card } from "../../../components/ui/card";
 import { Label } from "../../../components/ui/text";
 import { VariantPicker } from "../../../components/ui/variant-picker";
 import { useJobResult } from "../../../hooks/use-job-result";
-import { isProgressionJobResult, isVariantsJobResult } from "../../lib/jobResult";
+import { WAKING_STATUS_MESSAGE } from "../../../src/domain/statusCopy";
 
 function downloadPathFor(filename: string) {
   return `/api/download/${encodeURIComponent(filename)}`;
@@ -31,16 +31,18 @@ export default function ResultView({ jobId }: { jobId: string }) {
   const state = useJobResult(jobId);
   const [activeVariant, setActiveVariant] = useState(0);
 
-  if (state.status === "loading" || state.status === "running") {
+  if (state.status === "loading" || state.status === "running" || state.status === "waking") {
     return (
       <Frame>
         <div className="flex flex-col items-center justify-center gap-4 py-16">
           <Spinner
             size="lg"
             label={
-              state.status === "running" && state.jobStatus === "processing"
-                ? "Still working on your result..."
-                : "Looking up your result..."
+              state.status === "waking"
+                ? WAKING_STATUS_MESSAGE
+                : state.status === "running" && state.jobStatus === "processing"
+                  ? "Still working on your result..."
+                  : "Looking up your result..."
             }
           />
           <p className="text-muted-foreground max-w-xs text-center text-xs">
@@ -77,9 +79,8 @@ export default function ResultView({ jobId }: { jobId: string }) {
     );
   }
 
-  const { result } = state;
-
-  if (isVariantsJobResult(result)) {
+  if (state.result.kind === "variants") {
+    const result = state.result.data;
     const variant = result.variants[activeVariant] ?? result.variants[0];
     return (
       <Frame>
@@ -120,7 +121,8 @@ export default function ResultView({ jobId }: { jobId: string }) {
     );
   }
 
-  if (isProgressionJobResult(result)) {
+  if (state.result.kind === "progression") {
+    const result = state.result.data;
     return (
       <Frame>
         <div className="space-y-6">
@@ -161,6 +163,7 @@ export default function ResultView({ jobId }: { jobId: string }) {
     );
   }
 
+  const result = state.result.data;
   return (
     <Frame>
       <div className="space-y-6">

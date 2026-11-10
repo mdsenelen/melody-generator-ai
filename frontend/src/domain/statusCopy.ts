@@ -66,3 +66,6 @@ export function describeVariantsProgress<A>(state: PipelineState<A>): string {
     ? `Transcribing ${name} in your browser... ${state.step.step * 10}%`
     : `Transcribing ${name} in your browser...`;
 }
+
+/** The /analyse clip-analysis spinner while POST /api/analyze retries a cold server. */
+export const ANALYSIS_RETRY_MESSAGE = "Server was still waking up — retrying analysis...";

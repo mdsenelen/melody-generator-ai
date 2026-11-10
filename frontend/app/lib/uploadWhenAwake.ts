@@ -1,6 +1,7 @@
 import { explainUploadNetworkError } from "./explainUploadNetworkError";
 import { isWakeupSignature, RetryCancelledError } from "./retryOnWakeup";
-import { uploadFile, type UploadResponse } from "./upload";
+import type { UploadResponse } from "../../src/domain/contracts/upload";
+import { uploadFile } from "./upload";
 import { waitForBackend } from "./waitForBackend";
 
 export type UploadPhase = "waking" | "uploading";

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AnalysePage from "../../app/analyse/page";
@@ -16,6 +16,7 @@ import {
 } from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
 import { waitForBackend } from "../../app/lib/waitForBackend";
+import { renderWithQueryClient } from "../../src/test/query/render";
 
 function networkError() {
   return Object.assign(new Error("Couldn't reach the server."), { code: "network_error" });
@@ -111,13 +112,13 @@ describe("Analyse page: transcription + clip analysis", () => {
   });
 
   it("titles the upload card once, without a second caption under the drop zone", () => {
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     expect(screen.getAllByText(/^upload audio$/i)).toHaveLength(1);
   });
 
   it("transcribes, then auto-runs a default-window analysis", async () => {
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
 
     await upload(user, makeFile("my-riff.wav"));
 
@@ -146,7 +147,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     jest.spyOn(console, "error").mockImplementation(() => {});
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("my-riff.wav"));
 
     expect(await screen.findByText("Server restarted")).toBeInTheDocument();
@@ -159,7 +160,7 @@ describe("Analyse page: transcription + clip analysis", () => {
 
   it("stores the completed job's id in the session, for generate-variants to reuse", async () => {
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("my-riff.wav"));
 
     await waitFor(() => expect(useSessionStore.getState().lastUpload?.jobId).toBe("job-1"));
@@ -172,7 +173,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     });
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("riff.wav"));
 
     await waitFor(() => expect(screen.getByText("Detected notes")).toBeInTheDocument());
@@ -191,7 +192,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     });
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("riff.wav"));
 
     await waitFor(() => expect(screen.getByText("Chord progression")).toBeInTheDocument());
@@ -209,7 +210,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     mockedPollJob.mockReturnValue(pendingPoll.promise);
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
 
     expect(
       screen.queryByText(/upload or record audio to see the transcription and downloads/i),
@@ -231,7 +232,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     });
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("riff.wav"));
     await waitFor(() => expect(screen.getByText(/C major/)).toBeInTheDocument());
 
@@ -265,7 +266,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     });
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("my-riff.wav"));
 
     await waitFor(() => expect(screen.getByText(/starting up/i)).toBeInTheDocument());
@@ -279,7 +280,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     mockedPollJob.mockRejectedValue(new Error("Could not decode audio"));
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("bad.wav"));
 
     await waitFor(() => expect(screen.getByText("Could not decode audio")).toBeInTheDocument());
@@ -291,7 +292,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     mockedAnalyzeClip.mockRejectedValue(new Error("analyze boom"));
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
     await upload(user, makeFile("riff.wav"));
 
     await waitFor(() =>
@@ -328,7 +329,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     );
 
     const user = userEvent.setup();
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />, { retry: true });
 
     await upload(user, makeFile("first.wav"));
     await waitFor(() => expect(mockedPollJob).toHaveBeenCalledWith("job-1", expect.anything()));
@@ -352,7 +353,7 @@ describe("Analyse page: transcription + clip analysis", () => {
 
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
-    const { unmount } = render(<AnalysePage />);
+    const { unmount } = renderWithQueryClient(<AnalysePage />, { retry: true });
 
     await upload(user, makeFile("clip.wav"));
     await waitFor(() => expect(mockedPollJob).toHaveBeenCalled());
@@ -392,7 +393,7 @@ describe("Analyse page: transcription + clip analysis", () => {
         });
       });
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       finishRecording();
 
       await waitFor(() =>
@@ -419,7 +420,7 @@ describe("Analyse page: transcription + clip analysis", () => {
           }),
       );
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       finishRecording();
 
       await act(() => jest.advanceTimersByTimeAsync(40_000));
@@ -450,7 +451,7 @@ describe("Analyse page: transcription + clip analysis", () => {
         error: null,
       });
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("riff.wav")] },
       });
@@ -468,7 +469,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     it("shows the real transcription error only once the retry budget is exhausted", async () => {
       mockedCreateJob.mockRejectedValue(networkError());
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("riff.wav")] },
       });
@@ -495,7 +496,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     it("shows a calm waking-up status instead of the raw error during analysis, then completes once the retry lands", async () => {
       mockedAnalyzeClip.mockRejectedValueOnce(networkError()).mockResolvedValueOnce(BASE_ANALYSIS);
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("riff.wav")] },
       });
@@ -511,7 +512,7 @@ describe("Analyse page: transcription + clip analysis", () => {
     it("shows the real analysis error only once the retry budget is exhausted", async () => {
       mockedAnalyzeClip.mockRejectedValue(networkError());
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("riff.wav")] },
       });
@@ -529,7 +530,7 @@ describe("Analyse page: transcription + clip analysis", () => {
       const serverError = Object.assign(new Error("Internal error"), { status: 500 });
       mockedAnalyzeClip.mockRejectedValue(serverError);
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("riff.wav")] },
       });
@@ -563,7 +564,7 @@ describe("Analyse page: transcription + clip analysis", () => {
         .mockRejectedValueOnce(networkError())
         .mockResolvedValueOnce({ ...BASE_ANALYSIS, key: "A minor" }); // job-2's analysis
 
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />, { retry: true });
       fireEvent.change(screen.getByLabelText(/upload audio/i), {
         target: { files: [makeFile("first.wav")] },
       });

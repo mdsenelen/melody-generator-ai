@@ -1,7 +1,7 @@
 import type { BrowserTranscription } from "../../app/lib/browserTranscribe/transcribeInBrowser";
 import { runBrowserTranscription } from "../../app/lib/browserTranscribe/runBrowserTranscription";
 import type { RequestError } from "../../app/lib/request";
-import type { TranscribeJobStatusResponse } from "../../app/lib/transcribeJob";
+import type { TranscribeJobStatusResponse } from "../../src/domain/contracts/job";
 
 jest.mock("../../app/lib/browserTranscribe/createWorker", () => ({
   createTranscribeWorker: jest.fn(),

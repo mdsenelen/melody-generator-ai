@@ -1,4 +1,4 @@
-import type { NoteEvent } from "../transcribeJob";
+import type { NoteEvent } from "../../../src/domain/contracts/job";
 import type { BasicPitchNote } from "./protocol";
 
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
