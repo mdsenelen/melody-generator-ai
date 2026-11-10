@@ -94,3 +94,40 @@ describe("Generate Variants: rejected upload", () => {
     expect(screen.getAllByText(/is empty/i)).toHaveLength(1);
   });
 });
+
+describe("Generate Variants: cancel", () => {
+  it("offers Cancel only while generating", async () => {
+    server.use(http.post("/api/generate-variants", () => new Promise<Response>(() => {})));
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+
+    await chooseClipAndGenerate(user);
+
+    expect(await screen.findByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
+  });
+
+  it("aborts the request and returns to a ready Generate button, with no error", async () => {
+    const seen: { signal?: AbortSignal } = {};
+    server.use(
+      http.post("/api/generate-variants", ({ request }) => {
+        seen.signal = request.signal;
+        return new Promise<Response>(() => {});
+      }),
+    );
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await chooseClipAndGenerate(user);
+    await waitFor(() => expect(seen.signal).toBeDefined());
+
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    await waitFor(() => expect(seen.signal?.aborted).toBe(true));
+    expect(screen.getByRole("button", { name: /generate variants/i })).toBeEnabled();
+    // Cancel is gone, so focus lands where the user can start again.
+    expect(screen.getByRole("button", { name: /generate variants/i })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText(/configure on the left/i)).toBeInTheDocument();
+  });
+});

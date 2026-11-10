@@ -37,7 +37,15 @@ export function usePipeline<A>() {
     return { runId, signal: controller.signal };
   }, []);
 
+  // The user stopping the run. Aborting reaches every request the run made
+  // with its signal; the cancel event returns a running pipeline to idle (a
+  // finished one ignores it -- see transition).
+  const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    dispatch({ type: "cancel", runId: runIdRef.current });
+  }, []);
+
   const dismissError = useCallback(() => dispatch({ type: "dismissError" }), []);
 
-  return { state, dispatch, start, dismissError };
+  return { state, dispatch, start, cancel, dismissError };
 }
