@@ -11,6 +11,7 @@ import { ErrorToast } from "../../components/error-toast";
 import { Spinner } from "../../components/spinner";
 import { buttonClass } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { WarningBanner } from "../../components/ui/feedback";
 import { ChordSequence } from "../../components/ui/chord-sequence";
 import { MoodBadge, StatusBadge } from "../../components/ui/badge";
 import { PitchHistogram } from "../../components/ui/pitch-histogram";
@@ -433,6 +434,14 @@ export default function AnalysePage() {
                 </div>
               </Card>
             ) : null}
+
+            {/* A job lost to a restart is a known server event, not the
+                user's failure: a calm banner, never the red toast. */}
+            <div aria-live="polite">
+              {pipeline.status === "failed" && pipeline.error.code === "job_lost" ? (
+                <WarningBanner title="Server restarted" body={pipeline.error.message} />
+              ) : null}
+            </div>
 
             {/* Transcription result -- the full-length MIDI + downloads. */}
             {transcription ? (

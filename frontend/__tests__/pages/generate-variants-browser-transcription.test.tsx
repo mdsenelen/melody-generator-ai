@@ -151,6 +151,20 @@ it("shows the browser transcription's progress while it runs", async () => {
   ).toBeInTheDocument();
 });
 
+it("says it's transcribing, not generating, before the first progress tick", async () => {
+  mockedRun.mockReturnValue(new Promise(() => {}));
+  const user = userEvent.setup();
+  render(<GenerateVariantsPage />);
+
+  await user.click(screen.getByRole("button", { name: /fake upload/i }));
+  await user.click(screen.getByRole("button", { name: /generate variants/i }));
+
+  expect(
+    await screen.findByRole("status", { name: /^transcribing song\.mp3 in your browser\.\.\.$/i }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("status", { name: /generating variants/i })).not.toBeInTheDocument();
+});
+
 it("falls back to the uploaded file when the browser can't transcribe it", async () => {
   mockedRun.mockResolvedValue({ kind: "fallback", reason: "too_long", stored: null });
   const user = userEvent.setup();

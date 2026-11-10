@@ -118,6 +118,8 @@ Status copy is derived, not set: `describeTranscription(state)` for the `/analys
 
 ## Found while implementing (not changed in this phase)
 
+> Update 2026-11-10: both fixed in a follow-up (`fix/pipeline-status-copy`). A lost job now shows a "Server restarted" warning banner on `/analyse` (never the red toast), and Variants reads "Transcribing X in your browser..." before the first progress tick.
+
 On `/analyse`, the status line only renders inside the spinner, so the post-run copy the old code set is never shown: "Transcription ready for X.", "We couldn't transcribe that audio clip." and the **job-lost message**. A transcription job lost to a restart ends with the spinner disappearing and nothing on screen. Existing tests assert that "couldn't transcribe" is absent. The machine keeps the `job_lost` code, so surfacing it is a render change in a later phase, not a state change.
 
 ## Consequences

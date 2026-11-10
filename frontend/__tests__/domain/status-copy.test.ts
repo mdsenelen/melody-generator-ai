@@ -58,8 +58,13 @@ describe("describeVariantsProgress (/generate-variants)", () => {
     );
   });
 
-  it("says generating otherwise (unchanged from before the refactor)", () => {
-    expect(describeVariantsProgress(at({ kind: "starting" }))).toBe("Generating variants");
+  it("says it's transcribing before the first progress tick", () => {
+    expect(describeVariantsProgress(at({ kind: "starting" }))).toBe(
+      "Transcribing hum.webm in your browser...",
+    );
+  });
+
+  it("says generating once transcription is done", () => {
     expect(describeVariantsProgress({ status: "generating", runId: 1, source })).toBe(
       "Generating variants",
     );

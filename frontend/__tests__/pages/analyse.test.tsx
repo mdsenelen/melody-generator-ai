@@ -9,7 +9,11 @@ import {
   RETRY_MAX_TOTAL_MS,
 } from "../../app/lib/retryOnWakeup";
 import { useSessionStore } from "../../app/lib/session-store";
-import { createTranscribeJob, pollTranscribeJob } from "../../app/lib/transcribeJob";
+import {
+  createTranscribeJob,
+  pollTranscribeJob,
+  TranscribeJobLostError,
+} from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
 import { waitForBackend } from "../../app/lib/waitForBackend";
 
@@ -135,6 +139,22 @@ describe("Analyse page: transcription + clip analysis", () => {
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText(/Mood: happy/)).toBeInTheDocument();
+  });
+
+  it("explains a job lost to a server restart, calmly and without the error toast", async () => {
+    mockedPollJob.mockRejectedValue(new TranscribeJobLostError());
+    jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const user = userEvent.setup();
+    render(<AnalysePage />);
+    await upload(user, makeFile("my-riff.wav"));
+
+    expect(await screen.findByText("Server restarted")).toBeInTheDocument();
+    expect(
+      screen.getByText("The server restarted and lost your clip. Please upload it again."),
+    ).toBeInTheDocument(); // getByText throws if the toast showed it too
+    expect(screen.queryByText(/couldn't transcribe/i)).not.toBeInTheDocument();
+    (console.error as jest.Mock).mockRestore();
   });
 
   it("stores the completed job's id in the session, for generate-variants to reuse", async () => {
