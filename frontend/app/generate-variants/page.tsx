@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { MidiPlayer } from "../../components/midi-player";
@@ -100,7 +100,7 @@ export default function GenerateVariantsPage() {
   const [result, setResult] = useState<VariantsResponse | null>(null);
   const [activeVariant, setActiveVariant] = useState(0);
   const transcribedRef = useRef<TranscribedSelection | null>(null);
-  const { state: run, dispatch, start, dismissError } = usePipeline<VariantsResponse>();
+  const { state: run, dispatch, start, cancel, dismissError } = usePipeline<VariantsResponse>();
 
   const loading = run.status === "transcribing" || run.status === "generating";
   const error = notice ?? (run.status === "failed" && !run.dismissed ? run.error : null);
@@ -149,6 +149,21 @@ export default function GenerateVariantsPage() {
   };
 
   const handleUploadError = (message: string) => setNotice(failed(message));
+
+  // Cancel unmounts with the run, so hand focus back to Generate -- once the
+  // idle state has rendered, since Generate is disabled until then.
+  const generateButtonRef = useRef<HTMLButtonElement>(null);
+  const focusGenerateRef = useRef(false);
+  const cancelGeneration = () => {
+    focusGenerateRef.current = true;
+    cancel();
+  };
+  useEffect(() => {
+    if (!loading && focusGenerateRef.current) {
+      focusGenerateRef.current = false;
+      generateButtonRef.current?.focus();
+    }
+  }, [loading]);
 
   // Basic Pitch inside the 60 s generation request timed out on the free
   // tier's 0.1 vCPU ("Generation timed out after 60s"). Transcribing in the
@@ -377,6 +392,7 @@ export default function GenerateVariantsPage() {
 
           <button
             type="button"
+            ref={generateButtonRef}
             onClick={generateVariants}
             aria-label="Generate variants"
             disabled={loading || !selection}
@@ -388,6 +404,15 @@ export default function GenerateVariantsPage() {
               `Generate ${nVariants} Variants`
             )}
           </button>
+          {loading ? (
+            <button
+              type="button"
+              onClick={cancelGeneration}
+              className={buttonClass("secondary", { className: "mt-2 w-full" })}
+            >
+              Cancel
+            </button>
+          ) : null}
         </Card>
 
         {/* Results take the placeholder's slot (right of the controls on wide

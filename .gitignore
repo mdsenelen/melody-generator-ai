@@ -22,6 +22,10 @@ backend/resampy/
 
 # Playwright MCP scratch output (snapshots, console/network logs)
 .playwright-mcp/
+# Playwright test runner output (frontend/e2e)
+test-results/
+playwright-report/
+blob-report/
 
 # Unrelated tooling artifacts (accidentally committed)
 .sfdx/

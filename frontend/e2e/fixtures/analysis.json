@@ -1,0 +1,12 @@
+{
+  "tempo_bpm": 120,
+  "average_pitch": 63.7,
+  "mood_idx": 0,
+  "mood_label": "happy",
+  "key": "C major",
+  "pitch_histogram": [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+  "detected_chords": ["C"],
+  "n_notes": 3,
+  "clip_start_sec": 0,
+  "clip_end_sec": 2
+}

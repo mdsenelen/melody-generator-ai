@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 
 import GenerateVariantsPage from "../../app/generate-variants/page";
 import { useSessionStore } from "../../app/lib/session-store";
+import { installFakeMicrophone } from "../../src/test/fakes/microphone";
 
 // The browser MIDI player owns Tone.js + AudioContext, neither of which exists
 // in jsdom -- stub it to a static "ready to play" state.
@@ -27,42 +28,10 @@ jest.mock("../../hooks/use-audio-analyzer", () => ({
   }),
 }));
 
-class FakeMediaRecorder {
-  static isTypeSupported() {
-    return true;
-  }
-
-  state: "inactive" | "recording" = "inactive";
-  mimeType = "audio/webm";
-  ondataavailable: ((event: { data: Blob }) => void) | null = null;
-  onstop: (() => void) | null = null;
-
-  constructor(_stream: MediaStream) {
-    void _stream;
-  }
-
-  start() {
-    this.state = "recording";
-  }
-
-  stop() {
-    this.state = "inactive";
-    this.onstop?.();
-  }
-}
-
-function fakeStream(): MediaStream {
-  return { getTracks: () => [] } as unknown as MediaStream;
-}
-
 describe("GenerateVariantsPage", () => {
   beforeEach(() => {
     useSessionStore.setState({ lastUpload: null });
-    (global as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeMediaRecorder;
-    Object.defineProperty(global.navigator, "mediaDevices", {
-      value: { getUserMedia: jest.fn().mockResolvedValue(fakeStream()) },
-      configurable: true,
-    });
+    installFakeMicrophone();
   });
 
   it("shows a live pitch display while recording audio for a variant source", async () => {

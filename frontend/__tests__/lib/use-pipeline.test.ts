@@ -40,6 +40,34 @@ describe("usePipeline", () => {
     expect(result.current.state.status).toBe("transcribing");
   });
 
+  it("cancel aborts the running run and returns to idle", () => {
+    const { result } = renderHook(() => usePipeline<string>());
+    let run!: { signal: AbortSignal };
+    act(() => {
+      run = result.current.start(source);
+    });
+    act(() => {
+      result.current.cancel();
+    });
+    expect(run.signal.aborted).toBe(true);
+    expect(result.current.state).toEqual({ status: "idle" });
+  });
+
+  it("cancel after the run finished changes nothing", () => {
+    const { result } = renderHook(() => usePipeline<string>());
+    let run!: { runId: number; signal: AbortSignal };
+    act(() => {
+      run = result.current.start(source);
+    });
+    act(() => {
+      result.current.dispatch({ type: "completed", runId: run.runId, artifact: "done" });
+    });
+    act(() => {
+      result.current.cancel();
+    });
+    expect(result.current.state).toMatchObject({ status: "completed", artifact: "done" });
+  });
+
   it("aborts the running run on unmount", () => {
     const { result, unmount } = renderHook(() => usePipeline<string>());
     let run!: { signal: AbortSignal };

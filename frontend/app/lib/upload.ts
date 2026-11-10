@@ -1,8 +1,6 @@
+import { checkAudioFile } from "../../src/domain/audioFile";
 import { getPublicBackendApiUrl } from "./backendUrl";
 import { requestJson } from "./request";
-
-// Mirrors the backend's MAX_UPLOAD_BYTES default (50MB).
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 export type UploadResponse = { id: string; filename: string };
 
@@ -13,8 +11,9 @@ export async function uploadFile(
   file: File,
   options: { signal?: AbortSignal } = {},
 ): Promise<UploadResponse> {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error(`File is too large. The limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`);
+  const rejection = checkAudioFile(file);
+  if (rejection) {
+    throw new Error(rejection.message);
   }
 
   const formData = new FormData();

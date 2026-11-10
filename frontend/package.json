@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "test": "jest",
-    "test:e2e": "echo 'No Playwright test runner configured yet -- see roadmap Phase 3 (/e2e). Nothing to run.' && exit 1",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'No ESLint config yet -- see roadmap Phase 12 (/ci) and CLAUDE.md Open Questions.' && exit 1",
     "analyze": "echo 'No bundle analyzer configured yet -- install @next/bundle-analyzer to enable.' && exit 1",
@@ -38,6 +38,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.2",
@@ -47,6 +48,8 @@
     "autoprefixer": "^10.4.21",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "30.4.1",
+    "jest-fixed-jsdom": "^0.0.11",
+    "msw": "^2.15.0",
     "postcss": "^8.5.6",
     "prettier": "3.9.6",
     "prettier-plugin-tailwindcss": "0.8.1",

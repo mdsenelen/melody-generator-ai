@@ -2,42 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AudioRecorder } from "../../components/audio-recorder";
-
-class FakeMediaRecorder {
-  static isTypeSupported() {
-    return true;
-  }
-
-  state: "inactive" | "recording" = "inactive";
-  mimeType = "audio/webm";
-  ondataavailable: ((event: { data: Blob }) => void) | null = null;
-  onstop: (() => void) | null = null;
-
-  constructor(_stream: MediaStream) {
-    void _stream;
-  }
-
-  start() {
-    this.state = "recording";
-  }
-
-  stop() {
-    this.state = "inactive";
-    this.ondataavailable?.({ data: new Blob(["fake-audio"], { type: "audio/webm" }) });
-    this.onstop?.();
-  }
-}
-
-function fakeStream(): MediaStream {
-  return { getTracks: () => [] } as unknown as MediaStream;
-}
+import { installFakeMicrophone } from "../../src/test/fakes/microphone";
 
 beforeEach(() => {
-  (global as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeMediaRecorder;
-  Object.defineProperty(global.navigator, "mediaDevices", {
-    value: { getUserMedia: jest.fn().mockResolvedValue(fakeStream()) },
-    configurable: true,
-  });
+  installFakeMicrophone();
   global.URL.createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
   global.URL.revokeObjectURL = jest.fn();
 });
@@ -96,5 +64,19 @@ describe("AudioRecorder", () => {
 
     expect(await screen.findByText("Permission denied")).toBeInTheDocument();
     expect(screen.getByText("Recording unavailable")).toBeInTheDocument();
+  });
+
+  it("says nothing was recorded instead of offering an empty recording", async () => {
+    installFakeMicrophone({ silent: true });
+    const user = userEvent.setup();
+    const onRecordingComplete = jest.fn();
+    render(<AudioRecorder onRecordingComplete={onRecordingComplete} />);
+
+    await user.click(screen.getByRole("button", { name: /record/i }));
+    await user.click(screen.getByRole("button", { name: /stop/i }));
+
+    expect(await screen.findByText(/nothing was recorded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /use this recording/i })).not.toBeInTheDocument();
+    expect(onRecordingComplete).not.toHaveBeenCalled();
   });
 });
