@@ -20,9 +20,10 @@ npm test         # jest + RTL (npm test -- --ci in CI)
 npm run typecheck  # tsc --noEmit
 npm run format     # prettier --write .
 npm run format:check
+npm run test:e2e   # Playwright journeys in e2e/ (starts its own next dev on :3100 + a stub backend on :8100)
 ```
 
-No `npm run lint` or `npm run test:e2e` yet — no ESLint config or Playwright test runner exists in `frontend/` today (see "Open questions").
+`test:e2e` never reaches a real backend: the browser's FastAPI calls are intercepted in the page (`e2e/support/backend.ts`), and the server-side ones Playwright can't see (downloads through `/api/download`) go to `e2e/support/stub-backend.mjs`. No `npm run lint` yet — no ESLint config exists in `frontend/` today (see "Open questions").
 
 ### Backend (FastAPI — run from `backend/`)
 
@@ -87,7 +88,7 @@ Load-bearing facts worth keeping inline because nearly every task touches them:
 ## Definition of done
 
 - `npm run typecheck` and `npm test -- --ci` pass (both are CI gates today, `.github/workflows/ci.yml`). `npm run lint` once ESLint is configured — not a current gate.
-- Behaviour covered at the right level: unit for logic, RTL for components, Playwright for real user journeys once E2E lands (roadmap phase 3, `/e2e`) — no Playwright test runner is wired in yet, only the `playwright` MCP server for interactive browser driving.
+- Behaviour covered at the right level: unit for logic, RTL for components (network mocked with MSW, `src/test/msw/server.ts`), Playwright for real user journeys (`npm run test:e2e`; not a CI gate until roadmap phase 12).
 - No console errors or React warnings in the browser.
 - One logical commit with a conventional-commits message.
 

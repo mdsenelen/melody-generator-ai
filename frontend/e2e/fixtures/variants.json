@@ -1,0 +1,36 @@
+{
+  "n_variants": 1,
+  "temperatures": [0.7],
+  "mood_idx": 0,
+  "mood_label": "happy",
+  "model_status": {
+    "cvae": {
+      "path": "cvae",
+      "exists": true,
+      "size_mb": 1,
+      "loaded": true
+    },
+    "iddm_ppo": {
+      "path": "iddm",
+      "exists": true,
+      "size_mb": 1,
+      "loaded": true
+    },
+    "device": "cpu",
+    "load_error": null,
+    "fluidsynth_available": true
+  },
+  "variants": [
+    {
+      "index": 0,
+      "temperature": 0.7,
+      "midi_b64": "TVRoZAAAAAYAAQACAeBNVHJrAAAACAD/AwAA/y8ATVRyawAAACYA/wMAAMAAAJA8ZYNggDwAAJBAZYNggEAAAJBDZYdAgEMAAP8vAA==",
+      "midi_filename": "variant_1.mid",
+      "midi_download_path": "/api/download/variant_1.mid",
+      "wav_b64": null,
+      "wav_filename": "",
+      "wav_download_path": ""
+    }
+  ],
+  "job_id": "job-variants-1"
+}

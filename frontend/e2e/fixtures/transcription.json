@@ -1,0 +1,31 @@
+{
+  "n_notes": 3,
+  "duration_sec": 2,
+  "source_duration_sec": 2,
+  "truncated": false,
+  "midi_b64": "TVRoZAAAAAYAAQACAeBNVHJrAAAACAD/AwAA/y8ATVRyawAAACYA/wMAAMAAAJA8ZYNggDwAAJBAZYNggEAAAJBDZYdAgEMAAP8vAA==",
+  "wav_b64": null,
+  "midi_filename": "transcription_riff.mid",
+  "wav_filename": "",
+  "note_events": [
+    {
+      "start": 0,
+      "end": 0.5,
+      "pitch": 60,
+      "velocity": 100
+    },
+    {
+      "start": 0.5,
+      "end": 1,
+      "pitch": 64,
+      "velocity": 90
+    },
+    {
+      "start": 1,
+      "end": 2,
+      "pitch": 67,
+      "velocity": 100
+    }
+  ],
+  "transcribed_by": "server"
+}

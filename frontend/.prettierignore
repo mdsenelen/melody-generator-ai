@@ -3,3 +3,6 @@ node_modules/
 coverage/
 package-lock.json
 public/ml/
+test-results/
+playwright-report/
+blob-report/
