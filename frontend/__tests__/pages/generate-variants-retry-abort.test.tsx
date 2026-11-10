@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 
 import GenerateVariantsPage from "../../app/generate-variants/page";
 import { useSessionStore } from "../../app/lib/session-store";
+import { emptyFile } from "../../src/test/fakes/files";
 import { variantsResponse } from "../../src/test/fixtures/variants";
 import { server } from "../../src/test/msw/server";
 
@@ -79,5 +80,17 @@ describe("Generate Variants: abort mid-generation", () => {
     // An abort is the user's choice, not a failure: nothing gets logged as one.
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe("Generate Variants: rejected upload", () => {
+  it("says why a dropped file was rejected exactly once", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    render(<GenerateVariantsPage />);
+
+    await user.upload(screen.getByLabelText(/upload audio file/i), emptyFile("silence.wav"));
+
+    expect(await screen.findByText(/is empty/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/is empty/i)).toHaveLength(1);
   });
 });

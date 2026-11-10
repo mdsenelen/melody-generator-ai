@@ -65,4 +65,18 @@ describe("AudioRecorder", () => {
     expect(await screen.findByText("Permission denied")).toBeInTheDocument();
     expect(screen.getByText("Recording unavailable")).toBeInTheDocument();
   });
+
+  it("says nothing was recorded instead of offering an empty recording", async () => {
+    installFakeMicrophone({ silent: true });
+    const user = userEvent.setup();
+    const onRecordingComplete = jest.fn();
+    render(<AudioRecorder onRecordingComplete={onRecordingComplete} />);
+
+    await user.click(screen.getByRole("button", { name: /record/i }));
+    await user.click(screen.getByRole("button", { name: /stop/i }));
+
+    expect(await screen.findByText(/nothing was recorded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /use this recording/i })).not.toBeInTheDocument();
+    expect(onRecordingComplete).not.toHaveBeenCalled();
+  });
 });

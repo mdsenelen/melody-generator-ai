@@ -83,6 +83,15 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
       recorder.onstop = () => {
         const blobType = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: blobType });
+        if (blob.size === 0) {
+          // Stopped before any audio arrived: there is nothing to preview or send.
+          setLiveStream(null);
+          stopStream();
+          mediaRecorderRef.current = null;
+          setError("Nothing was recorded. Check your microphone and try again.");
+          setStatus("Ready to record");
+          return;
+        }
         const extension = blobType.includes("wav") ? "wav" : "webm";
         const normalizedType = extension === "wav" ? "audio/wav" : "audio/webm";
         const file = new File([blob], `recording.${extension}`, { type: normalizedType });

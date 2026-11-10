@@ -17,16 +17,18 @@ export type UploadSuccessPayload = {
 };
 
 // `idle` carries the transient "Upload complete" note; `error` keeps the
-// message in the (non-red) status line until the next pick. While busy, the
-// spinner (role="status") carries the text, so the line below stays empty
-// rather than announcing the same thing twice.
+// message in the (non-red) status line until the next pick -- unless the
+// parent takes onUploadError, in which case the parent shows it and the
+// line stays empty, so the message isn't on screen (and announced) twice.
+// While busy, the spinner (role="status") carries the text, for the same
+// reason.
 type UploadState =
   | { status: "idle"; note: string }
   | { status: "waking" }
   | { status: "uploading" }
   | { status: "error"; message: string };
 
-function statusText(state: UploadState) {
+function statusText(state: UploadState, parentShowsErrors: boolean) {
   switch (state.status) {
     case "idle":
       return state.note;
@@ -34,7 +36,7 @@ function statusText(state: UploadState) {
     case "uploading":
       return "";
     case "error":
-      return state.message;
+      return parentShowsErrors ? "" : state.message;
   }
 }
 
@@ -151,7 +153,7 @@ export function UploadButton({ onUploadSuccess, onUploadError, label }: UploadBu
           </p>
         ) : null}
         <p className="text-muted-foreground min-h-[1.25rem] text-sm" aria-live="polite">
-          {statusText(state)}
+          {statusText(state, onUploadError !== undefined)}
         </p>
       </div>
     </div>

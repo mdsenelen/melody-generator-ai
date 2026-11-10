@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
@@ -48,8 +48,7 @@ describe("UploadButton file checks", () => {
 
     await user.upload(input, file);
 
-    expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(onUploadError).toHaveBeenCalledWith(expect.stringMatching(message));
+    await waitFor(() => expect(onUploadError).toHaveBeenCalledWith(expect.stringMatching(message)));
     expect(onUploadSuccess).not.toHaveBeenCalled();
     expect(requests).toEqual([]);
   });
@@ -64,5 +63,23 @@ describe("UploadButton file checks", () => {
       expect.objectContaining({ id: "u1", filename: "upload_u1.wav" }),
     );
     expect(requests).toContain(`POST ${BACKEND_API}/upload`);
+  });
+
+  it("leaves the message to the parent when it handles upload errors", async () => {
+    const { user, input, onUploadError } = setup();
+
+    await user.upload(input, emptyFile("silence.wav"));
+
+    expect(onUploadError).toHaveBeenCalledWith(expect.stringMatching(/is empty/i));
+    expect(screen.queryByText(/is empty/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the message itself when no parent handles upload errors", async () => {
+    render(<UploadButton onUploadSuccess={jest.fn()} />);
+    const user = userEvent.setup({ applyAccept: false });
+
+    await user.upload(screen.getByLabelText(/upload audio file/i), emptyFile("silence.wav"));
+
+    expect(await screen.findByText(/is empty/i)).toBeInTheDocument();
   });
 });
