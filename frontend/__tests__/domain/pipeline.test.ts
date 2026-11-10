@@ -272,3 +272,163 @@ describe("transition", () => {
     });
   });
 });
+
+// Every state × every event, so a new event or state can't slip in without
+// a decision about it. "same" means the transition returns the identical
+// object (React bails out of the re-render); a status means a new state.
+describe("transition table", () => {
+  const artifact = { id: "a" };
+  const events: Record<PipelineEvent<Artifact>["type"], PipelineEvent<Artifact>> = {
+    start: { type: "start", runId: 1, source: upload },
+    browserProgress: { type: "browserProgress", runId: 1, fraction: 0.55 },
+    savingRetry: { type: "savingRetry", runId: 1 },
+    fellBack: { type: "fellBack", runId: 1 },
+    uploadPhase: { type: "uploadPhase", runId: 1, phase: "uploading" },
+    uploaded: { type: "uploaded", runId: 1 },
+    stillWorking: { type: "stillWorking", runId: 1 },
+    submitRetry: { type: "submitRetry", runId: 1 },
+    submitted: { type: "submitted", runId: 1 },
+    serverStatus: { type: "serverStatus", runId: 1, status: "processing", elapsedMs: 0 },
+    restarting: { type: "restarting", runId: 1 },
+    generationStarted: { type: "generationStarted", runId: 1 },
+    completed: { type: "completed", runId: 1, artifact },
+    failed: { type: "failed", runId: 1, error: failure },
+    cancel: { type: "cancel", runId: 1 },
+    dismissError: { type: "dismissError" },
+  };
+
+  const states: Record<State["status"], () => State> = {
+    idle: () => IDLE,
+    transcribing: () => started(),
+    generating: () => run([{ type: "generationStarted", runId: 1 }], started()),
+    completed: () => run([{ type: "completed", runId: 1, artifact }], started()),
+    failed: () => run([{ type: "failed", runId: 1, error: failure }], started()),
+  };
+
+  type Outcome = State["status"] | "same";
+  const TRANSCRIBING_ONLY: Outcome = "transcribing"; // a new step, same stage
+  const table: Record<State["status"], Record<keyof typeof events, Outcome>> = {
+    idle: {
+      start: "transcribing",
+      browserProgress: "same",
+      savingRetry: "same",
+      fellBack: "same",
+      uploadPhase: "same",
+      uploaded: "same",
+      stillWorking: "same",
+      submitRetry: "same",
+      submitted: "same",
+      serverStatus: "same",
+      restarting: "same",
+      generationStarted: "same",
+      completed: "same",
+      failed: "same",
+      cancel: "same",
+      dismissError: "same",
+    },
+    transcribing: {
+      start: "transcribing",
+      browserProgress: TRANSCRIBING_ONLY,
+      savingRetry: TRANSCRIBING_ONLY,
+      fellBack: TRANSCRIBING_ONLY,
+      uploadPhase: TRANSCRIBING_ONLY,
+      uploaded: TRANSCRIBING_ONLY,
+      // Browser path: the still-working copy is held off (see its own test).
+      stillWorking: "same",
+      submitRetry: TRANSCRIBING_ONLY,
+      submitted: TRANSCRIBING_ONLY,
+      serverStatus: TRANSCRIBING_ONLY,
+      restarting: TRANSCRIBING_ONLY,
+      generationStarted: "generating",
+      completed: "completed",
+      failed: "failed",
+      cancel: "idle",
+      dismissError: "same",
+    },
+    generating: {
+      start: "transcribing",
+      browserProgress: "same",
+      savingRetry: "same",
+      fellBack: "same",
+      uploadPhase: "same",
+      uploaded: "same",
+      stillWorking: "same",
+      submitRetry: "same",
+      submitted: "same",
+      serverStatus: "same",
+      restarting: "same",
+      generationStarted: "same",
+      completed: "completed",
+      failed: "failed",
+      cancel: "idle",
+      dismissError: "same",
+    },
+    completed: {
+      start: "transcribing",
+      browserProgress: "same",
+      savingRetry: "same",
+      fellBack: "same",
+      uploadPhase: "same",
+      uploaded: "same",
+      stillWorking: "same",
+      submitRetry: "same",
+      submitted: "same",
+      serverStatus: "same",
+      restarting: "same",
+      generationStarted: "same",
+      completed: "same",
+      failed: "same",
+      cancel: "same",
+      dismissError: "same",
+    },
+    failed: {
+      start: "transcribing",
+      browserProgress: "same",
+      savingRetry: "same",
+      fellBack: "same",
+      uploadPhase: "same",
+      uploaded: "same",
+      stillWorking: "same",
+      submitRetry: "same",
+      submitted: "same",
+      serverStatus: "same",
+      restarting: "same",
+      generationStarted: "same",
+      completed: "same",
+      failed: "same",
+      cancel: "same",
+      dismissError: "failed",
+    },
+  };
+
+  const cases = Object.entries(table).flatMap(([from, row]) =>
+    Object.entries(row).map(
+      ([event, outcome]) =>
+        [from as State["status"], event as keyof typeof events, outcome as Outcome] as const,
+    ),
+  );
+
+  it.each(cases)("%s + %s → %s", (from, eventType, outcome) => {
+    const before = states[from]();
+    const after = transition(before, events[eventType]);
+    if (outcome === "same") {
+      expect(after).toBe(before);
+    } else {
+      expect(after).not.toBe(before);
+      expect(after.status).toBe(outcome);
+    }
+  });
+
+  it("a failed run's late events don't touch the retry that replaced it", () => {
+    const failed = states.failed();
+    const retry = transition(failed, { type: "start", runId: 2, source: upload });
+    expect(retry).toMatchObject({ status: "transcribing", runId: 2, step: { kind: "starting" } });
+    expect(transition(retry, { type: "failed", runId: 1, error: failure })).toBe(retry);
+    expect(transition(retry, { type: "completed", runId: 1, artifact })).toBe(retry);
+  });
+
+  it("dismissing an already-dismissed failure changes nothing", () => {
+    const dismissed = transition(states.failed(), { type: "dismissError" });
+    expect(transition(dismissed, { type: "dismissError" })).toBe(dismissed);
+  });
+});

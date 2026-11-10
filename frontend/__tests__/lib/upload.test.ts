@@ -1,4 +1,5 @@
-import { MAX_UPLOAD_BYTES, uploadFile } from "../../app/lib/upload";
+import { uploadFile } from "../../app/lib/upload";
+import { MAX_UPLOAD_BYTES } from "../../src/domain/audioFile";
 
 describe("uploadFile", () => {
   const originalFetch = global.fetch;

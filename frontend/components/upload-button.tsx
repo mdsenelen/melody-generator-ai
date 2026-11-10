@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { RetryCancelledError } from "../app/lib/retryOnWakeup";
 import { uploadWhenAwake, WAKING_STATUS_MESSAGE } from "../app/lib/uploadWhenAwake";
+import { checkAudioFile } from "../src/domain/audioFile";
 import { Spinner } from "./spinner";
 
 export type UploadSuccessPayload = {
@@ -69,12 +70,20 @@ export function UploadButton({ onUploadSuccess, onUploadError, label }: UploadBu
     }
 
     abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
     if (statusTimerRef.current) {
       clearTimeout(statusTimerRef.current);
     }
+
+    // A drop bypasses the input's `accept` filter, so check before sending.
+    const rejection = checkAudioFile(file);
+    if (rejection) {
+      setState({ status: "error", message: rejection.message });
+      onUploadError?.(rejection.message);
+      return;
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setState({ status: "uploading" });
 
     try {

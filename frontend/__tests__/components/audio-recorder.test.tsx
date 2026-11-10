@@ -2,42 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AudioRecorder } from "../../components/audio-recorder";
-
-class FakeMediaRecorder {
-  static isTypeSupported() {
-    return true;
-  }
-
-  state: "inactive" | "recording" = "inactive";
-  mimeType = "audio/webm";
-  ondataavailable: ((event: { data: Blob }) => void) | null = null;
-  onstop: (() => void) | null = null;
-
-  constructor(_stream: MediaStream) {
-    void _stream;
-  }
-
-  start() {
-    this.state = "recording";
-  }
-
-  stop() {
-    this.state = "inactive";
-    this.ondataavailable?.({ data: new Blob(["fake-audio"], { type: "audio/webm" }) });
-    this.onstop?.();
-  }
-}
-
-function fakeStream(): MediaStream {
-  return { getTracks: () => [] } as unknown as MediaStream;
-}
+import { installFakeMicrophone } from "../../src/test/fakes/microphone";
 
 beforeEach(() => {
-  (global as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeMediaRecorder;
-  Object.defineProperty(global.navigator, "mediaDevices", {
-    value: { getUserMedia: jest.fn().mockResolvedValue(fakeStream()) },
-    configurable: true,
-  });
+  installFakeMicrophone();
   global.URL.createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
   global.URL.revokeObjectURL = jest.fn();
 });
