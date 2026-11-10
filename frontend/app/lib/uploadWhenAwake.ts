@@ -5,8 +5,7 @@ import { waitForBackend } from "./waitForBackend";
 
 export type UploadPhase = "waking" | "uploading";
 
-export const WAKING_STATUS_MESSAGE =
-  "Waking the server — this can take a minute or two on the free tier…";
+export { WAKING_STATUS_MESSAGE } from "../../src/domain/statusCopy";
 
 // A second wake-then-upload cycle covers a server that answered /health and
 // then restarted (or OOM'd) mid-upload. More than that re-sends a large body

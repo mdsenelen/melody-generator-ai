@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { MidiPlayer } from "../../components/midi-player";
@@ -19,10 +19,19 @@ import {
   runBrowserTranscription,
   type StoredUpload,
 } from "../lib/browserTranscribe/runBrowserTranscription";
-import { requestJson, type RequestError } from "../lib/request";
-import { RetryCancelledError } from "../lib/retryOnWakeup";
+import { requestJson } from "../lib/request";
 import { useSessionStore } from "../lib/session-store";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
+import { usePipeline } from "../../hooks/use-pipeline";
+import {
+  failed,
+  invalidInput,
+  isCancellation,
+  toGenerationError,
+  type DomainError,
+} from "../../src/domain/errors";
+import type { AudioSource } from "../../src/domain/pipeline";
+import { describeVariantsProgress } from "../../src/domain/statusCopy";
 
 type Variant = {
   index: number;
@@ -53,25 +62,6 @@ type VariantsResponse = {
 
 const GREEK = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ"];
 
-// Discriminated so each transient, retryable condition renders distinctly
-// from an actual failure (and from each other), instead of all three
-// falling into the same generic "something went wrong" banner:
-// - "busy": HEAVY_WORK_LOCK is held by another heavy audio task.
-// - "warming_up": the boot warm-up grace window (WARMUP_MAX_SECONDS) is
-//   still in effect -- a different condition from "busy" even though the
-//   backend returns the same 429 status for both; x-error-code tells them
-//   apart (see app/lib/request.ts).
-// - "restarting": the request hit a 502/503 or a bare network failure --
-//   the signature of a free-tier instance restart (see the poisoned-floor
-//   note in CLAUDE.md), not a real failure of the generation itself. The
-//   job/upload that fed this request still exists (Postgres + B2), so this
-//   is "try again," not "something is broken."
-type GenerationError =
-  | { kind: "busy"; message: string; retryAfterSeconds?: number }
-  | { kind: "warming_up"; message: string; retryAfterSeconds?: number }
-  | { kind: "restarting"; message: string }
-  | { kind: "failed"; message: string };
-
 function appendRetryHint(message: string, retryAfterSeconds: number | undefined): string {
   return retryAfterSeconds ? `${message} (retry in ~${retryAfterSeconds}s)` : message;
 }
@@ -86,13 +76,6 @@ type ClipSource =
   // The browser path couldn't finish; `stored` is the upload if it happened.
   | { kind: "clip"; stored: StoredUpload | null };
 
-function isCancellation(error: unknown): boolean {
-  return (
-    error instanceof RetryCancelledError ||
-    (error instanceof DOMException && error.name === "AbortError")
-  );
-}
-
 function buildDefaultTemperatures(count: number) {
   if (count === 4) {
     return [0.7, 0.9, 1.0, 1.3];
@@ -103,25 +86,24 @@ function buildDefaultTemperatures(count: number) {
 export default function GenerateVariantsPage() {
   const lastUpload = useSessionStore((state) => state.lastUpload);
   const [showRecorder, setShowRecorder] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedSourceName, setSelectedSourceName] = useState<string | null>(null);
-  const [storedFilename, setStoredFilename] = useState<string | null>(null);
-  // Set only for a file UploadButton already sent to the backend.
-  const [storedUploadId, setStoredUploadId] = useState<string | null>(null);
-  const [useStoredUpload, setUseStoredUpload] = useState(false);
+  // One source at a time: a fresh upload (already on the backend), a
+  // recording (not uploaded yet), or the last upload kept in the session.
+  const [selection, setSelection] = useState<AudioSource | null>(null);
   const [nVariants, setNVariants] = useState(4);
   const [selectedMood, setSelectedMood] = useState("Neutral");
   const [selectedScale, setSelectedScale] = useState("Original");
   const [temperatures, setTemperatures] = useState<number[]>(buildDefaultTemperatures(4));
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<GenerationError | null>(null);
+  // An error raised before any run starts (failed upload, nothing chosen).
+  const [notice, setNotice] = useState<DomainError | null>(null);
+  // Kept beside the run state: a failed regeneration still shows the
+  // previous variants under its error banner.
   const [result, setResult] = useState<VariantsResponse | null>(null);
   const [activeVariant, setActiveVariant] = useState(0);
-  const [progressLabel, setProgressLabel] = useState<string | null>(null);
   const transcribedRef = useRef<TranscribedSelection | null>(null);
-  const generateAbortRef = useRef<AbortController | null>(null);
+  const { state: run, dispatch, start, dismissError } = usePipeline<VariantsResponse>();
 
-  useEffect(() => () => generateAbortRef.current?.abort(), []);
+  const loading = run.status === "transcribing" || run.status === "generating";
+  const error = notice ?? (run.status === "failed" && !run.dismissed ? run.error : null);
 
   const mood = useMemo(() => (result ? result.mood_label : null), [result]);
 
@@ -142,50 +124,48 @@ export default function GenerateVariantsPage() {
     );
   };
 
+  const clearErrors = () => {
+    setNotice(null);
+    dismissError();
+  };
+
   const handleUploadSuccess = ({ id, filename, file }: UploadSuccessPayload) => {
-    setSelectedFile(file);
-    setSelectedSourceName(file.name);
-    setStoredFilename(filename);
-    setStoredUploadId(id);
+    setSelection({ kind: "upload", file, stored: { id, filename } });
     transcribedRef.current = null;
-    setUseStoredUpload(false);
-    setError(null);
+    clearErrors();
   };
 
   const handleRecordingComplete = (file: File) => {
-    setSelectedFile(file);
-    setSelectedSourceName(file.name);
-    setStoredFilename(null);
-    setStoredUploadId(null);
+    setSelection({ kind: "recording", file });
     transcribedRef.current = null;
-    setUseStoredUpload(false);
-    setError(null);
+    clearErrors();
     setShowRecorder(false);
   };
 
   const handleUseStoredUpload = () => {
     if (!lastUpload) return;
-    setSelectedFile(null);
-    setSelectedSourceName(lastUpload.sourceName);
-    setStoredFilename(lastUpload.filename);
-    setUseStoredUpload(true);
-    setError(null);
+    setSelection({ kind: "session", sourceName: lastUpload.sourceName });
+    clearErrors();
   };
 
-  const handleUploadError = (message: string) => setError({ kind: "failed", message });
+  const handleUploadError = (message: string) => setNotice(failed(message));
 
   // Basic Pitch inside the 60 s generation request timed out on the free
   // tier's 0.1 vCPU ("Generation timed out after 60s"). Transcribing in the
   // browser first (same path as /analyse) hands the server a job instead,
   // so it only decodes and generates. Any browser-side failure returns a
   // "clip" source and generation falls back to sending the clip as before.
-  const transcribeSelection = async (file: File, signal: AbortSignal): Promise<ClipSource> => {
+  const transcribeSelection = async (
+    source: AudioSource & { file: File },
+    runId: number,
+    signal: AbortSignal,
+  ): Promise<ClipSource> => {
+    const { file } = source;
     const cached = transcribedRef.current;
     if (cached?.file === file) {
       return { kind: "job", jobId: cached.jobId, stored: cached.stored };
     }
-    const uploaded =
-      storedFilename && storedUploadId ? { id: storedUploadId, filename: storedFilename } : null;
+    const uploaded = source.kind === "upload" ? source.stored : null;
     let uploadOnce: Promise<StoredUpload> | null = null;
     const ensureUploaded = (): Promise<StoredUpload> => {
       if (uploaded) {
@@ -198,20 +178,13 @@ export default function GenerateVariantsPage() {
       return uploadOnce;
     };
 
-    let lastStep = -1;
     try {
       const outcome = await runBrowserTranscription({
         file,
         signal,
         ensureUploaded,
-        // 10% steps: the spinner label is a live region.
-        onProgress: (fraction) => {
-          const step = Math.min(10, Math.floor(fraction * 10));
-          if (step !== lastStep) {
-            lastStep = step;
-            setProgressLabel(`Transcribing ${file.name} in your browser... ${step * 10}%`);
-          }
-        },
+        // Reported in 10% steps (see transition): the spinner label is a live region.
+        onProgress: (fraction) => dispatch({ type: "browserProgress", runId, fraction }),
       });
       if (outcome.kind === "completed") {
         transcribedRef.current = { file, jobId: outcome.job.job_id, stored: outcome.stored };
@@ -226,30 +199,23 @@ export default function GenerateVariantsPage() {
         error,
       });
       return { kind: "clip", stored: null };
-    } finally {
-      setProgressLabel(null);
     }
   };
 
   const generateVariants = async () => {
-    if (!selectedFile && !useStoredUpload) {
-      setError({
-        kind: "failed",
-        message: "Choose or record an audio clip before generating variants.",
-      });
+    if (!selection) {
+      setNotice(invalidInput("Choose or record an audio clip before generating variants."));
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    generateAbortRef.current?.abort();
-    const controller = new AbortController();
-    generateAbortRef.current = controller;
+    setNotice(null);
+    const source = selection;
+    const { runId, signal } = start(source);
     try {
       const formData = new FormData();
-      const transcribed = selectedFile
-        ? await transcribeSelection(selectedFile, controller.signal)
-        : null;
+      const transcribed =
+        source.kind === "session" ? null : await transcribeSelection(source, runId, signal);
+      dispatch({ type: "generationStarted", runId });
       if (transcribed?.kind === "job") {
         formData.append("job_id", transcribed.jobId);
         formData.append("filename", transcribed.stored.filename);
@@ -258,15 +224,15 @@ export default function GenerateVariantsPage() {
         // The browser path uploaded it before falling back.
         formData.append("filename", transcribed.stored.filename);
         formData.append("upload_id", transcribed.stored.id);
-      } else if (selectedFile && storedFilename && storedUploadId) {
+      } else if (source.kind === "upload") {
         // Already on the backend (UploadButton uploads straight to it). This
         // request goes through a Vercel function, which rejects bodies over
         // ~4.5 MB with a 413, so send the reference, not the bytes again.
-        formData.append("filename", storedFilename);
-        formData.append("upload_id", storedUploadId);
-      } else if (selectedFile) {
+        formData.append("filename", source.stored.filename);
+        formData.append("upload_id", source.stored.id);
+      } else if (source.kind === "recording") {
         // A fresh recording: small, and not uploaded anywhere yet.
-        formData.append("file", selectedFile);
+        formData.append("file", source.file);
       } else if (lastUpload?.jobId) {
         // Already transcribed (via /analyse) -- skip re-transcribing the
         // same audio server-side. The upload reference rides along: a job
@@ -286,41 +252,25 @@ export default function GenerateVariantsPage() {
         method: "POST",
         body: formData,
         expectedContentType: "application/json",
-        signal: controller.signal,
+        signal,
       });
       if (!Array.isArray(data.variants)) {
         throw new Error("Variant generation failed");
       }
-      setResult(data);
-      setActiveVariant(0);
-    } catch (generationError) {
-      if (isCancellation(generationError)) {
+      if (signal.aborted) {
         return;
       }
-      const requestError =
-        generationError instanceof Error ? (generationError as RequestError) : undefined;
-      const message = requestError?.message ?? "Variant generation failed";
-      const retryAfterSeconds = requestError?.retryAfterSeconds;
-
-      const isRestarting =
-        requestError?.code === "network_error" ||
-        requestError?.status === 502 ||
-        requestError?.status === 503;
-
-      if (requestError?.code === "warming_up") {
-        setError({ kind: "warming_up", message, retryAfterSeconds });
-      } else if (requestError?.status === 429) {
-        setError({ kind: "busy", message, retryAfterSeconds });
-      } else if (isRestarting) {
-        setError({
-          kind: "restarting",
-          message: "The server restarted. Your clip wasn't lost — try again in a moment.",
-        });
-      } else {
-        setError({ kind: "failed", message });
+      setResult(data);
+      setActiveVariant(0);
+      dispatch({ type: "completed", runId, artifact: data });
+    } catch (generationError) {
+      if (isCancellation(generationError)) {
+        dispatch({ type: "cancel", runId });
+        return;
       }
-    } finally {
-      setLoading(false);
+      // busy / warming_up / restarting each render distinctly from a real
+      // failure: see toGenerationError.
+      dispatch({ type: "failed", runId, error: toGenerationError(generationError) });
     }
   };
 
@@ -367,10 +317,10 @@ export default function GenerateVariantsPage() {
                 <button
                   type="button"
                   onClick={handleUseStoredUpload}
-                  disabled={useStoredUpload}
+                  disabled={selection?.kind === "session"}
                   className="border-primary/40 bg-primary/10 text-primary hover:border-primary/70 mt-3 w-full rounded-[var(--radius)] border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {useStoredUpload ? "Using this upload" : "Use my last upload"}
+                  {selection?.kind === "session" ? "Using this upload" : "Use my last upload"}
                 </button>
               </div>
             ) : null}
@@ -429,11 +379,11 @@ export default function GenerateVariantsPage() {
             type="button"
             onClick={generateVariants}
             aria-label="Generate variants"
-            disabled={loading || (!selectedFile && !useStoredUpload)}
+            disabled={loading || !selection}
             className={buttonClass("primary", { className: "mt-2 w-full" })}
           >
             {loading ? (
-              <Spinner size="sm" label={progressLabel ?? "Generating variants"} />
+              <Spinner size="sm" label={describeVariantsProgress(run)} />
             ) : (
               `Generate ${nVariants} Variants`
             )}
@@ -527,21 +477,21 @@ export default function GenerateVariantsPage() {
 
       {error ? (
         <div aria-live="polite">
-          {error.kind === "warming_up" ? (
+          {error.code === "warming_up" ? (
             <div data-testid="generation-error-warming_up">
               <WarningBanner
                 title="Server is starting up"
                 body={appendRetryHint(error.message, error.retryAfterSeconds)}
               />
             </div>
-          ) : error.kind === "busy" ? (
+          ) : error.code === "busy" ? (
             <div data-testid="generation-error-busy">
               <WarningBanner
                 title="Server is busy — try again"
                 body={appendRetryHint(error.message, error.retryAfterSeconds)}
               />
             </div>
-          ) : error.kind === "restarting" ? (
+          ) : error.code === "restarting" ? (
             <div data-testid="generation-error-restarting">
               <WarningBanner title="Server restarted" body={error.message} />
             </div>

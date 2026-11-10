@@ -7,7 +7,10 @@ module.exports = async () => ({
     await createJestConfig({
       displayName: "node",
       testEnvironment: "node",
-      testMatch: ["<rootDir>/__tests__/utils/**/*.test.ts"],
+      testMatch: [
+        "<rootDir>/__tests__/utils/**/*.test.ts",
+        "<rootDir>/__tests__/domain/**/*.test.ts",
+      ],
     })(),
     await createJestConfig({
       displayName: "jsdom",
