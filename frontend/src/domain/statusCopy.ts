@@ -53,13 +53,16 @@ export function describeTranscription(state: Transcribing): string {
 }
 
 /**
- * The /generate-variants button label while busy. Only browser progress has
- * its own copy; everything else (including the moment before the first
- * progress tick) reads "Generating variants", as it did before ADR 0001.
+ * The /generate-variants button label while busy. Variants only transcribes
+ * in the browser, so every transcribing step reads that way, with a
+ * percentage once Basic Pitch reports one.
  */
 export function describeVariantsProgress<A>(state: PipelineState<A>): string {
-  if (state.status === "transcribing" && state.step.kind === "browser") {
-    return `Transcribing ${sourceName(state.source)} in your browser... ${state.step.step * 10}%`;
+  if (state.status !== "transcribing") {
+    return "Generating variants";
   }
-  return "Generating variants";
+  const name = sourceName(state.source);
+  return state.step.kind === "browser"
+    ? `Transcribing ${name} in your browser... ${state.step.step * 10}%`
+    : `Transcribing ${name} in your browser...`;
 }
