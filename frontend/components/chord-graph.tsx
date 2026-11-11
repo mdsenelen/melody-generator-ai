@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ChordDiagram } from "./chord-diagram";
 import { Button, buttonClass } from "./ui/button";
 import { Slider } from "./ui/slider";
-import { requestJson } from "../app/lib/request";
+import { useRenderProgression } from "../hooks/use-render-progression";
 
 export const INSTRUMENT_OPTIONS = [
   { label: "Piano", value: 0 },
@@ -14,18 +14,6 @@ export const INSTRUMENT_OPTIONS = [
   { label: "Acoustic Guitar", value: 25 },
   { label: "Electric Guitar", value: 30 },
 ];
-
-type ProgressionResponse = {
-  audio_b64: string;
-  midi_b64: string;
-  midi_filename: string;
-  midi_download_path: string;
-  wav_filename: string;
-  wav_download_path: string;
-  bpm: number;
-  instrument: number;
-  job_id: string;
-};
 
 type ChordGraphProps = {
   title: string;
@@ -53,49 +41,23 @@ export function ChordGraph({
 }: ChordGraphProps) {
   const [bpm, setBpm] = useState(initialBpm);
   const [instrument, setInstrument] = useState(initialInstrument);
-  const [result, setResult] = useState<ProgressionResponse | null>(null);
+  const { render, isRendering: loading, error, lastResult: result } = useRenderProgression();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
+  // One object URL per rendered result, revoked when the next replaces it
+  // or the graph unmounts.
+  const audioB64 = result?.audio_b64;
   useEffect(() => {
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [audioUrl]);
-
-  const handleGenerate = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await requestJson<ProgressionResponse>("/api/generate-progression", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progression, bpm, instrument }),
-        expectedContentType: "application/json",
-      });
-      if (!data.audio_b64) {
-        throw new Error("Could not render progression");
-      }
-
-      const nextAudioUrl = createAudioObjectUrl(data.audio_b64);
-      setAudioUrl((current) => {
-        if (current) {
-          URL.revokeObjectURL(current);
-        }
-        return nextAudioUrl;
-      });
-      setResult(data);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : "Could not render progression",
-      );
-    } finally {
-      setLoading(false);
+    if (!audioB64) {
+      setAudioUrl(null);
+      return;
     }
-  };
+    const url = createAudioObjectUrl(audioB64);
+    setAudioUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [audioB64]);
+
+  const handleGenerate = () => render({ progression, bpm, instrument });
 
   return (
     <section className="border-border bg-card rounded-[var(--radius)] border p-5 sm:p-6">

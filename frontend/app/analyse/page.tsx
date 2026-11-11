@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { ChordDiagram } from "../../components/chord-diagram";
@@ -17,22 +17,19 @@ import { MoodBadge, StatusBadge } from "../../components/ui/badge";
 import { PitchHistogram } from "../../components/ui/pitch-histogram";
 import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
-import { analyzeClip, type ClipAnalysis } from "../lib/analyzeClip";
 import {
   runBrowserTranscription,
   type StoredUpload,
 } from "../lib/browserTranscribe/runBrowserTranscription";
 import { formatTranscribeLog, type TranscribePath } from "../lib/transcribeTiming";
-import { retryOnWakeup, RetryCancelledError } from "../lib/retryOnWakeup";
+import { retryOnWakeup } from "../lib/retryOnWakeup";
 import { useSessionStore } from "../lib/session-store";
-import {
-  createTranscribeJob,
-  pollTranscribeJob,
-  type TranscriptionResult,
-} from "../lib/transcribeJob";
+import { createTranscribeJob, pollTranscribeJob } from "../lib/transcribeJob";
 import { topPitchClasses } from "../../utils/pitch";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
+import { useClipAnalysis } from "../../hooks/use-clip-analysis";
 import { usePipeline } from "../../hooks/use-pipeline";
+import type { TranscriptionResult } from "../../src/domain/contracts/job";
 import { isCancellation, toTranscriptionError } from "../../src/domain/errors";
 import { SLOW_AFTER_MS, sourceFile, type AudioSource } from "../../src/domain/pipeline";
 import { describeTranscription } from "../../src/domain/statusCopy";
@@ -42,12 +39,6 @@ type Transcription = TranscriptionResult & {
   uploadedFilename: string;
   jobId: string;
 };
-
-type AnalysisState =
-  | { status: "idle" }
-  | { status: "loading"; message?: string }
-  | { status: "ready"; data: ClipAnalysis }
-  | { status: "error"; error: string };
 
 const DEFAULT_CLIP_SEC = 60;
 
@@ -87,7 +78,6 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
 
 export default function AnalysePage() {
   const [showRecorder, setShowRecorder] = useState(false);
-  const [analysis, setAnalysis] = useState<AnalysisState>({ status: "idle" });
   const [clipWindow, setClipWindow] = useState<ClipWindow>({ start: 0, end: DEFAULT_CLIP_SEC });
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   // An upload that failed before any transcription started (UploadButton).
@@ -98,10 +88,6 @@ export default function AnalysePage() {
     start,
     dismissError: dismissFailure,
   } = usePipeline<Transcription>();
-
-  const analysisReqRef = useRef(0);
-  const analysisAbortRef = useRef<AbortController | null>(null);
-  const mountedRef = useRef(true);
 
   const isTranscribing = pipeline.status === "transcribing";
   const transcription = pipeline.status === "completed" ? pipeline.artifact : null;
@@ -119,13 +105,32 @@ export default function AnalysePage() {
     dismissFailure();
   }, [dismissFailure]);
 
+  // Clip analysis is a query per (job, window): a new transcription or a
+  // new window moves to a new key, and the request for the old one is
+  // aborted (see useClipAnalysis).
+  const { state: analysis, reanalyse } = useClipAnalysis(
+    transcription ? { jobId: transcription.jobId, window: clipWindow } : null,
+  );
+  const analysisData = analysis.status === "ready" ? analysis.data : null;
+
+  // Keep the session summary other pages (generate-variants) read in sync
+  // with the window that's currently shown -- but never clobber the real
+  // upload id / filename runTranscription stored.
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      analysisAbortRef.current?.abort();
-    };
-  }, []);
+    if (!analysisData) return;
+    const session = useSessionStore.getState().lastUpload;
+    if (session) {
+      useSessionStore.getState().setLastUpload({
+        ...session,
+        transcription: {
+          chords: analysisData.detected_chords,
+          key: analysisData.key,
+          moodLabel: analysisData.mood_label,
+          pitchHistogram: analysisData.pitch_histogram,
+        },
+      });
+    }
+  }, [analysisData]);
 
   useEffect(() => {
     if (!transcription?.wav_b64) {
@@ -137,75 +142,10 @@ export default function AnalysePage() {
     return () => URL.revokeObjectURL(url);
   }, [transcription?.wav_b64]);
 
-  const runAnalysis = useCallback(async (jobId: string, window: ClipWindow) => {
-    const reqId = ++analysisReqRef.current;
-    analysisAbortRef.current?.abort();
-    const controller = new AbortController();
-    analysisAbortRef.current = controller;
-    setAnalysis({ status: "loading" });
-
-    try {
-      const data = await retryOnWakeup(
-        (signal) =>
-          analyzeClip(
-            { job_id: jobId, clip_start_sec: window.start, clip_end_sec: window.end },
-            { signal },
-          ),
-        {
-          signal: controller.signal,
-          onRetrying: () => {
-            if (reqId === analysisReqRef.current && mountedRef.current) {
-              setAnalysis({
-                status: "loading",
-                message: "Server was still waking up — retrying analysis...",
-              });
-            }
-          },
-        },
-      );
-      if (reqId !== analysisReqRef.current || !mountedRef.current) {
-        return;
-      }
-      setAnalysis({ status: "ready", data });
-
-      // Keep the session summary other pages (generate-variants) read in sync
-      // with the window that's currently shown -- but never clobber the real
-      // upload id / filename runTranscription stored.
-      const session = useSessionStore.getState().lastUpload;
-      if (session) {
-        useSessionStore.getState().setLastUpload({
-          ...session,
-          transcription: {
-            chords: data.detected_chords,
-            key: data.key,
-            moodLabel: data.mood_label,
-            pitchHistogram: data.pitch_histogram,
-          },
-        });
-      }
-    } catch (analysisError) {
-      if (
-        analysisError instanceof RetryCancelledError ||
-        controller.signal.aborted ||
-        reqId !== analysisReqRef.current ||
-        !mountedRef.current
-      ) {
-        return;
-      }
-      setAnalysis({
-        status: "error",
-        error: analysisError instanceof Error ? analysisError.message : "Analysis failed",
-      });
-    }
-  }, []);
-
   const runTranscription = async (source: AudioSource & { file: File }, pickedAt: number) => {
     const { file } = source;
     const uploaded = source.kind === "upload" ? source.stored : null;
-    analysisReqRef.current += 1; // invalidate any in-flight analysis for the previous clip
-    analysisAbortRef.current?.abort(); // and stop it actually retrying in the background
     setUploadError(null);
-    setAnalysis({ status: "idle" });
     // Aborts the previous run; its late events carry a stale runId and are dropped.
     const { runId, signal } = start(source);
 
@@ -271,7 +211,7 @@ export default function AnalysePage() {
         dispatch({ type: "submitted", runId });
 
         result = await pollTranscribeJob(jobId, {
-          isSuperseded: () => signal.aborted,
+          signal,
           onStatusChange: (status, elapsedMs) =>
             dispatch({
               type: "serverStatus",
@@ -306,8 +246,8 @@ export default function AnalysePage() {
 
       // generate-variants / choose-progression reference the upload by id.
       // jobId lets generate-variants skip re-transcribing this same audio.
-      // The transcription summary is filled by runAnalysis right after (from
-      // /api/analyze) -- the transcribe result no longer carries it.
+      // The transcription summary is filled in once the clip analysis lands
+      // (from /api/analyze) -- the transcribe result no longer carries it.
       useSessionStore.getState().setLastUpload({
         uploadId: stored.id,
         filename: stored.filename,
@@ -316,10 +256,10 @@ export default function AnalysePage() {
         transcription: { chords: [], key: "", moodLabel: "neutral", pitchHistogram: [] },
       });
 
+      // Batched with the `completed` dispatch above, so the first analysis
+      // already runs on this default window.
       const defaultEnd = Math.min(DEFAULT_CLIP_SEC, Math.max(1, result.source_duration_sec));
-      const window0: ClipWindow = { start: 0, end: defaultEnd };
-      setClipWindow(window0);
-      void runAnalysis(jobId, window0);
+      setClipWindow({ start: 0, end: defaultEnd });
     } catch (transcribeError) {
       window.clearTimeout(slowTimer);
       if (isCancellation(transcribeError)) {
@@ -344,11 +284,13 @@ export default function AnalysePage() {
 
   const handleClipCommit = (next: ClipWindow) => {
     if (!transcription) return;
+    if (next.start === clipWindow.start && next.end === clipWindow.end) {
+      reanalyse();
+      return;
+    }
     setClipWindow(next);
-    void runAnalysis(transcription.jobId, next);
   };
 
-  const analysisData = analysis.status === "ready" ? analysis.data : null;
   const chordSummary = analysisData ? summariseChords(analysisData.detected_chords) : null;
   const detectedNotes = analysisData ? topPitchClasses(analysisData.pitch_histogram) : [];
 
@@ -606,9 +548,7 @@ export default function AnalysePage() {
                       </p>
                       <button
                         type="button"
-                        onClick={() =>
-                          transcription && void runAnalysis(transcription.jobId, clipWindow)
-                        }
+                        onClick={reanalyse}
                         className={buttonClass("secondary", { small: true })}
                       >
                         Analyse this clip

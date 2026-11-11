@@ -1,66 +1,19 @@
+import {
+  createTranscribeJobResponseSchema,
+  jobResultStatusSchema,
+  transcribeJobStatusSchema,
+  type CreateTranscribeJobResponse,
+  type JobResultStatusResponse,
+  type RegisterTranscriptionRequest,
+  type TranscribeJobStatusResponse,
+  type TranscriptionResult,
+} from "../../src/domain/contracts/job";
+import { classifyFailure } from "../../src/domain/retryPolicy";
+import { withAttemptTimeout } from "./attemptTimeout";
 import { getPublicBackendApiUrl } from "./backendUrl";
 import { requestJson, type RequestError } from "./request";
 
-export type NoteEvent = {
-  start: number;
-  end: number;
-  pitch: number;
-  velocity: number;
-};
-
-export type TranscriptionResult = {
-  n_notes: number;
-  duration_sec: number;
-  source_duration_sec: number;
-  truncated: boolean;
-  midi_b64: string;
-  wav_b64: string | null;
-  midi_filename: string;
-  wav_filename: string;
-  n_chunks?: number;
-  // Full merged transcription. mood / key / tempo / chords / pitch histogram
-  // are NOT here -- POST /api/analyze slices these note events to a clip
-  // window and computes them (plan step 5, contract step 3).
-  note_events: NoteEvent[];
-  // Which path produced this result. Optional: jobs persisted before the
-  // browser path existed have neither field.
-  transcribed_by?: "browser" | "server";
-  tfjs_backend?: TfjsBackend;
-};
-
-export type TfjsBackend = "webgl" | "wasm" | "cpu";
-
-// POST /api/transcriptions body -- mirrors backend/app/schemas.py's
-// RegisterTranscriptionRequest.
-export type RegisterTranscriptionRequest = {
-  upload_id: string | null;
-  source_filename: string;
-  source_duration_sec: number;
-  tfjs_backend: TfjsBackend;
-  note_events: NoteEvent[];
-};
-
-export type TranscribeJobStatus = "queued" | "processing" | "completed" | "failed" | "expired";
-
-// Generic over the result shape because GET /transcribe/{job_id} (see
-// getTranscribeJob below) also serves generate-variants and
-// generate-progression results now (see jobs/service.create_completed_job,
-// GP3) -- the store doesn't discriminate by job kind, only by id.
-// Allowlisted on the backend (see jobs/models.py's _ALLOWED_WAITING_REASONS)
-// -- the only value this is ever actually set to is "warming_up", while a
-// job sits 'queued' because the boot warm-up marker is still fresh.
-// Optional (not just nullable) since generate-variants/progression jobs
-// (see the comment above) predate this field.
-export type JobStatusResponse<TResult> = {
-  job_id: string;
-  status: TranscribeJobStatus;
-  progress: number;
-  result: TResult | null;
-  error: string | null;
-  waiting_reason?: "warming_up" | null;
-};
-
-export type TranscribeJobStatusResponse = JobStatusResponse<TranscriptionResult>;
+// Response shapes live in src/domain/contracts/job.ts and are parsed there.
 
 // Bypasses the Next.js /api proxy (same reasoning as uploadFile in
 // lib/upload.ts): the file-upload fallback path below carries the full
@@ -76,7 +29,7 @@ export async function createTranscribeJob(
   file: File,
   uploaded?: { id: string; filename: string } | null,
   options: { signal?: AbortSignal } = {},
-): Promise<TranscribeJobStatusResponse> {
+): Promise<CreateTranscribeJobResponse> {
   const formData = new FormData();
   if (uploaded) {
     formData.append("upload_id", uploaded.id);
@@ -85,7 +38,7 @@ export async function createTranscribeJob(
     formData.append("file", file);
   }
 
-  return requestJson<TranscribeJobStatusResponse>(getPublicBackendApiUrl("/transcribe"), {
+  return requestJson(getPublicBackendApiUrl("/transcribe"), createTranscribeJobResponseSchema, {
     method: "POST",
     body: formData,
     expectedContentType: "application/json",
@@ -100,7 +53,7 @@ export async function registerBrowserTranscription(
   payload: RegisterTranscriptionRequest,
   options: { signal?: AbortSignal } = {},
 ): Promise<TranscribeJobStatusResponse> {
-  return requestJson<TranscribeJobStatusResponse>(getPublicBackendApiUrl("/transcriptions"), {
+  return requestJson(getPublicBackendApiUrl("/transcriptions"), transcribeJobStatusSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -109,13 +62,36 @@ export async function registerBrowserTranscription(
   });
 }
 
-export async function getTranscribeJob<TResult = TranscriptionResult>(
+function jobStatusUrl(jobId: string) {
+  return getPublicBackendApiUrl(`/transcribe/${encodeURIComponent(jobId)}`);
+}
+
+/** GET /transcribe/{id} for a transcription job. */
+export async function getTranscribeJob(
   jobId: string,
-): Promise<JobStatusResponse<TResult>> {
-  return requestJson<JobStatusResponse<TResult>>(
-    getPublicBackendApiUrl(`/transcribe/${encodeURIComponent(jobId)}`),
-    { method: "GET", expectedContentType: "application/json" },
-  );
+  options: { signal: AbortSignal },
+): Promise<TranscribeJobStatusResponse> {
+  return requestJson(jobStatusUrl(jobId), transcribeJobStatusSchema, {
+    method: "GET",
+    expectedContentType: "application/json",
+    signal: options.signal,
+  });
+}
+
+/**
+ * GET /transcribe/{id} for any job kind -- generate-variants and
+ * generate-progression results are stored as jobs too (GP3). The result
+ * comes back tagged with its `kind`.
+ */
+export async function getJob(
+  jobId: string,
+  options: { signal: AbortSignal },
+): Promise<JobResultStatusResponse> {
+  return requestJson(jobStatusUrl(jobId), jobResultStatusSchema, {
+    method: "GET",
+    expectedContentType: "application/json",
+    signal: options.signal,
+  });
 }
 
 const POLL_INITIAL_DELAY_MS = 1000;
@@ -170,37 +146,57 @@ export class TranscribeJobLostError extends Error {
   }
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+// Abortable, so cancelling a poll rejects at once instead of waiting out
+// the backoff.
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new TranscribeJobSupersededError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      reject(new TranscribeJobSupersededError());
+    };
+    const timeoutId = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 // Polls GET /transcribe/{id} with bounded exponential backoff until the
-// job completes, fails, is superseded (a newer analysis started, or the
-// component unmounted), or exceeds POLL_MAX_TOTAL_MS. A handful of
-// consecutive transient network failures are tolerated rather than failing
-// the whole flow on one dropped response.
+// job completes, fails, is cancelled through `signal` (a newer analysis
+// started, or the component unmounted), or exceeds POLL_MAX_TOTAL_MS.
+// Cancelling aborts the in-flight request and the wait between polls, and
+// rejects with TranscribeJobSupersededError (see isCancellation). A handful
+// of consecutive unexpected failures are tolerated rather than failing the
+// whole flow on one dropped response.
 export async function pollTranscribeJob(
   jobId: string,
   options: {
-    isSuperseded: () => boolean;
+    signal: AbortSignal;
     onStatusChange?: (status: TranscribeJobStatusResponse, elapsedMs: number) => void;
-    // Called instead of onStatusChange when a poll hits a 502/503 or a
-    // network error -- the signature of a free-tier restart (raw platform
-    // 502 while nothing's listening yet, our own 503 while warming back up,
-    // or a dropped connection mid-restart). Doesn't count toward the
-    // consecutive-failure cutoff below: the job survives in Postgres across
-    // a restart, so the right move is to keep polling within the normal
-    // POLL_MAX_TOTAL_MS budget, not give up after a handful of attempts.
+    // Called instead of onStatusChange when a poll hits a 502/503, a
+    // network error, or a hung request -- the signature of a free-tier
+    // restart (raw platform 502 while nothing's listening yet, our own 503
+    // while warming back up, or a dropped connection mid-restart). Doesn't
+    // count toward the consecutive-failure cutoff below: the job survives
+    // in Postgres across a restart, so the right move is to keep polling
+    // within the normal POLL_MAX_TOTAL_MS budget, not give up after a
+    // handful of attempts.
     onRestarting?: (elapsedMs: number) => void;
   },
 ): Promise<TranscriptionResult> {
+  const { signal } = options;
   const startedAt = Date.now();
   const deadline = startedAt + POLL_MAX_TOTAL_MS;
   let delay = POLL_INITIAL_DELAY_MS;
   let consecutiveFailures = 0;
 
   while (true) {
-    if (options.isSuperseded()) {
+    if (signal.aborted) {
       throw new TranscribeJobSupersededError();
     }
     if (Date.now() > deadline) {
@@ -209,19 +205,26 @@ export async function pollTranscribeJob(
 
     let status: TranscribeJobStatusResponse;
     try {
-      status = await getTranscribeJob(jobId);
+      status = await withAttemptTimeout(
+        (attemptSignal) => getTranscribeJob(jobId, { signal: attemptSignal }),
+        { signal },
+      );
       consecutiveFailures = 0;
     } catch (pollError) {
-      const httpStatus = (pollError as RequestError).status;
-      if (httpStatus === 404) {
+      if (signal.aborted) {
+        throw new TranscribeJobSupersededError();
+      }
+      if ((pollError as RequestError).status === 404) {
         // The job row itself is gone -- not worth retrying indefinitely,
         // unlike a transient restart below.
         throw new TranscribeJobLostError();
       }
-      // undefined (network/CORS failure -- see request.ts) or 502/503 is
-      // the restart signature, not a real failure of the job itself.
-      const isRestarting = httpStatus === undefined || httpStatus === 502 || httpStatus === 503;
-      if (isRestarting) {
+      const kind = classifyFailure(pollError);
+      if (kind === "contract") {
+        // The same body would fail the same way on every poll.
+        throw pollError;
+      }
+      if (kind === "transient") {
         options.onRestarting?.(Date.now() - startedAt);
       } else {
         consecutiveFailures += 1;
@@ -229,12 +232,12 @@ export async function pollTranscribeJob(
           throw pollError;
         }
       }
-      await sleep(delay);
+      await sleep(delay, signal);
       delay = Math.min(delay * POLL_BACKOFF_FACTOR, POLL_MAX_DELAY_MS);
       continue;
     }
 
-    if (options.isSuperseded()) {
+    if (signal.aborted) {
       throw new TranscribeJobSupersededError();
     }
     options.onStatusChange?.(status, Date.now() - startedAt);
@@ -249,7 +252,7 @@ export async function pollTranscribeJob(
       throw new Error(status.error || "Transcription failed");
     }
 
-    await sleep(delay);
+    await sleep(delay, signal);
     delay = Math.min(delay * POLL_BACKOFF_FACTOR, POLL_MAX_DELAY_MS);
   }
 }

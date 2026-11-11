@@ -1,9 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
 import ResultView from "../../app/result/[jobId]/result-view";
 import { midiBase64, variantsResponse } from "../../src/test/fixtures/variants";
 import { BACKEND_API, server } from "../../src/test/msw/server";
+import { renderWithQueryClient } from "../../src/test/query/render";
 
 function completedJob(result: unknown) {
   server.use(
@@ -30,7 +31,7 @@ describe("Result page exports", () => {
       detected_chords: ["C", "G"],
     });
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     const midi = await screen.findByRole("link", { name: /download midi/i });
     expect(midi).toHaveAttribute("download", "progression_c_g.mid");
@@ -41,10 +42,10 @@ describe("Result page exports", () => {
   });
 
   it("saves a generated variant's MIDI under the variant's filename", async () => {
-    const { variants, n_variants, temperatures, mood_label } = variantsResponse();
-    completedJob({ variants, n_variants, temperatures, mood_label });
+    // A variants job stores generate_iddm_variants' full return value.
+    completedJob(variantsResponse());
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     const midi = await screen.findByRole("link", { name: /download midi/i });
     expect(midi).toHaveAttribute("download", "variant_1.mid");
@@ -52,13 +53,20 @@ describe("Result page exports", () => {
   });
 
   it("builds a download path that survives # and spaces in the filename", async () => {
+    // A transcription job's result, as _build_transcription_result stores it.
     completedJob({
+      n_notes: 0,
+      duration_sec: 1,
+      source_duration_sec: 1,
+      truncated: false,
       midi_b64: midiBase64(),
+      wav_b64: null,
       midi_filename: "take #2.mid",
-      notes: [],
+      wav_filename: "",
+      note_events: [],
     });
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     const midi = await screen.findByRole("link", { name: /download midi/i });
     expect(midi).toHaveAttribute("download", "take #2.mid");

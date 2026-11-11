@@ -1,8 +1,7 @@
 import { checkAudioFile } from "../../src/domain/audioFile";
+import { uploadResponseSchema, type UploadResponse } from "../../src/domain/contracts/upload";
 import { getPublicBackendApiUrl } from "./backendUrl";
 import { requestJson } from "./request";
-
-export type UploadResponse = { id: string; filename: string };
 
 // Uploaded audio can exceed Vercel's ~4.5MB serverless function body limit,
 // so this goes straight to the backend instead of through the Next.js
@@ -19,19 +18,10 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const data = await requestJson<{ id?: string; filename?: string }>(
-    getPublicBackendApiUrl("/upload"),
-    {
-      method: "POST",
-      body: formData,
-      expectedContentType: "application/json",
-      signal: options.signal,
-    },
-  );
-
-  if (!data.filename || !data.id) {
-    throw new Error("Upload failed");
-  }
-
-  return { id: data.id, filename: data.filename };
+  return requestJson(getPublicBackendApiUrl("/upload"), uploadResponseSchema, {
+    method: "POST",
+    body: formData,
+    expectedContentType: "application/json",
+    signal: options.signal,
+  });
 }

@@ -69,16 +69,22 @@ export function toTranscriptionError(
   return failed(messageOf(error, fallback));
 }
 
-const CANCELLATION_NAMES = new Set(["RetryCancelledError", "TranscribeJobSupersededError"]);
+const CANCELLATION_NAMES = new Set([
+  "RetryCancelledError",
+  "TranscribeJobSupersededError",
+  "AbortError",
+]);
 
 /**
  * True when a run stopped because it was cancelled (new clip, page left),
  * not because something failed. Cancelling the browser path terminates the
- * worker and rejects with a plain AbortError.
+ * worker and rejects with a plain AbortError, as does an aborted fetch.
+ * Checked by name, not `instanceof DOMException`: the AbortError can come
+ * from another realm (a worker, or Node's fetch under test).
  */
 export function isCancellation(error: unknown): boolean {
-  if (typeof DOMException !== "undefined" && error instanceof DOMException) {
-    return error.name === "AbortError";
+  if (typeof error !== "object" || error === null || !("name" in error)) {
+    return false;
   }
-  return error instanceof Error && CANCELLATION_NAMES.has(error.name);
+  return typeof error.name === "string" && CANCELLATION_NAMES.has(error.name);
 }

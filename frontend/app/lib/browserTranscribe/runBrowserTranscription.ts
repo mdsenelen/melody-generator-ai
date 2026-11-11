@@ -1,10 +1,10 @@
 import type { RequestError } from "../request";
 import { retryOnWakeup } from "../retryOnWakeup";
-import {
-  registerBrowserTranscription,
-  type TranscribeJobStatusResponse,
-  type TranscriptionResult,
-} from "../transcribeJob";
+import type {
+  TranscribeJobStatusResponse,
+  TranscriptionResult,
+} from "../../../src/domain/contracts/job";
+import { registerBrowserTranscription } from "../transcribeJob";
 import { checkBrowserEligibility, type IneligibleReason } from "./eligibility";
 import { shouldFallBackToServer, transcribeInBrowser } from "./transcribeInBrowser";
 

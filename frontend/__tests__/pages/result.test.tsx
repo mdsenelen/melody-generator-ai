@@ -1,12 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 
 import ResultView from "../../app/result/[jobId]/result-view";
-import { getTranscribeJob } from "../../app/lib/transcribeJob";
-
-jest.mock("../../app/lib/transcribeJob", () => {
-  const actual = jest.requireActual("../../app/lib/transcribeJob");
-  return { ...actual, getTranscribeJob: jest.fn() };
-});
+import { BACKEND_API, server } from "../../src/test/msw/server";
+import { renderWithQueryClient } from "../../src/test/query/render";
 
 // The browser MIDI player owns Tone.js + AudioContext, neither of which exists
 // in jsdom -- stub it to a static "ready to play" state.
@@ -18,7 +15,12 @@ jest.mock("../../hooks/use-midi-player", () => ({
   }),
 }));
 
-const mockedGetJob = getTranscribeJob as jest.Mock;
+// GET /api/transcribe/{id}, answered with `body` (or a 404) on every poll.
+function respondWithJob(jobId: string, body: unknown, status = 200) {
+  server.use(
+    http.get(`${BACKEND_API}/transcribe/${jobId}`, () => HttpResponse.json(body, { status })),
+  );
+}
 
 function statusResponse(overrides: Record<string, unknown>) {
   return {
@@ -37,15 +39,16 @@ describe("ResultView", () => {
   });
 
   it("shows a running state while the job is still queued or processing", async () => {
-    mockedGetJob.mockResolvedValue(statusResponse({ status: "processing" }));
+    respondWithJob("job-1", statusResponse({ status: "processing" }));
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(await screen.findByText(/still working on your result/i)).toBeInTheDocument();
   });
 
   it("renders a transcription result with a real MIDI download link, not an inline button", async () => {
-    mockedGetJob.mockResolvedValue(
+    respondWithJob(
+      "job-1",
       statusResponse({
         status: "completed",
         result: {
@@ -63,7 +66,7 @@ describe("ResultView", () => {
       }),
     );
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(
       await screen.findByRole("heading", { name: /transcription complete/i }),
@@ -78,7 +81,8 @@ describe("ResultView", () => {
   });
 
   it("renders a variants result with a variant picker and per-variant download links", async () => {
-    mockedGetJob.mockResolvedValue(
+    respondWithJob(
+      "job-1",
       statusResponse({
         status: "completed",
         result: {
@@ -119,7 +123,7 @@ describe("ResultView", () => {
       }),
     );
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(
       await screen.findByRole("heading", { name: /generated melody variants/i }),
@@ -135,7 +139,8 @@ describe("ResultView", () => {
   });
 
   it("renders a progression result with download links", async () => {
-    mockedGetJob.mockResolvedValue(
+    respondWithJob(
+      "job-1",
       statusResponse({
         status: "completed",
         result: {
@@ -153,7 +158,7 @@ describe("ResultView", () => {
       }),
     );
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(
       await screen.findByRole("heading", { name: /rendered chord progression/i }),
@@ -165,29 +170,25 @@ describe("ResultView", () => {
   });
 
   it("shows the failure message when the job failed", async () => {
-    mockedGetJob.mockResolvedValue(
-      statusResponse({ status: "failed", error: "Could not decode audio" }),
-    );
+    respondWithJob("job-1", statusResponse({ status: "failed", error: "Could not decode audio" }));
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(await screen.findByText("Could not decode audio")).toBeInTheDocument();
   });
 
   it("reads an expired job as gone, not as an error", async () => {
-    mockedGetJob.mockResolvedValue(statusResponse({ status: "expired" }));
+    respondWithJob("job-1", statusResponse({ status: "expired" }));
 
-    render(<ResultView jobId="job-1" />);
+    renderWithQueryClient(<ResultView jobId="job-1" />);
 
     expect(await screen.findByText(/this result isn't available/i)).toBeInTheDocument();
   });
 
   it("reads a fabricated job id (404) as gone, not as a crash or blank page", async () => {
-    const notFound = new Error("Job not found") as Error & { status?: number };
-    notFound.status = 404;
-    mockedGetJob.mockRejectedValue(notFound);
+    respondWithJob("does-not-exist", { detail: "Job not found" }, 404);
 
-    render(<ResultView jobId="does-not-exist" />);
+    renderWithQueryClient(<ResultView jobId="does-not-exist" />);
 
     expect(await screen.findByText(/this result isn't available/i)).toBeInTheDocument();
   });

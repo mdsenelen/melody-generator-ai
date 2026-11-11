@@ -1,5 +1,6 @@
 import { RetryCancelledError } from "../retryOnWakeup";
-import { TranscribeJobSupersededError, type NoteEvent, type TfjsBackend } from "../transcribeJob";
+import type { NoteEvent, TfjsBackend } from "../../../src/domain/contracts/job";
+import { TranscribeJobSupersededError } from "../transcribeJob";
 import { createTranscribeWorker } from "./createWorker";
 import { decodeToMono22050, type DecodedAudio } from "./decode";
 import { toNoteEvents } from "./noteEvents";

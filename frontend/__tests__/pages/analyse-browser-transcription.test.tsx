@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AnalysePage from "../../app/analyse/page";
@@ -18,6 +18,7 @@ import {
 } from "../../app/lib/transcribeJob";
 import { uploadFile } from "../../app/lib/upload";
 import { waitForBackend } from "../../app/lib/waitForBackend";
+import { renderWithQueryClient } from "../../src/test/query/render";
 
 // The real orchestration (runBrowserTranscription) and worker runner
 // (transcribeInBrowser) run here; only the three things jsdom can't do are
@@ -158,7 +159,7 @@ describe("Analyse page: transcription in the browser", () => {
   });
 
   it("registers the browser's notes and never creates a server transcription job", async () => {
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await waitFor(() =>
@@ -189,7 +190,7 @@ describe("Analyse page: transcription in the browser", () => {
 
   it("logs path, backend, note count and pick-to-ready time for a browser transcription", async () => {
     const info = jest.spyOn(console, "info").mockImplementation(() => {});
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await waitFor(() =>
@@ -204,7 +205,7 @@ describe("Analyse page: transcription in the browser", () => {
   it("logs path=server backend=none when the clip was transcribed on the server", async () => {
     const info = jest.spyOn(console, "info").mockImplementation(() => {});
     mockedEligibility.mockResolvedValueOnce({ eligible: false, reason: "too_long" });
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await waitFor(() =>
@@ -216,7 +217,7 @@ describe("Analyse page: transcription in the browser", () => {
 
   it("shows browser progress in the status", async () => {
     worker.reply = (w) => w.emit({ type: "progress", fraction: 0.42 });
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await waitFor(() =>
@@ -228,7 +229,7 @@ describe("Analyse page: transcription in the browser", () => {
 
   it("falls back to the server, with no error toast, when the browser attempt fails", async () => {
     worker.reply = (w) => w.emit({ type: "error", stage: "model", message: "404 model.json" });
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await expectServerPathWithoutErrorToast();
@@ -244,7 +245,7 @@ describe("Analyse page: transcription in the browser", () => {
     mockedRegister.mockRejectedValueOnce(
       Object.assign(new Error("note_events extend past source_duration_sec"), { status: 422 }),
     );
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await expectServerPathWithoutErrorToast();
@@ -256,7 +257,7 @@ describe("Analyse page: transcription in the browser", () => {
       mockedRegister.mockRejectedValueOnce(
         Object.assign(new Error(`Request failed (${status})`), { status }),
       );
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />);
       await uploadClip();
 
       await expectServerPathWithoutErrorToast();
@@ -265,7 +266,7 @@ describe("Analyse page: transcription in the browser", () => {
 
   it("sends an ineligible file straight to the server without starting a worker", async () => {
     mockedEligibility.mockResolvedValueOnce({ eligible: false, reason: "too_long" });
-    render(<AnalysePage />);
+    renderWithQueryClient(<AnalysePage />);
     await uploadClip();
 
     await expectServerPathWithoutErrorToast();
@@ -279,7 +280,7 @@ describe("Analyse page: transcription in the browser", () => {
     jest.useFakeTimers();
     try {
       worker.reply = (w) => w.emit({ type: "progress", fraction: 0 }); // then silence
-      render(<AnalysePage />);
+      renderWithQueryClient(<AnalysePage />);
       await uploadClip(userEvent.setup({ advanceTimers: jest.advanceTimersByTime }));
       await waitFor(() => expect(mockedCreateWorker).toHaveBeenCalled());
       expect(mockedCreateJob).not.toHaveBeenCalled();
@@ -297,7 +298,7 @@ describe("Analyse page: transcription in the browser", () => {
   it("terminates the worker on cancel (unmount) and makes no further state updates", async () => {
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     worker.reply = null; // the worker never answers
-    const { unmount } = render(<AnalysePage />);
+    const { unmount } = renderWithQueryClient(<AnalysePage />);
     await uploadClip();
     await waitFor(() => expect(mockedCreateWorker).toHaveBeenCalled());
 

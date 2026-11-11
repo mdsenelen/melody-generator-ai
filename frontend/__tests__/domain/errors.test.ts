@@ -98,6 +98,14 @@ describe("isCancellation", () => {
     expect(isCancellation(new DOMException("aborted", "AbortError"))).toBe(true);
   });
 
+  it("recognises an abort by name, whichever realm's DOMException threw it", () => {
+    // fetch's AbortError isn't always an instance of the page's DOMException
+    // (Node's fetch under jsdom, a worker's realm).
+    expect(isCancellation({ name: "AbortError", message: "This operation was aborted" })).toBe(
+      true,
+    );
+  });
+
   it("does not swallow real failures", () => {
     expect(isCancellation(new Error("boom"))).toBe(false);
     expect(isCancellation(new DOMException("x", "NotSupportedError"))).toBe(false);

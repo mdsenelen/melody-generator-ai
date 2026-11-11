@@ -7,8 +7,8 @@ import {
   TranscribeJobLostError,
   TranscribeJobSupersededError,
   TranscribeJobTimeoutError,
-  type TranscribeJobStatusResponse,
 } from "../../app/lib/transcribeJob";
+import type { TranscribeJobStatusResponse } from "../../src/domain/contracts/job";
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -113,7 +113,7 @@ describe("getTranscribeJob", () => {
       jsonResponse(200, statusResponse({ status: "processing", progress: 50 })),
     );
 
-    const result = await getTranscribeJob("job-1");
+    const result = await getTranscribeJob("job-1", { signal: new AbortController().signal });
 
     expect(result.status).toBe("processing");
     const [url] = fetchMock.mock.calls[0];
@@ -145,7 +145,10 @@ describe("pollTranscribeJob", () => {
       );
 
     const onStatusChange = jest.fn();
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false, onStatusChange });
+    const promise = pollTranscribeJob("job-1", {
+      signal: new AbortController().signal,
+      onStatusChange,
+    });
 
     // Flush each poll iteration's fetch + backoff sleep.
     for (let i = 0; i < 3; i += 1) {
@@ -163,7 +166,7 @@ describe("pollTranscribeJob", () => {
       jsonResponse(200, statusResponse({ status: "failed", error: "Could not decode audio" })),
     );
 
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    const promise = pollTranscribeJob("job-1", { signal: new AbortController().signal });
     await Promise.resolve();
 
     await expect(promise).rejects.toThrow("Could not decode audio");
@@ -174,11 +177,11 @@ describe("pollTranscribeJob", () => {
       jsonResponse(200, statusResponse({ status: "queued" })),
     );
 
-    let superseded = false;
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => superseded });
+    const controller = new AbortController();
+    const promise = pollTranscribeJob("job-1", { signal: controller.signal });
 
     await Promise.resolve();
-    superseded = true;
+    controller.abort();
     await jest.advanceTimersByTimeAsync(5000);
 
     await expect(promise).rejects.toBeInstanceOf(TranscribeJobSupersededError);
@@ -195,7 +198,7 @@ describe("pollTranscribeJob", () => {
         jsonResponse(200, statusResponse({ status: "completed", result: COMPLETED_RESULT })),
       );
 
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    const promise = pollTranscribeJob("job-1", { signal: new AbortController().signal });
     for (let i = 0; i < 3; i += 1) {
       await Promise.resolve();
       await jest.advanceTimersByTimeAsync(5000);
@@ -212,7 +215,7 @@ describe("pollTranscribeJob", () => {
     // for the full POLL_MAX_TOTAL_MS budget.
     mockFetch().mockResolvedValue(bareErrorResponse(500));
 
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    const promise = pollTranscribeJob("job-1", { signal: new AbortController().signal });
     const expectation = expect(promise).rejects.toThrow("Request failed (500)");
     for (let i = 0; i < 5; i += 1) {
       await Promise.resolve();
@@ -232,7 +235,10 @@ describe("pollTranscribeJob", () => {
       );
 
     const onRestarting = jest.fn();
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false, onRestarting });
+    const promise = pollTranscribeJob("job-1", {
+      signal: new AbortController().signal,
+      onRestarting,
+    });
 
     for (let i = 0; i < 5; i += 1) {
       await Promise.resolve();
@@ -250,7 +256,7 @@ describe("pollTranscribeJob", () => {
   it("fails fast with TranscribeJobLostError on a 404, without retrying", async () => {
     const fetchMock = mockFetch().mockResolvedValueOnce(bareErrorResponse(404));
 
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    const promise = pollTranscribeJob("job-1", { signal: new AbortController().signal });
     await Promise.resolve();
 
     await expect(promise).rejects.toBeInstanceOf(TranscribeJobLostError);
@@ -274,7 +280,10 @@ describe("pollTranscribeJob", () => {
       );
 
     const onStatusChange = jest.fn();
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false, onStatusChange });
+    const promise = pollTranscribeJob("job-1", {
+      signal: new AbortController().signal,
+      onStatusChange,
+    });
 
     for (let i = 0; i < 3; i += 1) {
       await Promise.resolve();
@@ -292,7 +301,7 @@ describe("pollTranscribeJob", () => {
   it("throws TranscribeJobTimeoutError once the total poll budget is exceeded", async () => {
     mockFetch().mockResolvedValue(jsonResponse(200, statusResponse({ status: "processing" })));
 
-    const promise = pollTranscribeJob("job-1", { isSuperseded: () => false });
+    const promise = pollTranscribeJob("job-1", { signal: new AbortController().signal });
     const expectation = expect(promise).rejects.toBeInstanceOf(TranscribeJobTimeoutError);
 
     // 130 * 10000ms = 1,300,000ms comfortably exceeds POLL_MAX_TOTAL_MS

@@ -10,7 +10,7 @@ import * as tf from "@tensorflow/tfjs";
 // Pinned to the exact @tensorflow/tfjs version @spotify/basic-pitch resolves
 // (package.json) -- a core/backend version mismatch fails at runtime.
 import { setWasmPaths } from "@tensorflow/tfjs-backend-wasm";
-import type { TfjsBackend } from "../transcribeJob";
+import type { TfjsBackend } from "../../../src/domain/contracts/job";
 import type { BasicPitchNote, WorkerRequest, WorkerResponse } from "./protocol";
 import { attachTranscribeHandlers, StageError } from "./workerScope";
 
