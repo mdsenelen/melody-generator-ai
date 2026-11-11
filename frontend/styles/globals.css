@@ -2,30 +2,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
-
-@theme {
-  --color-background: #0a0a0b;
-  --color-foreground: #f0ede8;
-  --color-card: #111114;
-  --color-card-foreground: #f0ede8;
-  --color-primary: #ac20e8;
-  --color-primary-foreground: #0a0a0b;
-  --color-secondary: #1a1a1f;
-  --color-secondary-foreground: #a09a90;
-  --color-muted: #161618;
-  --color-muted-foreground: #6b6560;
-  --color-accent: #ac20e8;
-  --color-accent-foreground: #0a0a0b;
-  --color-border: #1e1e22;
-  --color-border-strong: #2e2e34;
-  --color-ring: #ac20e8;
-
-  --radius: 4px;
-
-  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-fraunces), "Fraunces", Georgia, "Times New Roman", serif;
-  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
-}
+@import "./tokens.css";
 
 :root {
   color-scheme: dark;
@@ -44,8 +21,8 @@ body {
   margin: 0;
   min-height: 100vh;
   overscroll-behavior: none;
-  background: var(--color-background);
-  color: var(--color-foreground);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -57,8 +34,8 @@ img {
 }
 
 ::selection {
-  background: rgba(172, 32, 232, 0.38);
-  color: #f8faff;
+  background: var(--color-selection);
+  color: var(--color-selection-text);
 }
 
 * {

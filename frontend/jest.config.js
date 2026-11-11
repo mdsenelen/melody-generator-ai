@@ -25,6 +25,7 @@ module.exports = async () => ({
       testMatch: [
         "<rootDir>/__tests__/utils/**/*.test.ts",
         "<rootDir>/__tests__/domain/**/*.test.ts",
+        "<rootDir>/__tests__/styles/**/*.test.ts",
       ],
     })(),
     allowEsmOnly(
@@ -33,6 +34,7 @@ module.exports = async () => ({
         // jsdom with Node's fetch stack, so MSW can intercept requests.
         testEnvironment: "<rootDir>/src/test/jest-environment.js",
         testMatch: [
+          "<rootDir>/__tests__/components/**/*.test.ts",
           "<rootDir>/__tests__/components/**/*.test.tsx",
           "<rootDir>/__tests__/pages/**/*.test.tsx",
           "<rootDir>/__tests__/lib/**/*.test.ts",
