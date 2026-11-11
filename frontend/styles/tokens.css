@@ -222,3 +222,14 @@
     transform: scale(0.98);
   }
 }
+
+/* Indeterminate Progress: a bar sweeping across its track. Plain transform is safe here: the
+   element sets no Tailwind translate-* utility. Replaced by a static hatch under reduced motion. */
+@keyframes ui-progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}

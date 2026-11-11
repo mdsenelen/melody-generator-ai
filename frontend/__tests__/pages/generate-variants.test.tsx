@@ -230,8 +230,8 @@ describe("GenerateVariantsPage", () => {
   it("lets the user pick a variant count between 1 and 8", () => {
     render(<GenerateVariantsPage />);
     const slider = screen.getByRole("slider", { name: "Number of variants" });
-    expect(slider).toHaveAttribute("min", "1");
-    expect(slider).toHaveAttribute("max", "8");
+    expect(slider).toHaveAttribute("aria-valuemin", "1");
+    expect(slider).toHaveAttribute("aria-valuemax", "8");
   });
 
   it("shows one temperature slider per variant, seeded from the defaults", () => {
