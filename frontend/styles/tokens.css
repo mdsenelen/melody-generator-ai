@@ -194,3 +194,31 @@
   --shadow-overlay: 0 16px 40px rgb(20 18 16 / 0.18);
   --shadow-popover: 0 12px 32px rgb(20 18 16 / 0.14);
 }
+
+/* Overlay enter/exit. Radix keeps an element mounted until its animation ends, so these are
+   keyframes (not transitions). Use as animate-[ui-fade-in_var(--duration-base)_var(--ease-standard)];
+   the duration tokens collapse under prefers-reduced-motion, so the animation does too.
+   The pop keyframes only scale: Tailwind v4 centres with the separate `translate` property, which
+   composes with `transform`, so a translate() here would offset the dialog a second time. */
+@keyframes ui-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ui-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ui-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes ui-pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
