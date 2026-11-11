@@ -21,6 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@radix-ui/react-slot": "^1.5.0",
     "@spotify/basic-pitch": "1.0.1",
     "@tanstack/react-query": "^5.107.1",
     "@tensorflow/tfjs-backend-wasm": "3.21.0",
