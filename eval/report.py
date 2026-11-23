@@ -173,7 +173,7 @@ def generate(results_path: Path) -> Path:
         on, off = metric(g, "onset", "f1"), metric(g, "onset_offset", "f1")
         extra = ""
         if "measured_snr_db" in g[0]:
-            extra = f"{st.fmean(r['measured_snr_db'] for r in g):.2f} dB"
+            extra = f"{round(st.fmean(r['measured_snr_db'] for r in g), 2) + 0.0:.2f} dB"
         elif "clipped_fraction" in g[0]:
             extra = f"{100 * st.fmean(r['clipped_fraction'] for r in g):.1f} % of samples clipped"
         rob_rows.append([cid, pm(on), f"{st.fmean(on) - clean_on:+.3f}", pm(off), f"{st.fmean(off) - clean_off:+.3f}", extra or "n/a"])
@@ -303,7 +303,7 @@ Chunked time includes the overlap, so it processes more audio than the whole-fil
 
 {table(["edge_eps (s)", "Total notes", "Onset F1", "On+off F1", "Boundary on+off F1", "Reference notes in zones"], sweep_rows)}
 
-{"All rows are identical, so on these excerpts no note landed in the window where the epsilon matters. That shows the current value is not hurting here; it does not show that a larger value is safe or useful, because the sample has few boundaries." if sweep_flat else "Rows differ, so the epsilon changes which notes are welded."}
+{"All rows are identical, so the weld decisions did not change for any of these values on these excerpts. That shows the current value is not hurting here; it does not show that a different value is safe or useful elsewhere, because the sample has few boundaries and one instrument." if sweep_flat else "Rows differ, so the epsilon changes which notes are welded."}
 
 ### Compute cost
 
