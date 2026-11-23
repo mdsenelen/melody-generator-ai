@@ -1,4 +1,22 @@
-# Melody Generator AI
+# Melodia (melody-generator-ai)
+
+## For audio ML reviewers
+
+[`eval/EVAL.md`](eval/EVAL.md) is a reproducible evaluation of the transcription stage: note-level
+accuracy (`mir_eval`, onset and onset+offset) on seeded MAESTRO excerpts rendered with FluidSynth,
+robustness to white and pink noise, reverb and clipping, a measured comparison of the production
+chunked path against whole-file transcription, and real-time factor and peak memory per
+configuration. It runs the production code in `backend/app/inference.py` unmodified. Every number in
+the report is generated from a committed JSON result file, and the limitations (synthesized piano,
+small sample, macOS CoreML runtime rather than production TFLite) are stated in the report.
+
+```
+python3 -m venv eval/.venv && eval/.venv/bin/pip install -r eval/requirements-eval.txt
+eval/.venv/bin/python -m eval.run --quick    # 3 clips, about a minute
+eval/.venv/bin/python -m eval.run --full     # everything; regenerates eval/EVAL.md and the plots
+```
+
+Melody Generator AI is the full-stack app described below.
 
 Melody Generator AI turns a piece of audio — uploaded or recorded in the browser — into new,
 playable melody variants. Upload or record → the backend transcribes the pitch, chords, key and
