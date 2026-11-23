@@ -33,6 +33,19 @@ def sha256_file(path: Path) -> str:
 
 # ---------------------------------------------------------------- dataset access
 
+def download_archive() -> Path:
+    """Fetch the MIDI-only archive (about 58 MB) if it is not already on disk."""
+    import urllib.request
+
+    archive = config.DATA_DIR / config.MAESTRO_ARCHIVE
+    if not archive.exists():
+        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        part = archive.with_suffix(".part")
+        urllib.request.urlretrieve(config.MAESTRO_URL, part)
+        part.rename(archive)
+    return archive
+
+
 def extracted_root() -> Path:
     return config.DATA_DIR / "maestro" / ArchiveName
 
@@ -42,11 +55,7 @@ def ensure_extracted() -> Path:
     root = extracted_root()
     if (root / f"{ArchiveName}.json").exists():
         return root
-    archive = config.DATA_DIR / config.MAESTRO_ARCHIVE
-    if not archive.exists():
-        raise FileNotFoundError(
-            f"{archive} is missing. Download it with:\n  curl -L -o {archive} {config.MAESTRO_URL}"
-        )
+    archive = download_archive()
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(config.DATA_DIR / "maestro")
     return root
