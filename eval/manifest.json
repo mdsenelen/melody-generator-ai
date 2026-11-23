@@ -1,0 +1,271 @@
+{
+  "clips": [
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 903.514803525,
+      "id": "c00",
+      "length_sec": 30.0,
+      "midi_filename": "2017/MIDI-Unprocessed_078_PIANO078_MID--AUDIO-split_07-09-17_Piano-e_1-02_wav--2.midi",
+      "n_notes": 301,
+      "source_start_sec": 766.954,
+      "title": "Sonata in A Major, D. 664 (Complete)",
+      "year": 2017
+    },
+    {
+      "composer": "Franz Liszt",
+      "duration_sec": 305.818337344,
+      "id": "c01",
+      "length_sec": 30.0,
+      "midi_filename": "2008/MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--6.midi",
+      "n_notes": 480,
+      "source_start_sec": 261.186,
+      "title": "Transcendental Etude No. 10 in F Minor \"Appassionata\"",
+      "year": 2008
+    },
+    {
+      "composer": "Robert Schumann",
+      "duration_sec": 1303.54743657,
+      "id": "c02",
+      "length_sec": 30.0,
+      "midi_filename": "2004/MIDI-Unprocessed_XP_11_R1_2004_01-02_ORIG_MID--AUDIO_11_R1_2004_02_Track02_wav.midi",
+      "n_notes": 193,
+      "source_start_sec": 109.084,
+      "title": "Intermezzi, Opus 4",
+      "year": 2004
+    },
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 529.414534688,
+      "id": "c03",
+      "length_sec": 30.0,
+      "midi_filename": "2009/MIDI-Unprocessed_16_R2_2009_01_ORIG_MID--AUDIO_16_R2_2009_16_R2_2009_04_WAV.midi",
+      "n_notes": 650,
+      "source_start_sec": 242.711,
+      "title": "Sonata in C Major, D843",
+      "year": 2009
+    },
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 274.736637656,
+      "id": "c04",
+      "length_sec": 30.0,
+      "midi_filename": "2009/MIDI-Unprocessed_08_R1_2009_01-04_ORIG_MID--AUDIO_08_R1_2009_08_R1_2009_04_WAV.midi",
+      "n_notes": 587,
+      "source_start_sec": 16.939,
+      "title": "\"Erlkoenig\"",
+      "year": 2009
+    },
+    {
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "duration_sec": 346.917388125,
+      "id": "c05",
+      "length_sec": 30.0,
+      "midi_filename": "2009/MIDI-Unprocessed_02_R1_2009_03-06_ORIG_MID--AUDIO_02_R1_2009_02_R1_2009_03_WAV.midi",
+      "n_notes": 227,
+      "source_start_sec": 241.048,
+      "title": "Nocturne in B Major, Op. 9, No. 3",
+      "year": 2009
+    },
+    {
+      "composer": "Wolfgang Amadeus Mozart",
+      "duration_sec": 299.095587656,
+      "id": "c06",
+      "length_sec": 30.0,
+      "midi_filename": "2008/MIDI-Unprocessed_08_R1_2008_01-05_ORIG_MID--AUDIO_08_R1_2008_wav--2.midi",
+      "n_notes": 235,
+      "source_start_sec": 206.083,
+      "title": "Sonata in B-flat Major, K 333, First Movement",
+      "year": 2008
+    },
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 400.711404844,
+      "id": "c07",
+      "length_sec": 30.0,
+      "midi_filename": "2008/MIDI-Unprocessed_04_R2_2008_01-04_ORIG_MID--AUDIO_04_R2_2008_wav--3.midi",
+      "n_notes": 274,
+      "source_start_sec": 47.596,
+      "title": "Impromptu Op. 90 No. 4 in A-flat Major",
+      "year": 2008
+    },
+    {
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "duration_sec": 240.451041667,
+      "id": "c08",
+      "length_sec": 30.0,
+      "midi_filename": "2015/MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_12_R1_2015_wav--3.midi",
+      "n_notes": 478,
+      "source_start_sec": 100.024,
+      "title": "Nocturne Op. 15 No. 1 in F Major",
+      "year": 2015
+    },
+    {
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "duration_sec": 779.016315,
+      "id": "c09",
+      "length_sec": 30.0,
+      "midi_filename": "2006/MIDI-Unprocessed_17_R1_2006_01-06_ORIG_MID--AUDIO_17_R1_2006_02_Track02_wav.midi",
+      "n_notes": 186,
+      "source_start_sec": 411.812,
+      "title": "Polonaise-Fantasie",
+      "year": 2006
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "duration_sec": 306.104269312,
+      "id": "c10",
+      "length_sec": 30.0,
+      "midi_filename": "2017/MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--2.midi",
+      "n_notes": 433,
+      "source_start_sec": 73.183,
+      "title": "Sonata No. 16 Op. 31 No. 1 in G Major, I. Allegro vivace",
+      "year": 2017
+    },
+    {
+      "composer": "Franz Liszt",
+      "duration_sec": 161.806729219,
+      "id": "c11",
+      "length_sec": 30.0,
+      "midi_filename": "2013/ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_08_R1_2013_wav--5.midi",
+      "n_notes": 780,
+      "source_start_sec": 114.993,
+      "title": "Concert Etude No. 2 \"Gnomenreigen\"",
+      "year": 2013
+    },
+    {
+      "composer": "Wolfgang Amadeus Mozart",
+      "duration_sec": 241.470441506,
+      "id": "c12",
+      "length_sec": 30.0,
+      "midi_filename": "2004/MIDI-Unprocessed_XP_14_R1_2004_04_ORIG_MID--AUDIO_14_R1_2004_05_Track05_wav.midi",
+      "n_notes": 96,
+      "source_start_sec": 89.481,
+      "title": "Sonata in F Major, K280",
+      "year": 2004
+    },
+    {
+      "composer": "Wolfgang Amadeus Mozart",
+      "duration_sec": 245.315515633,
+      "id": "c13",
+      "length_sec": 30.0,
+      "midi_filename": "2004/MIDI-Unprocessed_XP_14_R1_2004_04_ORIG_MID--AUDIO_14_R1_2004_04_Track04_wav.midi",
+      "n_notes": 359,
+      "source_start_sec": 45.603,
+      "title": "Sonata in F Major, K280",
+      "year": 2004
+    },
+    {
+      "composer": "Alexander Scriabin",
+      "duration_sec": 426.268270313,
+      "id": "c14",
+      "length_sec": 30.0,
+      "midi_filename": "2006/MIDI-Unprocessed_24_R1_2006_01-05_ORIG_MID--AUDIO_24_R1_2006_03_Track03_wav.midi",
+      "n_notes": 239,
+      "source_start_sec": 213.706,
+      "title": "Sonata No. 9",
+      "year": 2006
+    },
+    {
+      "composer": "Ludwig van Beethoven",
+      "duration_sec": 352.347404063,
+      "id": "c15",
+      "length_sec": 30.0,
+      "midi_filename": "2008/MIDI-Unprocessed_18_R1_2008_01-04_ORIG_MID--AUDIO_18_R1_2008_wav--2.midi",
+      "n_notes": 388,
+      "source_start_sec": 235.291,
+      "title": "Sonata No. 18 in E-flat Major, Op. 31 No. 3, First Movement",
+      "year": 2008
+    },
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 442.276534219,
+      "id": "c16",
+      "length_sec": 30.0,
+      "midi_filename": "2009/MIDI-Unprocessed_03_R1_2009_03-08_ORIG_MID--AUDIO_03_R1_2009_03_R1_2009_03_WAV.midi",
+      "n_notes": 259,
+      "source_start_sec": 82.93,
+      "title": "Valse-Caprice No. 6 from Soirees de Vienne",
+      "year": 2009
+    },
+    {
+      "composer": "Joseph Haydn",
+      "duration_sec": 299.194791667,
+      "id": "c17",
+      "length_sec": 30.0,
+      "midi_filename": "2015/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_04_R1_2015_wav--2.midi",
+      "n_notes": 215,
+      "source_start_sec": 83.912,
+      "title": "Sonata in E flat Major, Hob. XVI: 49, I. Allegro",
+      "year": 2015
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "duration_sec": 268.404667717,
+      "id": "c18",
+      "length_sec": 30.0,
+      "midi_filename": "2017/MIDI-Unprocessed_056_PIANO056_MID--AUDIO-split_07-07-17_Piano-e_1-05_wav--1.midi",
+      "n_notes": 127,
+      "source_start_sec": 237.248,
+      "title": "Prelude and Fugue in G-sharp Minor, WTC I, BWV 863",
+      "year": 2017
+    },
+    {
+      "composer": "Franz Schubert",
+      "duration_sec": 1371.54510281,
+      "id": "c19",
+      "length_sec": 30.0,
+      "midi_filename": "2018/MIDI-Unprocessed_Recital9-11_MID--AUDIO_09_R1_2018_wav--1.midi",
+      "n_notes": 325,
+      "source_start_sec": 871.841,
+      "title": "Sonata in A Minor, D784",
+      "year": 2018
+    }
+  ],
+  "dataset": {
+    "archive_sha256": "70470ee253295c8d2c71e6d9d4a815189e35c89624b76d22fce5a019d5dde12c",
+    "name": "MAESTRO v3.0.0 (MIDI only)",
+    "split": "test",
+    "url": "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip"
+  },
+  "long_clips": [
+    {
+      "composer": "Domenico Scarlatti",
+      "duration_sec": 373.6107375,
+      "id": "L00",
+      "length_sec": 150.0,
+      "midi_filename": "2006/MIDI-Unprocessed_01_R1_2006_01-09_ORIG_MID--AUDIO_01_R1_2006_02_Track02_wav.midi",
+      "n_notes": 1434,
+      "source_start_sec": 41.991,
+      "title": "Two Sonatas",
+      "year": 2006
+    },
+    {
+      "composer": "Johann Sebastian Bach",
+      "duration_sec": 442.826747344,
+      "id": "L01",
+      "length_sec": 150.0,
+      "midi_filename": "2013/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_07_R3_2013_wav--1.midi",
+      "n_notes": 1303,
+      "source_start_sec": 63.404,
+      "title": "Overture in the French Style in B Minor, BWV 831",
+      "year": 2013
+    },
+    {
+      "composer": "Sergei Rachmaninoff",
+      "duration_sec": 167.493155156,
+      "id": "L02",
+      "length_sec": 150.0,
+      "midi_filename": "2008/MIDI-Unprocessed_12_R3_2008_01-04_ORIG_MID--AUDIO_12_R3_2008_wav--3.midi",
+      "n_notes": 1182,
+      "source_start_sec": 6.713,
+      "title": "Prelude Op. 23 No. 6 in E-flat Major",
+      "year": 2008
+    }
+  ],
+  "seed": 42,
+  "selection": {
+    "clip_sec": 30.0,
+    "long_clip_sec": 150.0,
+    "min_notes_per_sec": 2.0
+  }
+}

@@ -1,0 +1,29 @@
+# Evaluation harness dependencies. Kept separate from backend/requirements.txt on
+# purpose: nothing here ships to the 512 MB Render deploy.
+#
+# Install into an isolated venv (do not reuse the app venv):
+#   python3 -m venv eval/.venv && eval/.venv/bin/pip install -r eval/requirements-eval.txt
+#
+# The harness imports the production transcription code (backend/app/inference.py),
+# so the backend's own runtime pins are repeated here to match what production runs.
+numpy>=1.21.0,<2
+basic-pitch==0.4.0
+# resampy (a basic-pitch dependency) imports pkg_resources, which setuptools>=81
+# no longer ships. Without this pin `import basic_pitch` fails, production's
+# `basic_pitch_predict` becomes None, and transcription silently returns zero notes.
+setuptools<81
+librosa>=0.9.0
+soundfile
+pretty_midi
+scipy
+tqdm>=4.62.0
+psutil
+# inference.py imports these at module level
+torch==2.13.0
+fastapi==0.141.1
+python-multipart
+eval_type_backport
+# evaluation
+mir_eval==0.8.2
+matplotlib
+pytest

@@ -1,0 +1,6 @@
+# Downloaded dataset, rendered audio, and the isolated venv are never committed.
+data/
+.venv/
+__pycache__/
+# Quick (smoke) runs are local only; full-run results are committed.
+results/*_quick.json
