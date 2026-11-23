@@ -1,0 +1,6750 @@
+{
+  "schema_version": 1,
+  "mode": "full",
+  "config": {
+    "seed": 42,
+    "render_sr": 16000,
+    "clip_sec": 30.0,
+    "long_clip_sec": 150.0,
+    "onset_tolerance_sec": 0.05,
+    "offset_ratio": 0.2,
+    "snr_definition": "clip-level average power ratio, noise scaled to the realised SNR",
+    "clips": [
+      "c00",
+      "c01",
+      "c02",
+      "c03",
+      "c04",
+      "c05",
+      "c06",
+      "c07",
+      "c08",
+      "c09",
+      "c10",
+      "c11",
+      "c12",
+      "c13",
+      "c14",
+      "c15",
+      "c16",
+      "c17",
+      "c18",
+      "c19"
+    ],
+    "long_clips": [
+      "L00",
+      "L01",
+      "L02"
+    ],
+    "conditions": [
+      {
+        "id": "clean",
+        "kind": "clean"
+      },
+      {
+        "id": "white_snr30",
+        "kind": "white",
+        "snr_db": 30
+      },
+      {
+        "id": "white_snr20",
+        "kind": "white",
+        "snr_db": 20
+      },
+      {
+        "id": "white_snr10",
+        "kind": "white",
+        "snr_db": 10
+      },
+      {
+        "id": "white_snr5",
+        "kind": "white",
+        "snr_db": 5
+      },
+      {
+        "id": "white_snr0",
+        "kind": "white",
+        "snr_db": 0
+      },
+      {
+        "id": "pink_snr30",
+        "kind": "pink",
+        "snr_db": 30
+      },
+      {
+        "id": "pink_snr20",
+        "kind": "pink",
+        "snr_db": 20
+      },
+      {
+        "id": "pink_snr10",
+        "kind": "pink",
+        "snr_db": 10
+      },
+      {
+        "id": "pink_snr5",
+        "kind": "pink",
+        "snr_db": 5
+      },
+      {
+        "id": "pink_snr0",
+        "kind": "pink",
+        "snr_db": 0
+      },
+      {
+        "id": "reverb_rt60_0.3",
+        "kind": "reverb",
+        "rt60_sec": 0.3
+      },
+      {
+        "id": "reverb_rt60_0.8",
+        "kind": "reverb",
+        "rt60_sec": 0.8
+      },
+      {
+        "id": "clip_0.25",
+        "kind": "clip",
+        "peak_ratio": 0.25
+      }
+    ],
+    "cost_plan": [
+      [
+        "c00",
+        "chunked",
+        "1"
+      ],
+      [
+        "c00",
+        "chunked",
+        "default"
+      ],
+      [
+        "L00",
+        "chunked",
+        "default"
+      ],
+      [
+        "L00",
+        "chunked",
+        "1"
+      ],
+      [
+        "L00",
+        "whole",
+        "default"
+      ]
+    ],
+    "cost_repeats": 3
+  },
+  "environment": {
+    "timestamp_utc": "2026-11-23T11:37:26Z",
+    "git": {
+      "sha": "847903c",
+      "branch": "feat/eval-harness",
+      "dirty": false
+    },
+    "machine": {
+      "cpu": "Apple M1 Pro",
+      "arch": "arm64",
+      "physical_cores": 10,
+      "logical_cores": 10,
+      "ram_gb": 16.0
+    },
+    "os": "Darwin 25.5.0 (macOS-26.5.2-arm64-arm-64bit)",
+    "python": "3.10.21",
+    "libraries": {
+      "basic-pitch": "0.4.0",
+      "numpy": "1.26.4",
+      "scipy": "1.15.3",
+      "librosa": "0.11.0",
+      "soundfile": "0.14.0",
+      "pretty_midi": "0.2.11.post0",
+      "mir_eval": "0.8.2",
+      "coremltools": "9.0",
+      "torch": "2.13.0",
+      "matplotlib": "3.10.9"
+    },
+    "basic_pitch_runtime": {
+      "backend": "coremltools.MLModel",
+      "model_path": "nmp.mlpackage"
+    },
+    "fluidsynth": "FluidSynth runtime version 2.6.3",
+    "soundfont": {
+      "file": "GeneralUser-GS.sf2",
+      "sha256": "9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe"
+    },
+    "manifest_sha256": "1c37a3df787188b78938af5059c57e2e26421491f304f6aec05b468f40f25c27",
+    "thread_env": {
+      "OMP_NUM_THREADS": null,
+      "VECLIB_MAXIMUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null
+    }
+  },
+  "warmup_s": 0.7179349580001144,
+  "dataset": {
+    "archive_sha256": "70470ee253295c8d2c71e6d9d4a815189e35c89624b76d22fce5a019d5dde12c",
+    "name": "MAESTRO v3.0.0 (MIDI only)",
+    "split": "test",
+    "url": "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip"
+  },
+  "robustness": {
+    "records": [
+      {
+        "clip": "c00",
+        "condition": "clean",
+        "seconds": 0.3796083750021353,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 301,
+        "n_est": 312,
+        "onset": {
+          "precision": 0.7692307692307693,
+          "recall": 0.7973421926910299,
+          "f1": 0.7830342577487766
+        },
+        "onset_offset": {
+          "precision": 0.2692307692307692,
+          "recall": 0.27906976744186046,
+          "f1": 0.2740619902120718
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "white_snr30",
+        "seconds": 0.3720896669983631,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 29.999999999999996,
+        "n_ref": 301,
+        "n_est": 276,
+        "onset": {
+          "precision": 0.8115942028985508,
+          "recall": 0.7441860465116279,
+          "f1": 0.7764298093587522
+        },
+        "onset_offset": {
+          "precision": 0.22826086956521738,
+          "recall": 0.20930232558139536,
+          "f1": 0.21837088388214906
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "white_snr20",
+        "seconds": 0.3472185829996306,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 301,
+        "n_est": 228,
+        "onset": {
+          "precision": 0.793859649122807,
+          "recall": 0.6013289036544851,
+          "f1": 0.6843100189035918
+        },
+        "onset_offset": {
+          "precision": 0.2894736842105263,
+          "recall": 0.21926910299003322,
+          "f1": 0.24952741020793953
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "white_snr10",
+        "seconds": 0.36631874999875436,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 301,
+        "n_est": 170,
+        "onset": {
+          "precision": 0.8176470588235294,
+          "recall": 0.46179401993355484,
+          "f1": 0.5902335456475585
+        },
+        "onset_offset": {
+          "precision": 0.2823529411764706,
+          "recall": 0.15946843853820597,
+          "f1": 0.2038216560509554
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "white_snr5",
+        "seconds": 0.3607137920007517,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 301,
+        "n_est": 132,
+        "onset": {
+          "precision": 0.8863636363636364,
+          "recall": 0.38870431893687707,
+          "f1": 0.5404157043879908
+        },
+        "onset_offset": {
+          "precision": 0.4090909090909091,
+          "recall": 0.17940199335548174,
+          "f1": 0.24942263279445728
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "white_snr0",
+        "seconds": 0.3372227079998993,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -9.643274665532871e-16,
+        "n_ref": 301,
+        "n_est": 83,
+        "onset": {
+          "precision": 0.8795180722891566,
+          "recall": 0.2425249169435216,
+          "f1": 0.3802083333333333
+        },
+        "onset_offset": {
+          "precision": 0.46987951807228917,
+          "recall": 0.12956810631229235,
+          "f1": 0.20312499999999997
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "pink_snr30",
+        "seconds": 0.3547292920011387,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 301,
+        "n_est": 295,
+        "onset": {
+          "precision": 0.7830508474576271,
+          "recall": 0.7674418604651163,
+          "f1": 0.7751677852348994
+        },
+        "onset_offset": {
+          "precision": 0.26101694915254237,
+          "recall": 0.2558139534883721,
+          "f1": 0.25838926174496646
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "pink_snr20",
+        "seconds": 0.352813707999303,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 301,
+        "n_est": 258,
+        "onset": {
+          "precision": 0.810077519379845,
+          "recall": 0.6943521594684385,
+          "f1": 0.7477638640429339
+        },
+        "onset_offset": {
+          "precision": 0.2558139534883721,
+          "recall": 0.21926910299003322,
+          "f1": 0.23613595706618962
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "pink_snr10",
+        "seconds": 0.34865800000261515,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 301,
+        "n_est": 180,
+        "onset": {
+          "precision": 0.8277777777777777,
+          "recall": 0.4950166112956811,
+          "f1": 0.6195426195426196
+        },
+        "onset_offset": {
+          "precision": 0.3388888888888889,
+          "recall": 0.2026578073089701,
+          "f1": 0.25363825363825365
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "pink_snr5",
+        "seconds": 0.36806504200285417,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 301,
+        "n_est": 143,
+        "onset": {
+          "precision": 0.8531468531468531,
+          "recall": 0.4053156146179402,
+          "f1": 0.5495495495495495
+        },
+        "onset_offset": {
+          "precision": 0.45454545454545453,
+          "recall": 0.2159468438538206,
+          "f1": 0.29279279279279274
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "pink_snr0",
+        "seconds": 0.3541006670020579,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 301,
+        "n_est": 103,
+        "onset": {
+          "precision": 0.8252427184466019,
+          "recall": 0.2823920265780731,
+          "f1": 0.4207920792079208
+        },
+        "onset_offset": {
+          "precision": 0.39805825242718446,
+          "recall": 0.1362126245847176,
+          "f1": 0.20297029702970298
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.3620247090002522,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 301,
+        "n_est": 236,
+        "onset": {
+          "precision": 0.8516949152542372,
+          "recall": 0.6677740863787376,
+          "f1": 0.7486033519553074
+        },
+        "onset_offset": {
+          "precision": 0.2076271186440678,
+          "recall": 0.16279069767441862,
+          "f1": 0.18249534450651772
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.34446050000042305,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 301,
+        "n_est": 254,
+        "onset": {
+          "precision": 0.8188976377952756,
+          "recall": 0.6910299003322259,
+          "f1": 0.7495495495495496
+        },
+        "onset_offset": {
+          "precision": 0.14960629921259844,
+          "recall": 0.12624584717607973,
+          "f1": 0.13693693693693693
+        }
+      },
+      {
+        "clip": "c00",
+        "condition": "clip_0.25",
+        "seconds": 0.37435254199954215,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.09867083333333333,
+        "n_ref": 301,
+        "n_est": 267,
+        "onset": {
+          "precision": 0.7340823970037453,
+          "recall": 0.6511627906976745,
+          "f1": 0.6901408450704226
+        },
+        "onset_offset": {
+          "precision": 0.24719101123595505,
+          "recall": 0.21926910299003322,
+          "f1": 0.2323943661971831
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "clean",
+        "seconds": 0.35387316700143856,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 480,
+        "n_est": 266,
+        "onset": {
+          "precision": 0.8984962406015038,
+          "recall": 0.4979166666666667,
+          "f1": 0.6407506702412868
+        },
+        "onset_offset": {
+          "precision": 0.02631578947368421,
+          "recall": 0.014583333333333334,
+          "f1": 0.01876675603217158
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "white_snr30",
+        "seconds": 0.3562971249994007,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 480,
+        "n_est": 251,
+        "onset": {
+          "precision": 0.8924302788844621,
+          "recall": 0.4666666666666667,
+          "f1": 0.612859097127223
+        },
+        "onset_offset": {
+          "precision": 0.03187250996015936,
+          "recall": 0.016666666666666666,
+          "f1": 0.02188782489740082
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "white_snr20",
+        "seconds": 0.35603041700233007,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 480,
+        "n_est": 229,
+        "onset": {
+          "precision": 0.9126637554585153,
+          "recall": 0.4354166666666667,
+          "f1": 0.5895627644569817
+        },
+        "onset_offset": {
+          "precision": 0.03056768558951965,
+          "recall": 0.014583333333333334,
+          "f1": 0.019746121297602257
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "white_snr10",
+        "seconds": 0.3475040409975918,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 480,
+        "n_est": 188,
+        "onset": {
+          "precision": 0.898936170212766,
+          "recall": 0.35208333333333336,
+          "f1": 0.5059880239520959
+        },
+        "onset_offset": {
+          "precision": 0.031914893617021274,
+          "recall": 0.0125,
+          "f1": 0.017964071856287425
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "white_snr5",
+        "seconds": 0.34276416699867696,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999998,
+        "n_ref": 480,
+        "n_est": 160,
+        "onset": {
+          "precision": 0.875,
+          "recall": 0.2916666666666667,
+          "f1": 0.43750000000000006
+        },
+        "onset_offset": {
+          "precision": 0.04375,
+          "recall": 0.014583333333333334,
+          "f1": 0.021875
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "white_snr0",
+        "seconds": 0.33172554100019624,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 1.928654933106574e-15,
+        "n_ref": 480,
+        "n_est": 111,
+        "onset": {
+          "precision": 0.8198198198198198,
+          "recall": 0.18958333333333333,
+          "f1": 0.3079526226734348
+        },
+        "onset_offset": {
+          "precision": 0.10810810810810811,
+          "recall": 0.025,
+          "f1": 0.04060913705583757
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "pink_snr30",
+        "seconds": 0.3680238340020878,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 480,
+        "n_est": 260,
+        "onset": {
+          "precision": 0.8961538461538462,
+          "recall": 0.48541666666666666,
+          "f1": 0.6297297297297297
+        },
+        "onset_offset": {
+          "precision": 0.03461538461538462,
+          "recall": 0.01875,
+          "f1": 0.024324324324324322
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "pink_snr20",
+        "seconds": 0.36733366699991166,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 480,
+        "n_est": 238,
+        "onset": {
+          "precision": 0.907563025210084,
+          "recall": 0.45,
+          "f1": 0.6016713091922005
+        },
+        "onset_offset": {
+          "precision": 0.03361344537815126,
+          "recall": 0.016666666666666666,
+          "f1": 0.02228412256267409
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "pink_snr10",
+        "seconds": 0.35528804199930164,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 480,
+        "n_est": 196,
+        "onset": {
+          "precision": 0.8877551020408163,
+          "recall": 0.3625,
+          "f1": 0.514792899408284
+        },
+        "onset_offset": {
+          "precision": 0.04081632653061224,
+          "recall": 0.016666666666666666,
+          "f1": 0.023668639053254437
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "pink_snr5",
+        "seconds": 0.34248699999807286,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 480,
+        "n_est": 151,
+        "onset": {
+          "precision": 0.8940397350993378,
+          "recall": 0.28125,
+          "f1": 0.427892234548336
+        },
+        "onset_offset": {
+          "precision": 0.052980132450331126,
+          "recall": 0.016666666666666666,
+          "f1": 0.02535657686212361
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "pink_snr0",
+        "seconds": 0.3328357079990383,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -4.821637332766436e-16,
+        "n_ref": 480,
+        "n_est": 104,
+        "onset": {
+          "precision": 0.7980769230769231,
+          "recall": 0.17291666666666666,
+          "f1": 0.2842465753424657
+        },
+        "onset_offset": {
+          "precision": 0.08653846153846154,
+          "recall": 0.01875,
+          "f1": 0.030821917808219176
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.33781670900134486,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 480,
+        "n_est": 212,
+        "onset": {
+          "precision": 0.8443396226415094,
+          "recall": 0.3729166666666667,
+          "f1": 0.5173410404624278
+        },
+        "onset_offset": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.34336870900006033,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 480,
+        "n_est": 229,
+        "onset": {
+          "precision": 0.6681222707423581,
+          "recall": 0.31875,
+          "f1": 0.4315937940761636
+        },
+        "onset_offset": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      {
+        "clip": "c01",
+        "condition": "clip_0.25",
+        "seconds": 0.3545982499999809,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.08386875,
+        "n_ref": 480,
+        "n_est": 248,
+        "onset": {
+          "precision": 0.8467741935483871,
+          "recall": 0.4375,
+          "f1": 0.576923076923077
+        },
+        "onset_offset": {
+          "precision": 0.03225806451612903,
+          "recall": 0.016666666666666666,
+          "f1": 0.02197802197802198
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "clean",
+        "seconds": 0.368092249998881,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 193,
+        "n_est": 191,
+        "onset": {
+          "precision": 0.8272251308900523,
+          "recall": 0.8186528497409327,
+          "f1": 0.8229166666666667
+        },
+        "onset_offset": {
+          "precision": 0.2094240837696335,
+          "recall": 0.20725388601036268,
+          "f1": 0.20833333333333334
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "white_snr30",
+        "seconds": 0.3295249580005475,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 193,
+        "n_est": 180,
+        "onset": {
+          "precision": 0.85,
+          "recall": 0.7927461139896373,
+          "f1": 0.8203753351206434
+        },
+        "onset_offset": {
+          "precision": 0.21666666666666667,
+          "recall": 0.20207253886010362,
+          "f1": 0.20911528150134048
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "white_snr20",
+        "seconds": 0.32450674999927287,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 193,
+        "n_est": 171,
+        "onset": {
+          "precision": 0.8713450292397661,
+          "recall": 0.772020725388601,
+          "f1": 0.8186813186813187
+        },
+        "onset_offset": {
+          "precision": 0.2807017543859649,
+          "recall": 0.24870466321243523,
+          "f1": 0.26373626373626374
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "white_snr10",
+        "seconds": 0.3248578329985321,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.000000000000002,
+        "n_ref": 193,
+        "n_est": 158,
+        "onset": {
+          "precision": 0.8291139240506329,
+          "recall": 0.6787564766839378,
+          "f1": 0.7464387464387464
+        },
+        "onset_offset": {
+          "precision": 0.3291139240506329,
+          "recall": 0.2694300518134715,
+          "f1": 0.2962962962962962
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "white_snr5",
+        "seconds": 0.31986120799774653,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999997,
+        "n_ref": 193,
+        "n_est": 133,
+        "onset": {
+          "precision": 0.8270676691729323,
+          "recall": 0.5699481865284974,
+          "f1": 0.6748466257668712
+        },
+        "onset_offset": {
+          "precision": 0.3233082706766917,
+          "recall": 0.22279792746113988,
+          "f1": 0.2638036809815951
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "white_snr0",
+        "seconds": 0.3255453749989101,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 1.928654933106574e-15,
+        "n_ref": 193,
+        "n_est": 115,
+        "onset": {
+          "precision": 0.7565217391304347,
+          "recall": 0.45077720207253885,
+          "f1": 0.564935064935065
+        },
+        "onset_offset": {
+          "precision": 0.2608695652173913,
+          "recall": 0.15544041450777202,
+          "f1": 0.19480519480519481
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "pink_snr30",
+        "seconds": 0.34079074999681325,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 193,
+        "n_est": 188,
+        "onset": {
+          "precision": 0.8191489361702128,
+          "recall": 0.7979274611398963,
+          "f1": 0.8083989501312335
+        },
+        "onset_offset": {
+          "precision": 0.22872340425531915,
+          "recall": 0.22279792746113988,
+          "f1": 0.22572178477690288
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "pink_snr20",
+        "seconds": 0.3359284170001047,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 193,
+        "n_est": 179,
+        "onset": {
+          "precision": 0.8212290502793296,
+          "recall": 0.7616580310880829,
+          "f1": 0.7903225806451613
+        },
+        "onset_offset": {
+          "precision": 0.22346368715083798,
+          "recall": 0.20725388601036268,
+          "f1": 0.21505376344086022
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "pink_snr10",
+        "seconds": 0.3279374999983702,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 193,
+        "n_est": 155,
+        "onset": {
+          "precision": 0.8580645161290322,
+          "recall": 0.689119170984456,
+          "f1": 0.7643678160919539
+        },
+        "onset_offset": {
+          "precision": 0.33548387096774196,
+          "recall": 0.2694300518134715,
+          "f1": 0.2988505747126437
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "pink_snr5",
+        "seconds": 0.3300491249974584,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999998,
+        "n_ref": 193,
+        "n_est": 147,
+        "onset": {
+          "precision": 0.7959183673469388,
+          "recall": 0.6062176165803109,
+          "f1": 0.6882352941176471
+        },
+        "onset_offset": {
+          "precision": 0.30612244897959184,
+          "recall": 0.23316062176165803,
+          "f1": 0.2647058823529412
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "pink_snr0",
+        "seconds": 0.3228169579997484,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 193,
+        "n_est": 106,
+        "onset": {
+          "precision": 0.7547169811320755,
+          "recall": 0.41450777202072536,
+          "f1": 0.5351170568561874
+        },
+        "onset_offset": {
+          "precision": 0.32075471698113206,
+          "recall": 0.17616580310880828,
+          "f1": 0.22742474916387959
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.32606741600102396,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 193,
+        "n_est": 178,
+        "onset": {
+          "precision": 0.7696629213483146,
+          "recall": 0.7098445595854922,
+          "f1": 0.738544474393531
+        },
+        "onset_offset": {
+          "precision": 0.12921348314606743,
+          "recall": 0.11917098445595854,
+          "f1": 0.12398921832884097
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33995545799916727,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 193,
+        "n_est": 178,
+        "onset": {
+          "precision": 0.5842696629213483,
+          "recall": 0.538860103626943,
+          "f1": 0.5606469002695418
+        },
+        "onset_offset": {
+          "precision": 0.0898876404494382,
+          "recall": 0.08290155440414508,
+          "f1": 0.08625336927223719
+        }
+      },
+      {
+        "clip": "c02",
+        "condition": "clip_0.25",
+        "seconds": 0.3251833340000303,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.05092083333333333,
+        "n_ref": 193,
+        "n_est": 177,
+        "onset": {
+          "precision": 0.7966101694915254,
+          "recall": 0.7305699481865285,
+          "f1": 0.7621621621621621
+        },
+        "onset_offset": {
+          "precision": 0.192090395480226,
+          "recall": 0.17616580310880828,
+          "f1": 0.18378378378378382
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "clean",
+        "seconds": 0.3562224170018453,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 650,
+        "n_est": 481,
+        "onset": {
+          "precision": 0.9625779625779626,
+          "recall": 0.7123076923076923,
+          "f1": 0.8187444739168878
+        },
+        "onset_offset": {
+          "precision": 0.008316008316008316,
+          "recall": 0.006153846153846154,
+          "f1": 0.007073386383731211
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "white_snr30",
+        "seconds": 0.3528366249993269,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 650,
+        "n_est": 460,
+        "onset": {
+          "precision": 0.9543478260869566,
+          "recall": 0.6753846153846154,
+          "f1": 0.7909909909909909
+        },
+        "onset_offset": {
+          "precision": 0.015217391304347827,
+          "recall": 0.010769230769230769,
+          "f1": 0.012612612612612614
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "white_snr20",
+        "seconds": 0.3516415419981058,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 650,
+        "n_est": 405,
+        "onset": {
+          "precision": 0.9654320987654321,
+          "recall": 0.6015384615384616,
+          "f1": 0.7412322274881518
+        },
+        "onset_offset": {
+          "precision": 0.012345679012345678,
+          "recall": 0.007692307692307693,
+          "f1": 0.00947867298578199
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "white_snr10",
+        "seconds": 0.34777604199916823,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 650,
+        "n_est": 332,
+        "onset": {
+          "precision": 0.9728915662650602,
+          "recall": 0.4969230769230769,
+          "f1": 0.6578411405295316
+        },
+        "onset_offset": {
+          "precision": 0.02710843373493976,
+          "recall": 0.013846153846153847,
+          "f1": 0.018329938900203666
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "white_snr5",
+        "seconds": 0.34805283400055487,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 650,
+        "n_est": 253,
+        "onset": {
+          "precision": 0.9525691699604744,
+          "recall": 0.3707692307692308,
+          "f1": 0.5337763012181618
+        },
+        "onset_offset": {
+          "precision": 0.039525691699604744,
+          "recall": 0.015384615384615385,
+          "f1": 0.022148394241417495
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "white_snr0",
+        "seconds": 0.3319353750011942,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 650,
+        "n_est": 142,
+        "onset": {
+          "precision": 0.9577464788732394,
+          "recall": 0.20923076923076922,
+          "f1": 0.3434343434343434
+        },
+        "onset_offset": {
+          "precision": 0.07042253521126761,
+          "recall": 0.015384615384615385,
+          "f1": 0.025252525252525256
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "pink_snr30",
+        "seconds": 0.35824745800346136,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 650,
+        "n_est": 470,
+        "onset": {
+          "precision": 0.9574468085106383,
+          "recall": 0.6923076923076923,
+          "f1": 0.8035714285714286
+        },
+        "onset_offset": {
+          "precision": 0.01276595744680851,
+          "recall": 0.009230769230769232,
+          "f1": 0.010714285714285714
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "pink_snr20",
+        "seconds": 0.3559408330002043,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 650,
+        "n_est": 454,
+        "onset": {
+          "precision": 0.947136563876652,
+          "recall": 0.6615384615384615,
+          "f1": 0.7789855072463768
+        },
+        "onset_offset": {
+          "precision": 0.01762114537444934,
+          "recall": 0.012307692307692308,
+          "f1": 0.014492753623188406
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "pink_snr10",
+        "seconds": 0.3504966250002326,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 650,
+        "n_est": 346,
+        "onset": {
+          "precision": 0.9653179190751445,
+          "recall": 0.5138461538461538,
+          "f1": 0.6706827309236948
+        },
+        "onset_offset": {
+          "precision": 0.02601156069364162,
+          "recall": 0.013846153846153847,
+          "f1": 0.018072289156626505
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "pink_snr5",
+        "seconds": 0.36797350000051665,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 650,
+        "n_est": 283,
+        "onset": {
+          "precision": 0.9575971731448764,
+          "recall": 0.4169230769230769,
+          "f1": 0.5809217577706324
+        },
+        "onset_offset": {
+          "precision": 0.03180212014134275,
+          "recall": 0.013846153846153847,
+          "f1": 0.019292604501607715
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "pink_snr0",
+        "seconds": 0.336029124999186,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -4.821637332766436e-16,
+        "n_ref": 650,
+        "n_est": 141,
+        "onset": {
+          "precision": 0.9361702127659575,
+          "recall": 0.20307692307692307,
+          "f1": 0.33375474083438683
+        },
+        "onset_offset": {
+          "precision": 0.04964539007092199,
+          "recall": 0.010769230769230769,
+          "f1": 0.017699115044247787
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.37835037500190083,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 650,
+        "n_est": 412,
+        "onset": {
+          "precision": 0.9514563106796117,
+          "recall": 0.6030769230769231,
+          "f1": 0.7382297551789078
+        },
+        "onset_offset": {
+          "precision": 0.0024271844660194173,
+          "recall": 0.0015384615384615385,
+          "f1": 0.0018832391713747647
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.34411454200017033,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 650,
+        "n_est": 422,
+        "onset": {
+          "precision": 0.8056872037914692,
+          "recall": 0.5230769230769231,
+          "f1": 0.6343283582089553
+        },
+        "onset_offset": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      {
+        "clip": "c03",
+        "condition": "clip_0.25",
+        "seconds": 0.3583299169986276,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.07948958333333334,
+        "n_ref": 650,
+        "n_est": 448,
+        "onset": {
+          "precision": 0.9352678571428571,
+          "recall": 0.6446153846153846,
+          "f1": 0.7632058287795993
+        },
+        "onset_offset": {
+          "precision": 0.008928571428571428,
+          "recall": 0.006153846153846154,
+          "f1": 0.007285974499089253
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "clean",
+        "seconds": 0.34351412499745493,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 587,
+        "n_est": 380,
+        "onset": {
+          "precision": 0.8921052631578947,
+          "recall": 0.5775127768313458,
+          "f1": 0.7011375387797312
+        },
+        "onset_offset": {
+          "precision": 0.05263157894736842,
+          "recall": 0.034071550255536626,
+          "f1": 0.04136504653567735
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "white_snr30",
+        "seconds": 0.3615697499990347,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 587,
+        "n_est": 375,
+        "onset": {
+          "precision": 0.9066666666666666,
+          "recall": 0.5792163543441227,
+          "f1": 0.7068607068607068
+        },
+        "onset_offset": {
+          "precision": 0.056,
+          "recall": 0.03577512776831346,
+          "f1": 0.04365904365904366
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "white_snr20",
+        "seconds": 0.3369075830014481,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.000000000000004,
+        "n_ref": 587,
+        "n_est": 351,
+        "onset": {
+          "precision": 0.9173789173789174,
+          "recall": 0.5485519591141397,
+          "f1": 0.6865671641791045
+        },
+        "onset_offset": {
+          "precision": 0.05982905982905983,
+          "recall": 0.03577512776831346,
+          "f1": 0.04477611940298507
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "white_snr10",
+        "seconds": 0.3377605419991596,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 587,
+        "n_est": 294,
+        "onset": {
+          "precision": 0.9183673469387755,
+          "recall": 0.4599659284497445,
+          "f1": 0.6129398410896708
+        },
+        "onset_offset": {
+          "precision": 0.07142857142857142,
+          "recall": 0.03577512776831346,
+          "f1": 0.04767309875141884
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "white_snr5",
+        "seconds": 0.3520596249982191,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 587,
+        "n_est": 239,
+        "onset": {
+          "precision": 0.9288702928870293,
+          "recall": 0.3781942078364566,
+          "f1": 0.5375302663438257
+        },
+        "onset_offset": {
+          "precision": 0.10460251046025104,
+          "recall": 0.04258943781942078,
+          "f1": 0.06053268765133171
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "white_snr0",
+        "seconds": 0.3782970419997582,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 587,
+        "n_est": 170,
+        "onset": {
+          "precision": 0.9529411764705882,
+          "recall": 0.27597955706984667,
+          "f1": 0.42800528401585203
+        },
+        "onset_offset": {
+          "precision": 0.12352941176470589,
+          "recall": 0.03577512776831346,
+          "f1": 0.055482166446499344
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "pink_snr30",
+        "seconds": 0.34656554100001813,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 587,
+        "n_est": 383,
+        "onset": {
+          "precision": 0.8955613577023499,
+          "recall": 0.5843270868824532,
+          "f1": 0.7072164948453609
+        },
+        "onset_offset": {
+          "precision": 0.04960835509138381,
+          "recall": 0.03236797274275979,
+          "f1": 0.039175257731958756
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "pink_snr20",
+        "seconds": 0.34870954099824303,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 587,
+        "n_est": 357,
+        "onset": {
+          "precision": 0.9187675070028011,
+          "recall": 0.5587734241908007,
+          "f1": 0.6949152542372882
+        },
+        "onset_offset": {
+          "precision": 0.06162464985994398,
+          "recall": 0.03747870528109029,
+          "f1": 0.046610169491525424
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "pink_snr10",
+        "seconds": 0.344276167001226,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 587,
+        "n_est": 311,
+        "onset": {
+          "precision": 0.9196141479099679,
+          "recall": 0.48722316865417375,
+          "f1": 0.6369710467706013
+        },
+        "onset_offset": {
+          "precision": 0.06752411575562701,
+          "recall": 0.03577512776831346,
+          "f1": 0.0467706013363029
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "pink_snr5",
+        "seconds": 0.33683545799794956,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 587,
+        "n_est": 240,
+        "onset": {
+          "precision": 0.9166666666666666,
+          "recall": 0.3747870528109029,
+          "f1": 0.532043530834341
+        },
+        "onset_offset": {
+          "precision": 0.07916666666666666,
+          "recall": 0.03236797274275979,
+          "f1": 0.04594921402660217
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "pink_snr0",
+        "seconds": 0.3266066249998403,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -1.446491199829931e-15,
+        "n_ref": 587,
+        "n_est": 159,
+        "onset": {
+          "precision": 0.9433962264150944,
+          "recall": 0.2555366269165247,
+          "f1": 0.40214477211796246
+        },
+        "onset_offset": {
+          "precision": 0.11320754716981132,
+          "recall": 0.030664395229982964,
+          "f1": 0.0482573726541555
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.34179124999718624,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 587,
+        "n_est": 310,
+        "onset": {
+          "precision": 0.864516129032258,
+          "recall": 0.4565587734241908,
+          "f1": 0.5975473801560758
+        },
+        "onset_offset": {
+          "precision": 0.07741935483870968,
+          "recall": 0.04088586030664395,
+          "f1": 0.05351170568561873
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.35006158300166135,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 587,
+        "n_est": 283,
+        "onset": {
+          "precision": 0.7279151943462897,
+          "recall": 0.35093696763202725,
+          "f1": 0.47356321839080456
+        },
+        "onset_offset": {
+          "precision": 0.038869257950530034,
+          "recall": 0.018739352640545145,
+          "f1": 0.025287356321839084
+        }
+      },
+      {
+        "clip": "c04",
+        "condition": "clip_0.25",
+        "seconds": 0.35972241700073937,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.11045625,
+        "n_ref": 587,
+        "n_est": 342,
+        "onset": {
+          "precision": 0.9210526315789473,
+          "recall": 0.5366269165247018,
+          "f1": 0.6781485468245425
+        },
+        "onset_offset": {
+          "precision": 0.06725146198830409,
+          "recall": 0.039182282793867124,
+          "f1": 0.04951560818083961
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "clean",
+        "seconds": 0.33183262500097044,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 227,
+        "n_est": 216,
+        "onset": {
+          "precision": 0.8472222222222222,
+          "recall": 0.8061674008810573,
+          "f1": 0.8261851015801355
+        },
+        "onset_offset": {
+          "precision": 0.19907407407407407,
+          "recall": 0.1894273127753304,
+          "f1": 0.19413092550790065
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "white_snr30",
+        "seconds": 0.5118222090022755,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 227,
+        "n_est": 221,
+        "onset": {
+          "precision": 0.8190045248868778,
+          "recall": 0.7973568281938326,
+          "f1": 0.8080357142857143
+        },
+        "onset_offset": {
+          "precision": 0.19909502262443438,
+          "recall": 0.19383259911894274,
+          "f1": 0.1964285714285714
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "white_snr20",
+        "seconds": 0.40535033299966017,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 227,
+        "n_est": 201,
+        "onset": {
+          "precision": 0.8756218905472637,
+          "recall": 0.775330396475771,
+          "f1": 0.822429906542056
+        },
+        "onset_offset": {
+          "precision": 0.22885572139303484,
+          "recall": 0.2026431718061674,
+          "f1": 0.21495327102803738
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "white_snr10",
+        "seconds": 0.3528312080015894,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 227,
+        "n_est": 183,
+        "onset": {
+          "precision": 0.8688524590163934,
+          "recall": 0.7004405286343612,
+          "f1": 0.775609756097561
+        },
+        "onset_offset": {
+          "precision": 0.23497267759562843,
+          "recall": 0.1894273127753304,
+          "f1": 0.2097560975609756
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "white_snr5",
+        "seconds": 0.33412049999969895,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 227,
+        "n_est": 137,
+        "onset": {
+          "precision": 0.8467153284671532,
+          "recall": 0.5110132158590308,
+          "f1": 0.6373626373626374
+        },
+        "onset_offset": {
+          "precision": 0.26277372262773724,
+          "recall": 0.15859030837004406,
+          "f1": 0.19780219780219782
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "white_snr0",
+        "seconds": 0.3378658750007162,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -9.643274665532871e-16,
+        "n_ref": 227,
+        "n_est": 106,
+        "onset": {
+          "precision": 0.7641509433962265,
+          "recall": 0.3568281938325991,
+          "f1": 0.4864864864864865
+        },
+        "onset_offset": {
+          "precision": 0.2830188679245283,
+          "recall": 0.13215859030837004,
+          "f1": 0.1801801801801802
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "pink_snr30",
+        "seconds": 0.32989879099841346,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 227,
+        "n_est": 218,
+        "onset": {
+          "precision": 0.8440366972477065,
+          "recall": 0.8105726872246696,
+          "f1": 0.8269662921348315
+        },
+        "onset_offset": {
+          "precision": 0.2018348623853211,
+          "recall": 0.19383259911894274,
+          "f1": 0.19775280898876405
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "pink_snr20",
+        "seconds": 0.3380730409990065,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 227,
+        "n_est": 209,
+        "onset": {
+          "precision": 0.8516746411483254,
+          "recall": 0.7841409691629956,
+          "f1": 0.8165137614678898
+        },
+        "onset_offset": {
+          "precision": 0.20574162679425836,
+          "recall": 0.1894273127753304,
+          "f1": 0.19724770642201833
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "pink_snr10",
+        "seconds": 0.33203716699790675,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 227,
+        "n_est": 198,
+        "onset": {
+          "precision": 0.8434343434343434,
+          "recall": 0.73568281938326,
+          "f1": 0.7858823529411765
+        },
+        "onset_offset": {
+          "precision": 0.2474747474747475,
+          "recall": 0.21585903083700442,
+          "f1": 0.23058823529411765
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "pink_snr5",
+        "seconds": 0.3438348750023579,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 227,
+        "n_est": 161,
+        "onset": {
+          "precision": 0.7950310559006211,
+          "recall": 0.5638766519823789,
+          "f1": 0.6597938144329897
+        },
+        "onset_offset": {
+          "precision": 0.2857142857142857,
+          "recall": 0.2026431718061674,
+          "f1": 0.23711340206185563
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "pink_snr0",
+        "seconds": 0.34473508300288813,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -3.85730986621315e-15,
+        "n_ref": 227,
+        "n_est": 114,
+        "onset": {
+          "precision": 0.7543859649122807,
+          "recall": 0.3788546255506608,
+          "f1": 0.5043988269794721
+        },
+        "onset_offset": {
+          "precision": 0.2982456140350877,
+          "recall": 0.14977973568281938,
+          "f1": 0.19941348973607037
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.3612676670018118,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 227,
+        "n_est": 201,
+        "onset": {
+          "precision": 0.8258706467661692,
+          "recall": 0.7312775330396476,
+          "f1": 0.7757009345794393
+        },
+        "onset_offset": {
+          "precision": 0.13432835820895522,
+          "recall": 0.11894273127753303,
+          "f1": 0.12616822429906543
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33204229200055124,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 227,
+        "n_est": 195,
+        "onset": {
+          "precision": 0.6820512820512821,
+          "recall": 0.5859030837004405,
+          "f1": 0.6303317535545023
+        },
+        "onset_offset": {
+          "precision": 0.11282051282051282,
+          "recall": 0.09691629955947137,
+          "f1": 0.1042654028436019
+        }
+      },
+      {
+        "clip": "c05",
+        "condition": "clip_0.25",
+        "seconds": 0.34927870799947414,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.028295833333333333,
+        "n_ref": 227,
+        "n_est": 206,
+        "onset": {
+          "precision": 0.8252427184466019,
+          "recall": 0.748898678414097,
+          "f1": 0.7852193995381063
+        },
+        "onset_offset": {
+          "precision": 0.2087378640776699,
+          "recall": 0.1894273127753304,
+          "f1": 0.19861431870669746
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "clean",
+        "seconds": 0.34371124999961467,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 235,
+        "n_est": 252,
+        "onset": {
+          "precision": 0.8095238095238095,
+          "recall": 0.8680851063829788,
+          "f1": 0.837782340862423
+        },
+        "onset_offset": {
+          "precision": 0.20634920634920634,
+          "recall": 0.22127659574468084,
+          "f1": 0.21355236139630387
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "white_snr30",
+        "seconds": 0.3366846250028175,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 235,
+        "n_est": 244,
+        "onset": {
+          "precision": 0.8360655737704918,
+          "recall": 0.8680851063829788,
+          "f1": 0.8517745302713987
+        },
+        "onset_offset": {
+          "precision": 0.20491803278688525,
+          "recall": 0.2127659574468085,
+          "f1": 0.20876826722338207
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "white_snr20",
+        "seconds": 0.33365541599778226,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 235,
+        "n_est": 227,
+        "onset": {
+          "precision": 0.8898678414096917,
+          "recall": 0.8595744680851064,
+          "f1": 0.8744588744588745
+        },
+        "onset_offset": {
+          "precision": 0.21585903083700442,
+          "recall": 0.20851063829787234,
+          "f1": 0.21212121212121213
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "white_snr10",
+        "seconds": 0.34034587499991176,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 235,
+        "n_est": 199,
+        "onset": {
+          "precision": 0.9246231155778895,
+          "recall": 0.7829787234042553,
+          "f1": 0.847926267281106
+        },
+        "onset_offset": {
+          "precision": 0.2914572864321608,
+          "recall": 0.24680851063829787,
+          "f1": 0.2672811059907834
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "white_snr5",
+        "seconds": 0.3344762910019199,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999997,
+        "n_ref": 235,
+        "n_est": 173,
+        "onset": {
+          "precision": 0.8901734104046243,
+          "recall": 0.6553191489361702,
+          "f1": 0.7549019607843137
+        },
+        "onset_offset": {
+          "precision": 0.3179190751445087,
+          "recall": 0.23404255319148937,
+          "f1": 0.26960784313725494
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "white_snr0",
+        "seconds": 0.33426029099791776,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 235,
+        "n_est": 130,
+        "onset": {
+          "precision": 0.8615384615384616,
+          "recall": 0.4765957446808511,
+          "f1": 0.6136986301369863
+        },
+        "onset_offset": {
+          "precision": 0.35384615384615387,
+          "recall": 0.19574468085106383,
+          "f1": 0.25205479452054796
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "pink_snr30",
+        "seconds": 0.3326099580008304,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 235,
+        "n_est": 248,
+        "onset": {
+          "precision": 0.8266129032258065,
+          "recall": 0.8723404255319149,
+          "f1": 0.8488612836438924
+        },
+        "onset_offset": {
+          "precision": 0.1975806451612903,
+          "recall": 0.20851063829787234,
+          "f1": 0.20289855072463764
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "pink_snr20",
+        "seconds": 0.33904679199986276,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 235,
+        "n_est": 230,
+        "onset": {
+          "precision": 0.8739130434782608,
+          "recall": 0.8553191489361702,
+          "f1": 0.864516129032258
+        },
+        "onset_offset": {
+          "precision": 0.23478260869565218,
+          "recall": 0.2297872340425532,
+          "f1": 0.23225806451612904
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "pink_snr10",
+        "seconds": 0.340272792000178,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 235,
+        "n_est": 214,
+        "onset": {
+          "precision": 0.897196261682243,
+          "recall": 0.8170212765957446,
+          "f1": 0.8552338530066814
+        },
+        "onset_offset": {
+          "precision": 0.2850467289719626,
+          "recall": 0.25957446808510637,
+          "f1": 0.2717149220489978
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "pink_snr5",
+        "seconds": 0.3369280830011121,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 235,
+        "n_est": 182,
+        "onset": {
+          "precision": 0.9065934065934066,
+          "recall": 0.7021276595744681,
+          "f1": 0.7913669064748201
+        },
+        "onset_offset": {
+          "precision": 0.3131868131868132,
+          "recall": 0.2425531914893617,
+          "f1": 0.2733812949640288
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "pink_snr0",
+        "seconds": 0.4039322499993432,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 235,
+        "n_est": 123,
+        "onset": {
+          "precision": 0.8617886178861789,
+          "recall": 0.451063829787234,
+          "f1": 0.5921787709497206
+        },
+        "onset_offset": {
+          "precision": 0.3333333333333333,
+          "recall": 0.17446808510638298,
+          "f1": 0.22905027932960897
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.34405629100001534,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 235,
+        "n_est": 225,
+        "onset": {
+          "precision": 0.8488888888888889,
+          "recall": 0.8127659574468085,
+          "f1": 0.8304347826086956
+        },
+        "onset_offset": {
+          "precision": 0.18666666666666668,
+          "recall": 0.17872340425531916,
+          "f1": 0.1826086956521739
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.3373723330005305,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 235,
+        "n_est": 221,
+        "onset": {
+          "precision": 0.5927601809954751,
+          "recall": 0.5574468085106383,
+          "f1": 0.5745614035087719
+        },
+        "onset_offset": {
+          "precision": 0.12217194570135746,
+          "recall": 0.1148936170212766,
+          "f1": 0.11842105263157894
+        }
+      },
+      {
+        "clip": "c06",
+        "condition": "clip_0.25",
+        "seconds": 0.3685215830009838,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.15417083333333334,
+        "n_ref": 235,
+        "n_est": 216,
+        "onset": {
+          "precision": 0.8333333333333334,
+          "recall": 0.7659574468085106,
+          "f1": 0.7982261640798227
+        },
+        "onset_offset": {
+          "precision": 0.24537037037037038,
+          "recall": 0.225531914893617,
+          "f1": 0.23503325942350334
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "clean",
+        "seconds": 0.3525398750025488,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 274,
+        "n_est": 324,
+        "onset": {
+          "precision": 0.7469135802469136,
+          "recall": 0.8832116788321168,
+          "f1": 0.8093645484949833
+        },
+        "onset_offset": {
+          "precision": 0.04938271604938271,
+          "recall": 0.058394160583941604,
+          "f1": 0.05351170568561873
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "white_snr30",
+        "seconds": 0.3431273330024851,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 274,
+        "n_est": 289,
+        "onset": {
+          "precision": 0.7231833910034602,
+          "recall": 0.7627737226277372,
+          "f1": 0.7424511545293073
+        },
+        "onset_offset": {
+          "precision": 0.05536332179930796,
+          "recall": 0.058394160583941604,
+          "f1": 0.056838365896980464
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "white_snr20",
+        "seconds": 0.3522985420022451,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 274,
+        "n_est": 247,
+        "onset": {
+          "precision": 0.7813765182186235,
+          "recall": 0.7043795620437956,
+          "f1": 0.7408829174664108
+        },
+        "onset_offset": {
+          "precision": 0.11336032388663968,
+          "recall": 0.10218978102189781,
+          "f1": 0.10748560460652591
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "white_snr10",
+        "seconds": 0.34845262500311946,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 274,
+        "n_est": 194,
+        "onset": {
+          "precision": 0.7577319587628866,
+          "recall": 0.5364963503649635,
+          "f1": 0.6282051282051282
+        },
+        "onset_offset": {
+          "precision": 0.16494845360824742,
+          "recall": 0.11678832116788321,
+          "f1": 0.13675213675213674
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "white_snr5",
+        "seconds": 0.3317817089991877,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 274,
+        "n_est": 165,
+        "onset": {
+          "precision": 0.7393939393939394,
+          "recall": 0.44525547445255476,
+          "f1": 0.5558086560364465
+        },
+        "onset_offset": {
+          "precision": 0.15757575757575756,
+          "recall": 0.0948905109489051,
+          "f1": 0.11845102505694759
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "white_snr0",
+        "seconds": 0.3497691670017957,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 3.857309866213147e-15,
+        "n_ref": 274,
+        "n_est": 126,
+        "onset": {
+          "precision": 0.6428571428571429,
+          "recall": 0.2956204379562044,
+          "f1": 0.4050000000000001
+        },
+        "onset_offset": {
+          "precision": 0.0873015873015873,
+          "recall": 0.040145985401459854,
+          "f1": 0.05499999999999999
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "pink_snr30",
+        "seconds": 0.3489158749980561,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.000000000000004,
+        "n_ref": 274,
+        "n_est": 305,
+        "onset": {
+          "precision": 0.7377049180327869,
+          "recall": 0.8211678832116789,
+          "f1": 0.7772020725388601
+        },
+        "onset_offset": {
+          "precision": 0.06557377049180328,
+          "recall": 0.072992700729927,
+          "f1": 0.0690846286701209
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "pink_snr20",
+        "seconds": 0.3632651669977349,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 274,
+        "n_est": 267,
+        "onset": {
+          "precision": 0.7602996254681648,
+          "recall": 0.7408759124087592,
+          "f1": 0.7504621072088725
+        },
+        "onset_offset": {
+          "precision": 0.09363295880149813,
+          "recall": 0.09124087591240876,
+          "f1": 0.0924214417744917
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "pink_snr10",
+        "seconds": 0.34161466599834966,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 274,
+        "n_est": 230,
+        "onset": {
+          "precision": 0.7347826086956522,
+          "recall": 0.6167883211678832,
+          "f1": 0.6706349206349207
+        },
+        "onset_offset": {
+          "precision": 0.13478260869565217,
+          "recall": 0.11313868613138686,
+          "f1": 0.12301587301587301
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "pink_snr5",
+        "seconds": 0.34217133300262503,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 274,
+        "n_est": 201,
+        "onset": {
+          "precision": 0.6517412935323383,
+          "recall": 0.4781021897810219,
+          "f1": 0.5515789473684212
+        },
+        "onset_offset": {
+          "precision": 0.10945273631840796,
+          "recall": 0.08029197080291971,
+          "f1": 0.09263157894736841
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "pink_snr0",
+        "seconds": 0.3286442499993427,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -1.446491199829931e-15,
+        "n_ref": 274,
+        "n_est": 122,
+        "onset": {
+          "precision": 0.5901639344262295,
+          "recall": 0.26277372262773724,
+          "f1": 0.36363636363636365
+        },
+        "onset_offset": {
+          "precision": 0.13934426229508196,
+          "recall": 0.06204379562043796,
+          "f1": 0.08585858585858586
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.33272220800063224,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 274,
+        "n_est": 268,
+        "onset": {
+          "precision": 0.8134328358208955,
+          "recall": 0.7956204379562044,
+          "f1": 0.8044280442804429
+        },
+        "onset_offset": {
+          "precision": 0.06716417910447761,
+          "recall": 0.06569343065693431,
+          "f1": 0.06642066420664207
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.34425445799934096,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 274,
+        "n_est": 280,
+        "onset": {
+          "precision": 0.7142857142857143,
+          "recall": 0.7299270072992701,
+          "f1": 0.7220216606498194
+        },
+        "onset_offset": {
+          "precision": 0.05357142857142857,
+          "recall": 0.05474452554744526,
+          "f1": 0.05415162454873646
+        }
+      },
+      {
+        "clip": "c07",
+        "condition": "clip_0.25",
+        "seconds": 0.3391416250015027,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.11516875,
+        "n_ref": 274,
+        "n_est": 278,
+        "onset": {
+          "precision": 0.6762589928057554,
+          "recall": 0.6861313868613139,
+          "f1": 0.6811594202898551
+        },
+        "onset_offset": {
+          "precision": 0.06115107913669065,
+          "recall": 0.06204379562043796,
+          "f1": 0.06159420289855073
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "clean",
+        "seconds": 0.3551524590002373,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 478,
+        "n_est": 407,
+        "onset": {
+          "precision": 0.8501228501228502,
+          "recall": 0.7238493723849372,
+          "f1": 0.7819209039548023
+        },
+        "onset_offset": {
+          "precision": 0.10319410319410319,
+          "recall": 0.08786610878661087,
+          "f1": 0.09491525423728814
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "white_snr30",
+        "seconds": 0.34932512500017765,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 478,
+        "n_est": 403,
+        "onset": {
+          "precision": 0.8635235732009926,
+          "recall": 0.7280334728033473,
+          "f1": 0.790011350737798
+        },
+        "onset_offset": {
+          "precision": 0.1141439205955335,
+          "recall": 0.09623430962343096,
+          "f1": 0.10442678774120318
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "white_snr20",
+        "seconds": 0.35688137499892036,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 478,
+        "n_est": 369,
+        "onset": {
+          "precision": 0.8861788617886179,
+          "recall": 0.6841004184100419,
+          "f1": 0.7721369539551358
+        },
+        "onset_offset": {
+          "precision": 0.13821138211382114,
+          "recall": 0.10669456066945607,
+          "f1": 0.12042502951593861
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "white_snr10",
+        "seconds": 0.3572674580027524,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 478,
+        "n_est": 305,
+        "onset": {
+          "precision": 0.8688524590163934,
+          "recall": 0.5543933054393305,
+          "f1": 0.6768837803320562
+        },
+        "onset_offset": {
+          "precision": 0.18688524590163935,
+          "recall": 0.1192468619246862,
+          "f1": 0.14559386973180077
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "white_snr5",
+        "seconds": 0.34677308299797005,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999998,
+        "n_ref": 478,
+        "n_est": 239,
+        "onset": {
+          "precision": 0.8451882845188284,
+          "recall": 0.4225941422594142,
+          "f1": 0.5634588563458857
+        },
+        "onset_offset": {
+          "precision": 0.18410041841004185,
+          "recall": 0.09205020920502092,
+          "f1": 0.12273361227336123
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "white_snr0",
+        "seconds": 0.3314559999998892,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 478,
+        "n_est": 154,
+        "onset": {
+          "precision": 0.7792207792207793,
+          "recall": 0.2510460251046025,
+          "f1": 0.379746835443038
+        },
+        "onset_offset": {
+          "precision": 0.21428571428571427,
+          "recall": 0.06903765690376569,
+          "f1": 0.10443037974683543
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "pink_snr30",
+        "seconds": 0.3454573340022762,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 478,
+        "n_est": 398,
+        "onset": {
+          "precision": 0.8567839195979899,
+          "recall": 0.7133891213389121,
+          "f1": 0.7785388127853881
+        },
+        "onset_offset": {
+          "precision": 0.10552763819095477,
+          "recall": 0.08786610878661087,
+          "f1": 0.0958904109589041
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "pink_snr20",
+        "seconds": 0.3961490839974431,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 478,
+        "n_est": 391,
+        "onset": {
+          "precision": 0.8695652173913043,
+          "recall": 0.7112970711297071,
+          "f1": 0.7825086306098965
+        },
+        "onset_offset": {
+          "precision": 0.11764705882352941,
+          "recall": 0.09623430962343096,
+          "f1": 0.10586881472957423
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "pink_snr10",
+        "seconds": 0.350890084002458,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 478,
+        "n_est": 330,
+        "onset": {
+          "precision": 0.8848484848484849,
+          "recall": 0.6108786610878661,
+          "f1": 0.7227722772277227
+        },
+        "onset_offset": {
+          "precision": 0.1303030303030303,
+          "recall": 0.0899581589958159,
+          "f1": 0.10643564356435645
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "pink_snr5",
+        "seconds": 0.3446050840029784,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 478,
+        "n_est": 278,
+        "onset": {
+          "precision": 0.8741007194244604,
+          "recall": 0.5083682008368201,
+          "f1": 0.6428571428571429
+        },
+        "onset_offset": {
+          "precision": 0.17625899280575538,
+          "recall": 0.10251046025104603,
+          "f1": 0.12962962962962965
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "pink_snr0",
+        "seconds": 0.3380881250013772,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 478,
+        "n_est": 158,
+        "onset": {
+          "precision": 0.7088607594936709,
+          "recall": 0.23430962343096234,
+          "f1": 0.3522012578616352
+        },
+        "onset_offset": {
+          "precision": 0.17721518987341772,
+          "recall": 0.058577405857740586,
+          "f1": 0.0880503144654088
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.34101954200014006,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 478,
+        "n_est": 340,
+        "onset": {
+          "precision": 0.8411764705882353,
+          "recall": 0.5983263598326359,
+          "f1": 0.6992665036674817
+        },
+        "onset_offset": {
+          "precision": 0.10882352941176471,
+          "recall": 0.07740585774058577,
+          "f1": 0.0904645476772616
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.3383665410001413,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 478,
+        "n_est": 339,
+        "onset": {
+          "precision": 0.6755162241887905,
+          "recall": 0.4790794979079498,
+          "f1": 0.5605875152998777
+        },
+        "onset_offset": {
+          "precision": 0.0471976401179941,
+          "recall": 0.03347280334728033,
+          "f1": 0.03916768665850673
+        }
+      },
+      {
+        "clip": "c08",
+        "condition": "clip_0.25",
+        "seconds": 0.35131462500066846,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.11248958333333334,
+        "n_ref": 478,
+        "n_est": 375,
+        "onset": {
+          "precision": 0.8106666666666666,
+          "recall": 0.6359832635983264,
+          "f1": 0.712778429073857
+        },
+        "onset_offset": {
+          "precision": 0.10933333333333334,
+          "recall": 0.08577405857740586,
+          "f1": 0.09613130128956623
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "clean",
+        "seconds": 0.3431749170013063,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 186,
+        "n_est": 224,
+        "onset": {
+          "precision": 0.7276785714285714,
+          "recall": 0.8763440860215054,
+          "f1": 0.7951219512195122
+        },
+        "onset_offset": {
+          "precision": 0.33035714285714285,
+          "recall": 0.3978494623655914,
+          "f1": 0.36097560975609755
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "white_snr30",
+        "seconds": 0.3281189170011203,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 186,
+        "n_est": 219,
+        "onset": {
+          "precision": 0.730593607305936,
+          "recall": 0.8602150537634409,
+          "f1": 0.7901234567901233
+        },
+        "onset_offset": {
+          "precision": 0.3059360730593607,
+          "recall": 0.3602150537634409,
+          "f1": 0.3308641975308642
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "white_snr20",
+        "seconds": 0.3260008329998527,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.000000000000004,
+        "n_ref": 186,
+        "n_est": 209,
+        "onset": {
+          "precision": 0.7464114832535885,
+          "recall": 0.8387096774193549,
+          "f1": 0.789873417721519
+        },
+        "onset_offset": {
+          "precision": 0.31100478468899523,
+          "recall": 0.34946236559139787,
+          "f1": 0.3291139240506329
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "white_snr10",
+        "seconds": 0.3300582080009917,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.000000000000002,
+        "n_ref": 186,
+        "n_est": 188,
+        "onset": {
+          "precision": 0.7925531914893617,
+          "recall": 0.8010752688172043,
+          "f1": 0.7967914438502672
+        },
+        "onset_offset": {
+          "precision": 0.3617021276595745,
+          "recall": 0.3655913978494624,
+          "f1": 0.36363636363636365
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "white_snr5",
+        "seconds": 0.32660670800032676,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 186,
+        "n_est": 165,
+        "onset": {
+          "precision": 0.8303030303030303,
+          "recall": 0.7365591397849462,
+          "f1": 0.7806267806267807
+        },
+        "onset_offset": {
+          "precision": 0.3212121212121212,
+          "recall": 0.2849462365591398,
+          "f1": 0.30199430199430205
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "white_snr0",
+        "seconds": 0.3193768329983868,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -3.85730986621315e-15,
+        "n_ref": 186,
+        "n_est": 130,
+        "onset": {
+          "precision": 0.7692307692307693,
+          "recall": 0.5376344086021505,
+          "f1": 0.6329113924050633
+        },
+        "onset_offset": {
+          "precision": 0.33076923076923076,
+          "recall": 0.23118279569892472,
+          "f1": 0.2721518987341772
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "pink_snr30",
+        "seconds": 0.32968816599895945,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 186,
+        "n_est": 220,
+        "onset": {
+          "precision": 0.7454545454545455,
+          "recall": 0.8817204301075269,
+          "f1": 0.8078817733990148
+        },
+        "onset_offset": {
+          "precision": 0.3181818181818182,
+          "recall": 0.3763440860215054,
+          "f1": 0.3448275862068965
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "pink_snr20",
+        "seconds": 0.33350041700032307,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 186,
+        "n_est": 213,
+        "onset": {
+          "precision": 0.7417840375586855,
+          "recall": 0.8494623655913979,
+          "f1": 0.7919799498746867
+        },
+        "onset_offset": {
+          "precision": 0.3051643192488263,
+          "recall": 0.34946236559139787,
+          "f1": 0.3258145363408521
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "pink_snr10",
+        "seconds": 0.3268738340011623,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 186,
+        "n_est": 188,
+        "onset": {
+          "precision": 0.7978723404255319,
+          "recall": 0.8064516129032258,
+          "f1": 0.8021390374331551
+        },
+        "onset_offset": {
+          "precision": 0.32978723404255317,
+          "recall": 0.3333333333333333,
+          "f1": 0.3315508021390375
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "pink_snr5",
+        "seconds": 0.33271658300145646,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 186,
+        "n_est": 164,
+        "onset": {
+          "precision": 0.7865853658536586,
+          "recall": 0.6935483870967742,
+          "f1": 0.7371428571428572
+        },
+        "onset_offset": {
+          "precision": 0.3231707317073171,
+          "recall": 0.2849462365591398,
+          "f1": 0.3028571428571429
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "pink_snr0",
+        "seconds": 0.3219485839981644,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -2.410818666383218e-15,
+        "n_ref": 186,
+        "n_est": 147,
+        "onset": {
+          "precision": 0.7346938775510204,
+          "recall": 0.5806451612903226,
+          "f1": 0.6486486486486487
+        },
+        "onset_offset": {
+          "precision": 0.25170068027210885,
+          "recall": 0.1989247311827957,
+          "f1": 0.2222222222222222
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.3300589589998708,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 186,
+        "n_est": 208,
+        "onset": {
+          "precision": 0.6634615384615384,
+          "recall": 0.7419354838709677,
+          "f1": 0.7005076142131978
+        },
+        "onset_offset": {
+          "precision": 0.27403846153846156,
+          "recall": 0.3064516129032258,
+          "f1": 0.2893401015228426
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33037633300045854,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 186,
+        "n_est": 213,
+        "onset": {
+          "precision": 0.30985915492957744,
+          "recall": 0.3548387096774194,
+          "f1": 0.33082706766917297
+        },
+        "onset_offset": {
+          "precision": 0.107981220657277,
+          "recall": 0.12365591397849462,
+          "f1": 0.11528822055137845
+        }
+      },
+      {
+        "clip": "c09",
+        "condition": "clip_0.25",
+        "seconds": 0.32275404099709704,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.11370208333333333,
+        "n_ref": 186,
+        "n_est": 196,
+        "onset": {
+          "precision": 0.7602040816326531,
+          "recall": 0.8010752688172043,
+          "f1": 0.7801047120418847
+        },
+        "onset_offset": {
+          "precision": 0.3622448979591837,
+          "recall": 0.3817204301075269,
+          "f1": 0.37172774869109954
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "clean",
+        "seconds": 0.34177720899970154,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 433,
+        "n_est": 382,
+        "onset": {
+          "precision": 0.887434554973822,
+          "recall": 0.7829099307159353,
+          "f1": 0.8319018404907975
+        },
+        "onset_offset": {
+          "precision": 0.11518324607329843,
+          "recall": 0.10161662817551963,
+          "f1": 0.10797546012269939
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "white_snr30",
+        "seconds": 0.34462087499923655,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 433,
+        "n_est": 374,
+        "onset": {
+          "precision": 0.893048128342246,
+          "recall": 0.7713625866050808,
+          "f1": 0.8277571251548947
+        },
+        "onset_offset": {
+          "precision": 0.12566844919786097,
+          "recall": 0.10854503464203233,
+          "f1": 0.11648079306071871
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "white_snr20",
+        "seconds": 0.34713529200234916,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 433,
+        "n_est": 334,
+        "onset": {
+          "precision": 0.9011976047904192,
+          "recall": 0.6951501154734411,
+          "f1": 0.7848761408083442
+        },
+        "onset_offset": {
+          "precision": 0.1437125748502994,
+          "recall": 0.11085450346420324,
+          "f1": 0.12516297262059972
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "white_snr10",
+        "seconds": 0.3397916249996342,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 433,
+        "n_est": 266,
+        "onset": {
+          "precision": 0.8796992481203008,
+          "recall": 0.5404157043879908,
+          "f1": 0.6695278969957081
+        },
+        "onset_offset": {
+          "precision": 0.13533834586466165,
+          "recall": 0.08314087759815242,
+          "f1": 0.10300429184549355
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "white_snr5",
+        "seconds": 0.3334799579970422,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 433,
+        "n_est": 213,
+        "onset": {
+          "precision": 0.8497652582159625,
+          "recall": 0.418013856812933,
+          "f1": 0.5603715170278638
+        },
+        "onset_offset": {
+          "precision": 0.15492957746478872,
+          "recall": 0.07621247113163972,
+          "f1": 0.10216718266253869
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "white_snr0",
+        "seconds": 0.3307703750033397,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 433,
+        "n_est": 125,
+        "onset": {
+          "precision": 0.84,
+          "recall": 0.24249422632794457,
+          "f1": 0.3763440860215054
+        },
+        "onset_offset": {
+          "precision": 0.28,
+          "recall": 0.08083140877598152,
+          "f1": 0.12544802867383512
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "pink_snr30",
+        "seconds": 0.3407451669991133,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 433,
+        "n_est": 382,
+        "onset": {
+          "precision": 0.887434554973822,
+          "recall": 0.7829099307159353,
+          "f1": 0.8319018404907975
+        },
+        "onset_offset": {
+          "precision": 0.1387434554973822,
+          "recall": 0.12240184757505773,
+          "f1": 0.13006134969325153
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "pink_snr20",
+        "seconds": 0.34214341700135265,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 433,
+        "n_est": 351,
+        "onset": {
+          "precision": 0.8974358974358975,
+          "recall": 0.7274826789838337,
+          "f1": 0.8035714285714285
+        },
+        "onset_offset": {
+          "precision": 0.1452991452991453,
+          "recall": 0.11778290993071594,
+          "f1": 0.1301020408163265
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "pink_snr10",
+        "seconds": 0.3437203749999753,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 433,
+        "n_est": 279,
+        "onset": {
+          "precision": 0.8781362007168458,
+          "recall": 0.5658198614318707,
+          "f1": 0.6882022471910113
+        },
+        "onset_offset": {
+          "precision": 0.15770609318996415,
+          "recall": 0.10161662817551963,
+          "f1": 0.12359550561797751
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "pink_snr5",
+        "seconds": 0.3369694590001018,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000002,
+        "n_ref": 433,
+        "n_est": 214,
+        "onset": {
+          "precision": 0.8598130841121495,
+          "recall": 0.42494226327944573,
+          "f1": 0.5687789799072643
+        },
+        "onset_offset": {
+          "precision": 0.16822429906542055,
+          "recall": 0.08314087759815242,
+          "f1": 0.11128284389489954
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "pink_snr0",
+        "seconds": 0.3313711250011693,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -4.821637332766436e-16,
+        "n_ref": 433,
+        "n_est": 129,
+        "onset": {
+          "precision": 0.7751937984496124,
+          "recall": 0.23094688221709006,
+          "f1": 0.3558718861209964
+        },
+        "onset_offset": {
+          "precision": 0.24031007751937986,
+          "recall": 0.07159353348729793,
+          "f1": 0.11032028469750889
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.3456086670012155,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 433,
+        "n_est": 340,
+        "onset": {
+          "precision": 0.8294117647058824,
+          "recall": 0.651270207852194,
+          "f1": 0.7296248382923675
+        },
+        "onset_offset": {
+          "precision": 0.061764705882352944,
+          "recall": 0.04849884526558892,
+          "f1": 0.054333764553686936
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.34365149999939604,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 433,
+        "n_est": 344,
+        "onset": {
+          "precision": 0.6831395348837209,
+          "recall": 0.5427251732101617,
+          "f1": 0.6048906048906049
+        },
+        "onset_offset": {
+          "precision": 0.061046511627906974,
+          "recall": 0.04849884526558892,
+          "f1": 0.05405405405405405
+        }
+      },
+      {
+        "clip": "c10",
+        "condition": "clip_0.25",
+        "seconds": 0.3463619579997612,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.12721041666666666,
+        "n_ref": 433,
+        "n_est": 338,
+        "onset": {
+          "precision": 0.878698224852071,
+          "recall": 0.6859122401847575,
+          "f1": 0.7704280155642024
+        },
+        "onset_offset": {
+          "precision": 0.1390532544378698,
+          "recall": 0.10854503464203233,
+          "f1": 0.1219195849546044
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "clean",
+        "seconds": 0.3654877500011935,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 780,
+        "n_est": 439,
+        "onset": {
+          "precision": 0.9339407744874715,
+          "recall": 0.5256410256410257,
+          "f1": 0.6726825266611977
+        },
+        "onset_offset": {
+          "precision": 0.04555808656036447,
+          "recall": 0.02564102564102564,
+          "f1": 0.03281378178835111
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "white_snr30",
+        "seconds": 0.37031166599990684,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 780,
+        "n_est": 395,
+        "onset": {
+          "precision": 0.9392405063291139,
+          "recall": 0.4756410256410256,
+          "f1": 0.6314893617021277
+        },
+        "onset_offset": {
+          "precision": 0.04050632911392405,
+          "recall": 0.020512820512820513,
+          "f1": 0.027234042553191486
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "white_snr20",
+        "seconds": 0.352176332999079,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 780,
+        "n_est": 350,
+        "onset": {
+          "precision": 0.9571428571428572,
+          "recall": 0.42948717948717946,
+          "f1": 0.5929203539823009
+        },
+        "onset_offset": {
+          "precision": 0.03142857142857143,
+          "recall": 0.014102564102564103,
+          "f1": 0.01946902654867257
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "white_snr10",
+        "seconds": 0.34443416700014495,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 780,
+        "n_est": 255,
+        "onset": {
+          "precision": 0.9686274509803922,
+          "recall": 0.31666666666666665,
+          "f1": 0.47729468599033825
+        },
+        "onset_offset": {
+          "precision": 0.0392156862745098,
+          "recall": 0.01282051282051282,
+          "f1": 0.01932367149758454
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "white_snr5",
+        "seconds": 0.3410965410002973,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 780,
+        "n_est": 195,
+        "onset": {
+          "precision": 0.9282051282051282,
+          "recall": 0.23205128205128206,
+          "f1": 0.3712820512820513
+        },
+        "onset_offset": {
+          "precision": 0.03076923076923077,
+          "recall": 0.007692307692307693,
+          "f1": 0.012307692307692308
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "white_snr0",
+        "seconds": 0.33205433300099685,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 780,
+        "n_est": 115,
+        "onset": {
+          "precision": 0.9043478260869565,
+          "recall": 0.13333333333333333,
+          "f1": 0.23240223463687149
+        },
+        "onset_offset": {
+          "precision": 0.034782608695652174,
+          "recall": 0.005128205128205128,
+          "f1": 0.008938547486033519
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "pink_snr30",
+        "seconds": 0.3645994590006012,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 29.999999999999996,
+        "n_ref": 780,
+        "n_est": 409,
+        "onset": {
+          "precision": 0.9315403422982885,
+          "recall": 0.48846153846153845,
+          "f1": 0.6408746846089151
+        },
+        "onset_offset": {
+          "precision": 0.04156479217603912,
+          "recall": 0.021794871794871794,
+          "f1": 0.02859545836837678
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "pink_snr20",
+        "seconds": 0.36024229200120317,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 780,
+        "n_est": 378,
+        "onset": {
+          "precision": 0.9338624338624338,
+          "recall": 0.45256410256410257,
+          "f1": 0.6096718480138169
+        },
+        "onset_offset": {
+          "precision": 0.04497354497354497,
+          "recall": 0.021794871794871794,
+          "f1": 0.029360967184801377
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "pink_snr10",
+        "seconds": 0.3499251670000376,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 780,
+        "n_est": 287,
+        "onset": {
+          "precision": 0.9512195121951219,
+          "recall": 0.35,
+          "f1": 0.5117150890346766
+        },
+        "onset_offset": {
+          "precision": 0.04529616724738676,
+          "recall": 0.016666666666666666,
+          "f1": 0.02436738519212746
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "pink_snr5",
+        "seconds": 0.34407129200189956,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 780,
+        "n_est": 216,
+        "onset": {
+          "precision": 0.9398148148148148,
+          "recall": 0.2602564102564103,
+          "f1": 0.40763052208835343
+        },
+        "onset_offset": {
+          "precision": 0.05092592592592592,
+          "recall": 0.014102564102564103,
+          "f1": 0.02208835341365462
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "pink_snr0",
+        "seconds": 0.33211829199717613,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 780,
+        "n_est": 135,
+        "onset": {
+          "precision": 0.9185185185185185,
+          "recall": 0.15897435897435896,
+          "f1": 0.27103825136612025
+        },
+        "onset_offset": {
+          "precision": 0.06666666666666667,
+          "recall": 0.011538461538461539,
+          "f1": 0.019672131147540985
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.35252670800036867,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 780,
+        "n_est": 356,
+        "onset": {
+          "precision": 0.9466292134831461,
+          "recall": 0.43205128205128207,
+          "f1": 0.5933098591549296
+        },
+        "onset_offset": {
+          "precision": 0.033707865168539325,
+          "recall": 0.015384615384615385,
+          "f1": 0.021126760563380285
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.35230349999983446,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 780,
+        "n_est": 415,
+        "onset": {
+          "precision": 0.8216867469879519,
+          "recall": 0.4371794871794872,
+          "f1": 0.5707112970711297
+        },
+        "onset_offset": {
+          "precision": 0.01927710843373494,
+          "recall": 0.010256410256410256,
+          "f1": 0.013389121338912133
+        }
+      },
+      {
+        "clip": "c11",
+        "condition": "clip_0.25",
+        "seconds": 0.36048999999911757,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.14023125,
+        "n_ref": 780,
+        "n_est": 306,
+        "onset": {
+          "precision": 0.934640522875817,
+          "recall": 0.36666666666666664,
+          "f1": 0.5267034990791897
+        },
+        "onset_offset": {
+          "precision": 0.03594771241830065,
+          "recall": 0.014102564102564103,
+          "f1": 0.020257826887661142
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "clean",
+        "seconds": 0.3184858330023417,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 96,
+        "n_est": 116,
+        "onset": {
+          "precision": 0.7758620689655172,
+          "recall": 0.9375,
+          "f1": 0.8490566037735848
+        },
+        "onset_offset": {
+          "precision": 0.3620689655172414,
+          "recall": 0.4375,
+          "f1": 0.39622641509433965
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "white_snr30",
+        "seconds": 0.32210837499951595,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 29.999999999999996,
+        "n_ref": 96,
+        "n_est": 111,
+        "onset": {
+          "precision": 0.8198198198198198,
+          "recall": 0.9479166666666666,
+          "f1": 0.8792270531400965
+        },
+        "onset_offset": {
+          "precision": 0.44144144144144143,
+          "recall": 0.5104166666666666,
+          "f1": 0.4734299516908212
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "white_snr20",
+        "seconds": 0.3391102499990666,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 96,
+        "n_est": 100,
+        "onset": {
+          "precision": 0.92,
+          "recall": 0.9583333333333334,
+          "f1": 0.9387755102040817
+        },
+        "onset_offset": {
+          "precision": 0.5,
+          "recall": 0.5208333333333334,
+          "f1": 0.5102040816326531
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "white_snr10",
+        "seconds": 0.3469852500020352,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 96,
+        "n_est": 91,
+        "onset": {
+          "precision": 0.9560439560439561,
+          "recall": 0.90625,
+          "f1": 0.9304812834224598
+        },
+        "onset_offset": {
+          "precision": 0.4945054945054945,
+          "recall": 0.46875,
+          "f1": 0.4812834224598931
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "white_snr5",
+        "seconds": 0.3421973749973404,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999998,
+        "n_ref": 96,
+        "n_est": 90,
+        "onset": {
+          "precision": 0.9444444444444444,
+          "recall": 0.8854166666666666,
+          "f1": 0.9139784946236558
+        },
+        "onset_offset": {
+          "precision": 0.34444444444444444,
+          "recall": 0.3229166666666667,
+          "f1": 0.33333333333333337
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "white_snr0",
+        "seconds": 0.32100487500065356,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 96,
+        "n_est": 78,
+        "onset": {
+          "precision": 0.8717948717948718,
+          "recall": 0.7083333333333334,
+          "f1": 0.7816091954022988
+        },
+        "onset_offset": {
+          "precision": 0.2948717948717949,
+          "recall": 0.23958333333333334,
+          "f1": 0.26436781609195403
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "pink_snr30",
+        "seconds": 0.32046920900029363,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 96,
+        "n_est": 108,
+        "onset": {
+          "precision": 0.8518518518518519,
+          "recall": 0.9583333333333334,
+          "f1": 0.9019607843137256
+        },
+        "onset_offset": {
+          "precision": 0.46296296296296297,
+          "recall": 0.5208333333333334,
+          "f1": 0.4901960784313726
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "pink_snr20",
+        "seconds": 0.32641754200085416,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 96,
+        "n_est": 100,
+        "onset": {
+          "precision": 0.92,
+          "recall": 0.9583333333333334,
+          "f1": 0.9387755102040817
+        },
+        "onset_offset": {
+          "precision": 0.51,
+          "recall": 0.53125,
+          "f1": 0.5204081632653061
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "pink_snr10",
+        "seconds": 0.32140112499837414,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 96,
+        "n_est": 98,
+        "onset": {
+          "precision": 0.9081632653061225,
+          "recall": 0.9270833333333334,
+          "f1": 0.9175257731958762
+        },
+        "onset_offset": {
+          "precision": 0.5,
+          "recall": 0.5104166666666666,
+          "f1": 0.5051546391752578
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "pink_snr5",
+        "seconds": 0.32057083300242084,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 96,
+        "n_est": 96,
+        "onset": {
+          "precision": 0.90625,
+          "recall": 0.90625,
+          "f1": 0.90625
+        },
+        "onset_offset": {
+          "precision": 0.40625,
+          "recall": 0.40625,
+          "f1": 0.40625
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "pink_snr0",
+        "seconds": 0.3175480840000091,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -1.9286549331065747e-15,
+        "n_ref": 96,
+        "n_est": 88,
+        "onset": {
+          "precision": 0.7840909090909091,
+          "recall": 0.71875,
+          "f1": 0.75
+        },
+        "onset_offset": {
+          "precision": 0.25,
+          "recall": 0.22916666666666666,
+          "f1": 0.2391304347826087
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.31875183299780474,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 96,
+        "n_est": 107,
+        "onset": {
+          "precision": 0.8130841121495327,
+          "recall": 0.90625,
+          "f1": 0.8571428571428572
+        },
+        "onset_offset": {
+          "precision": 0.3925233644859813,
+          "recall": 0.4375,
+          "f1": 0.41379310344827586
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.31920595900010085,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 96,
+        "n_est": 110,
+        "onset": {
+          "precision": 0.6909090909090909,
+          "recall": 0.7916666666666666,
+          "f1": 0.737864077669903
+        },
+        "onset_offset": {
+          "precision": 0.2909090909090909,
+          "recall": 0.3333333333333333,
+          "f1": 0.31067961165048535
+        }
+      },
+      {
+        "clip": "c12",
+        "condition": "clip_0.25",
+        "seconds": 0.32428554100260953,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.03270625,
+        "n_ref": 96,
+        "n_est": 114,
+        "onset": {
+          "precision": 0.7368421052631579,
+          "recall": 0.875,
+          "f1": 0.7999999999999999
+        },
+        "onset_offset": {
+          "precision": 0.3684210526315789,
+          "recall": 0.4375,
+          "f1": 0.39999999999999997
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "clean",
+        "seconds": 0.3456880409976293,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 359,
+        "n_est": 318,
+        "onset": {
+          "precision": 0.8962264150943396,
+          "recall": 0.7938718662952646,
+          "f1": 0.8419497784342688
+        },
+        "onset_offset": {
+          "precision": 0.09433962264150944,
+          "recall": 0.08356545961002786,
+          "f1": 0.08862629246676516
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "white_snr30",
+        "seconds": 0.34339675000228453,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 359,
+        "n_est": 309,
+        "onset": {
+          "precision": 0.9029126213592233,
+          "recall": 0.7771587743732591,
+          "f1": 0.8353293413173652
+        },
+        "onset_offset": {
+          "precision": 0.0970873786407767,
+          "recall": 0.08356545961002786,
+          "f1": 0.08982035928143711
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "white_snr20",
+        "seconds": 0.35832229199877474,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 359,
+        "n_est": 287,
+        "onset": {
+          "precision": 0.9303135888501742,
+          "recall": 0.7437325905292479,
+          "f1": 0.8266253869969039
+        },
+        "onset_offset": {
+          "precision": 0.11149825783972125,
+          "recall": 0.08913649025069638,
+          "f1": 0.09907120743034055
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "white_snr10",
+        "seconds": 0.36197379199802526,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.000000000000002,
+        "n_ref": 359,
+        "n_est": 226,
+        "onset": {
+          "precision": 0.9469026548672567,
+          "recall": 0.596100278551532,
+          "f1": 0.7316239316239316
+        },
+        "onset_offset": {
+          "precision": 0.15486725663716813,
+          "recall": 0.09749303621169916,
+          "f1": 0.11965811965811965
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "white_snr5",
+        "seconds": 0.3865607919979084,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 359,
+        "n_est": 168,
+        "onset": {
+          "precision": 0.9166666666666666,
+          "recall": 0.42896935933147634,
+          "f1": 0.5844402277039848
+        },
+        "onset_offset": {
+          "precision": 0.1488095238095238,
+          "recall": 0.06963788300835655,
+          "f1": 0.09487666034155597
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "white_snr0",
+        "seconds": 0.3525890419987263,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -4.821637332766436e-16,
+        "n_ref": 359,
+        "n_est": 82,
+        "onset": {
+          "precision": 0.926829268292683,
+          "recall": 0.2116991643454039,
+          "f1": 0.3446712018140589
+        },
+        "onset_offset": {
+          "precision": 0.24390243902439024,
+          "recall": 0.055710306406685235,
+          "f1": 0.09070294784580499
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "pink_snr30",
+        "seconds": 0.34865916700073285,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 359,
+        "n_est": 317,
+        "onset": {
+          "precision": 0.917981072555205,
+          "recall": 0.8105849582172702,
+          "f1": 0.8609467455621301
+        },
+        "onset_offset": {
+          "precision": 0.08517350157728706,
+          "recall": 0.07520891364902507,
+          "f1": 0.07988165680473372
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "pink_snr20",
+        "seconds": 0.3436885000010079,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 359,
+        "n_est": 301,
+        "onset": {
+          "precision": 0.9102990033222591,
+          "recall": 0.7632311977715878,
+          "f1": 0.8303030303030302
+        },
+        "onset_offset": {
+          "precision": 0.11960132890365449,
+          "recall": 0.10027855153203342,
+          "f1": 0.1090909090909091
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "pink_snr10",
+        "seconds": 0.34497949999786215,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 359,
+        "n_est": 243,
+        "onset": {
+          "precision": 0.9135802469135802,
+          "recall": 0.6183844011142061,
+          "f1": 0.7375415282392026
+        },
+        "onset_offset": {
+          "precision": 0.13991769547325103,
+          "recall": 0.0947075208913649,
+          "f1": 0.11295681063122924
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "pink_snr5",
+        "seconds": 0.3602792089986906,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 359,
+        "n_est": 178,
+        "onset": {
+          "precision": 0.9157303370786517,
+          "recall": 0.45403899721448465,
+          "f1": 0.6070763500931099
+        },
+        "onset_offset": {
+          "precision": 0.2247191011235955,
+          "recall": 0.11142061281337047,
+          "f1": 0.148975791433892
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "pink_snr0",
+        "seconds": 0.3632110830003512,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 359,
+        "n_est": 106,
+        "onset": {
+          "precision": 0.8773584905660378,
+          "recall": 0.2590529247910863,
+          "f1": 0.39999999999999997
+        },
+        "onset_offset": {
+          "precision": 0.27358490566037735,
+          "recall": 0.0807799442896936,
+          "f1": 0.12473118279569893
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.34824162500081,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 359,
+        "n_est": 296,
+        "onset": {
+          "precision": 0.8851351351351351,
+          "recall": 0.7298050139275766,
+          "f1": 0.7999999999999999
+        },
+        "onset_offset": {
+          "precision": 0.0945945945945946,
+          "recall": 0.07799442896935933,
+          "f1": 0.08549618320610687
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.36403004200110445,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 359,
+        "n_est": 316,
+        "onset": {
+          "precision": 0.6708860759493671,
+          "recall": 0.5905292479108635,
+          "f1": 0.6281481481481481
+        },
+        "onset_offset": {
+          "precision": 0.05063291139240506,
+          "recall": 0.04456824512534819,
+          "f1": 0.04740740740740741
+        }
+      },
+      {
+        "clip": "c13",
+        "condition": "clip_0.25",
+        "seconds": 0.3563735420029843,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.14153541666666666,
+        "n_ref": 359,
+        "n_est": 284,
+        "onset": {
+          "precision": 0.897887323943662,
+          "recall": 0.7103064066852368,
+          "f1": 0.7931570762052879
+        },
+        "onset_offset": {
+          "precision": 0.14084507042253522,
+          "recall": 0.11142061281337047,
+          "f1": 0.12441679626749612
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "clean",
+        "seconds": 0.3404553330001363,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 239,
+        "n_est": 226,
+        "onset": {
+          "precision": 0.7522123893805309,
+          "recall": 0.7112970711297071,
+          "f1": 0.7311827956989245
+        },
+        "onset_offset": {
+          "precision": 0.08849557522123894,
+          "recall": 0.08368200836820083,
+          "f1": 0.08602150537634409
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "white_snr30",
+        "seconds": 0.3472306250005204,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 239,
+        "n_est": 218,
+        "onset": {
+          "precision": 0.7706422018348624,
+          "recall": 0.702928870292887,
+          "f1": 0.7352297592997812
+        },
+        "onset_offset": {
+          "precision": 0.10550458715596331,
+          "recall": 0.09623430962343096,
+          "f1": 0.10065645514223195
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "white_snr20",
+        "seconds": 0.3369691250009055,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 239,
+        "n_est": 206,
+        "onset": {
+          "precision": 0.7572815533980582,
+          "recall": 0.6527196652719666,
+          "f1": 0.701123595505618
+        },
+        "onset_offset": {
+          "precision": 0.12135922330097088,
+          "recall": 0.10460251046025104,
+          "f1": 0.11235955056179775
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "white_snr10",
+        "seconds": 0.33023362499807263,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 239,
+        "n_est": 153,
+        "onset": {
+          "precision": 0.7712418300653595,
+          "recall": 0.49372384937238495,
+          "f1": 0.6020408163265306
+        },
+        "onset_offset": {
+          "precision": 0.1568627450980392,
+          "recall": 0.100418410041841,
+          "f1": 0.12244897959183673
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "white_snr5",
+        "seconds": 0.32850866700027836,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 239,
+        "n_est": 128,
+        "onset": {
+          "precision": 0.734375,
+          "recall": 0.39330543933054396,
+          "f1": 0.5122615803814714
+        },
+        "onset_offset": {
+          "precision": 0.1875,
+          "recall": 0.100418410041841,
+          "f1": 0.13079019073569484
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "white_snr0",
+        "seconds": 0.3253571249988454,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 239,
+        "n_est": 98,
+        "onset": {
+          "precision": 0.7040816326530612,
+          "recall": 0.28870292887029286,
+          "f1": 0.4094955489614243
+        },
+        "onset_offset": {
+          "precision": 0.19387755102040816,
+          "recall": 0.0794979079497908,
+          "f1": 0.11275964391691395
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "pink_snr30",
+        "seconds": 0.3382323340010771,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 239,
+        "n_est": 220,
+        "onset": {
+          "precision": 0.7545454545454545,
+          "recall": 0.694560669456067,
+          "f1": 0.7233115468409587
+        },
+        "onset_offset": {
+          "precision": 0.1,
+          "recall": 0.09205020920502092,
+          "f1": 0.09586056644880175
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "pink_snr20",
+        "seconds": 0.33790904199850047,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 239,
+        "n_est": 201,
+        "onset": {
+          "precision": 0.7711442786069652,
+          "recall": 0.6485355648535565,
+          "f1": 0.7045454545454545
+        },
+        "onset_offset": {
+          "precision": 0.11940298507462686,
+          "recall": 0.100418410041841,
+          "f1": 0.10909090909090909
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "pink_snr10",
+        "seconds": 0.33240179200220155,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 239,
+        "n_est": 159,
+        "onset": {
+          "precision": 0.779874213836478,
+          "recall": 0.5188284518828452,
+          "f1": 0.6231155778894473
+        },
+        "onset_offset": {
+          "precision": 0.14465408805031446,
+          "recall": 0.09623430962343096,
+          "f1": 0.11557788944723617
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "pink_snr5",
+        "seconds": 0.3302470420021564,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 239,
+        "n_est": 126,
+        "onset": {
+          "precision": 0.7698412698412699,
+          "recall": 0.40585774058577406,
+          "f1": 0.5315068493150685
+        },
+        "onset_offset": {
+          "precision": 0.21428571428571427,
+          "recall": 0.11297071129707113,
+          "f1": 0.14794520547945206
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "pink_snr0",
+        "seconds": 0.32911925000007614,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 1.928654933106574e-15,
+        "n_ref": 239,
+        "n_est": 100,
+        "onset": {
+          "precision": 0.64,
+          "recall": 0.26778242677824265,
+          "f1": 0.3775811209439528
+        },
+        "onset_offset": {
+          "precision": 0.17,
+          "recall": 0.07112970711297072,
+          "f1": 0.10029498525073748
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.33245379199797753,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 239,
+        "n_est": 212,
+        "onset": {
+          "precision": 0.7264150943396226,
+          "recall": 0.6443514644351465,
+          "f1": 0.6829268292682926
+        },
+        "onset_offset": {
+          "precision": 0.07547169811320754,
+          "recall": 0.06694560669456066,
+          "f1": 0.07095343680709534
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.35018220900019514,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 239,
+        "n_est": 197,
+        "onset": {
+          "precision": 0.6649746192893401,
+          "recall": 0.5481171548117155,
+          "f1": 0.6009174311926606
+        },
+        "onset_offset": {
+          "precision": 0.05583756345177665,
+          "recall": 0.04602510460251046,
+          "f1": 0.05045871559633027
+        }
+      },
+      {
+        "clip": "c14",
+        "condition": "clip_0.25",
+        "seconds": 0.3442625419993419,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.07044583333333333,
+        "n_ref": 239,
+        "n_est": 213,
+        "onset": {
+          "precision": 0.755868544600939,
+          "recall": 0.6736401673640168,
+          "f1": 0.7123893805309736
+        },
+        "onset_offset": {
+          "precision": 0.10328638497652583,
+          "recall": 0.09205020920502092,
+          "f1": 0.09734513274336283
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "clean",
+        "seconds": 0.3596094160020584,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 388,
+        "n_est": 325,
+        "onset": {
+          "precision": 0.9353846153846154,
+          "recall": 0.7835051546391752,
+          "f1": 0.85273492286115
+        },
+        "onset_offset": {
+          "precision": 0.04923076923076923,
+          "recall": 0.041237113402061855,
+          "f1": 0.04488078541374473
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "white_snr30",
+        "seconds": 0.4139409169983992,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 388,
+        "n_est": 312,
+        "onset": {
+          "precision": 0.9519230769230769,
+          "recall": 0.7654639175257731,
+          "f1": 0.8485714285714284
+        },
+        "onset_offset": {
+          "precision": 0.0641025641025641,
+          "recall": 0.05154639175257732,
+          "f1": 0.05714285714285714
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "white_snr20",
+        "seconds": 0.34912558399810223,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 388,
+        "n_est": 286,
+        "onset": {
+          "precision": 0.9615384615384616,
+          "recall": 0.7087628865979382,
+          "f1": 0.8160237388724035
+        },
+        "onset_offset": {
+          "precision": 0.05244755244755245,
+          "recall": 0.03865979381443299,
+          "f1": 0.04451038575667656
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "white_snr10",
+        "seconds": 0.37218341599873384,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 388,
+        "n_est": 224,
+        "onset": {
+          "precision": 0.96875,
+          "recall": 0.5592783505154639,
+          "f1": 0.7091503267973857
+        },
+        "onset_offset": {
+          "precision": 0.13392857142857142,
+          "recall": 0.07731958762886598,
+          "f1": 0.09803921568627451
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "white_snr5",
+        "seconds": 0.3856961660021625,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 388,
+        "n_est": 159,
+        "onset": {
+          "precision": 0.949685534591195,
+          "recall": 0.38917525773195877,
+          "f1": 0.5521023765996343
+        },
+        "onset_offset": {
+          "precision": 0.1320754716981132,
+          "recall": 0.05412371134020619,
+          "f1": 0.07678244972577697
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "white_snr0",
+        "seconds": 0.3547092499975406,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -4.821637332766436e-16,
+        "n_ref": 388,
+        "n_est": 91,
+        "onset": {
+          "precision": 0.945054945054945,
+          "recall": 0.22164948453608246,
+          "f1": 0.35908141962421714
+        },
+        "onset_offset": {
+          "precision": 0.24175824175824176,
+          "recall": 0.05670103092783505,
+          "f1": 0.0918580375782881
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "pink_snr30",
+        "seconds": 0.3812966250006866,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 388,
+        "n_est": 319,
+        "onset": {
+          "precision": 0.9498432601880877,
+          "recall": 0.7809278350515464,
+          "f1": 0.8571428571428571
+        },
+        "onset_offset": {
+          "precision": 0.06269592476489028,
+          "recall": 0.05154639175257732,
+          "f1": 0.056577086280056574
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "pink_snr20",
+        "seconds": 0.36478516699935426,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 388,
+        "n_est": 301,
+        "onset": {
+          "precision": 0.946843853820598,
+          "recall": 0.7345360824742269,
+          "f1": 0.8272859216255443
+        },
+        "onset_offset": {
+          "precision": 0.0664451827242525,
+          "recall": 0.05154639175257732,
+          "f1": 0.05805515239477504
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "pink_snr10",
+        "seconds": 0.3793750420009019,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 388,
+        "n_est": 232,
+        "onset": {
+          "precision": 0.9827586206896551,
+          "recall": 0.5876288659793815,
+          "f1": 0.7354838709677419
+        },
+        "onset_offset": {
+          "precision": 0.10344827586206896,
+          "recall": 0.061855670103092786,
+          "f1": 0.07741935483870968
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "pink_snr5",
+        "seconds": 0.4111922499978391,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0000000000000036,
+        "n_ref": 388,
+        "n_est": 173,
+        "onset": {
+          "precision": 0.9364161849710982,
+          "recall": 0.4175257731958763,
+          "f1": 0.5775401069518717
+        },
+        "onset_offset": {
+          "precision": 0.17341040462427745,
+          "recall": 0.07731958762886598,
+          "f1": 0.10695187165775402
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "pink_snr0",
+        "seconds": 0.34718925000197487,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 388,
+        "n_est": 90,
+        "onset": {
+          "precision": 0.9,
+          "recall": 0.20876288659793815,
+          "f1": 0.3389121338912134
+        },
+        "onset_offset": {
+          "precision": 0.3,
+          "recall": 0.06958762886597938,
+          "f1": 0.11297071129707112
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.34656383300171,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 388,
+        "n_est": 299,
+        "onset": {
+          "precision": 0.9531772575250836,
+          "recall": 0.7345360824742269,
+          "f1": 0.8296943231441047
+        },
+        "onset_offset": {
+          "precision": 0.05016722408026756,
+          "recall": 0.03865979381443299,
+          "f1": 0.04366812227074236
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.3500669580025715,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 388,
+        "n_est": 312,
+        "onset": {
+          "precision": 0.6153846153846154,
+          "recall": 0.4948453608247423,
+          "f1": 0.5485714285714286
+        },
+        "onset_offset": {
+          "precision": 0.03205128205128205,
+          "recall": 0.02577319587628866,
+          "f1": 0.02857142857142857
+        }
+      },
+      {
+        "clip": "c15",
+        "condition": "clip_0.25",
+        "seconds": 0.3450927500016405,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.1877375,
+        "n_ref": 388,
+        "n_est": 272,
+        "onset": {
+          "precision": 0.9558823529411765,
+          "recall": 0.6701030927835051,
+          "f1": 0.7878787878787878
+        },
+        "onset_offset": {
+          "precision": 0.10294117647058823,
+          "recall": 0.07216494845360824,
+          "f1": 0.08484848484848484
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "clean",
+        "seconds": 0.34204966700053774,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 259,
+        "n_est": 279,
+        "onset": {
+          "precision": 0.8673835125448028,
+          "recall": 0.9343629343629344,
+          "f1": 0.8996282527881041
+        },
+        "onset_offset": {
+          "precision": 0.1003584229390681,
+          "recall": 0.10810810810810811,
+          "f1": 0.10408921933085503
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "white_snr30",
+        "seconds": 0.3508227499987697,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 259,
+        "n_est": 261,
+        "onset": {
+          "precision": 0.8697318007662835,
+          "recall": 0.8764478764478765,
+          "f1": 0.8730769230769231
+        },
+        "onset_offset": {
+          "precision": 0.1111111111111111,
+          "recall": 0.11196911196911197,
+          "f1": 0.11153846153846153
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "white_snr20",
+        "seconds": 0.35541408299832256,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 259,
+        "n_est": 221,
+        "onset": {
+          "precision": 0.918552036199095,
+          "recall": 0.7837837837837838,
+          "f1": 0.8458333333333333
+        },
+        "onset_offset": {
+          "precision": 0.12669683257918551,
+          "recall": 0.10810810810810811,
+          "f1": 0.11666666666666667
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "white_snr10",
+        "seconds": 0.3550498750009865,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 259,
+        "n_est": 169,
+        "onset": {
+          "precision": 0.9349112426035503,
+          "recall": 0.61003861003861,
+          "f1": 0.7383177570093458
+        },
+        "onset_offset": {
+          "precision": 0.17751479289940827,
+          "recall": 0.11583011583011583,
+          "f1": 0.14018691588785048
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "white_snr5",
+        "seconds": 0.34320916599972406,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 259,
+        "n_est": 124,
+        "onset": {
+          "precision": 0.9435483870967742,
+          "recall": 0.4517374517374517,
+          "f1": 0.6109660574412532
+        },
+        "onset_offset": {
+          "precision": 0.1935483870967742,
+          "recall": 0.09266409266409266,
+          "f1": 0.12532637075718014
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "white_snr0",
+        "seconds": 0.33631466700171586,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 259,
+        "n_est": 79,
+        "onset": {
+          "precision": 0.9746835443037974,
+          "recall": 0.2972972972972973,
+          "f1": 0.4556213017751479
+        },
+        "onset_offset": {
+          "precision": 0.20253164556962025,
+          "recall": 0.06177606177606178,
+          "f1": 0.09467455621301775
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "pink_snr30",
+        "seconds": 0.39261691700085066,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 259,
+        "n_est": 273,
+        "onset": {
+          "precision": 0.8681318681318682,
+          "recall": 0.915057915057915,
+          "f1": 0.8909774436090225
+        },
+        "onset_offset": {
+          "precision": 0.10256410256410256,
+          "recall": 0.10810810810810811,
+          "f1": 0.10526315789473684
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "pink_snr20",
+        "seconds": 0.3688956670011976,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 259,
+        "n_est": 246,
+        "onset": {
+          "precision": 0.8943089430894309,
+          "recall": 0.8494208494208494,
+          "f1": 0.8712871287128713
+        },
+        "onset_offset": {
+          "precision": 0.13821138211382114,
+          "recall": 0.13127413127413126,
+          "f1": 0.13465346534653466
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "pink_snr10",
+        "seconds": 0.3512309159996221,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 259,
+        "n_est": 195,
+        "onset": {
+          "precision": 0.9128205128205128,
+          "recall": 0.6872586872586872,
+          "f1": 0.7841409691629957
+        },
+        "onset_offset": {
+          "precision": 0.15384615384615385,
+          "recall": 0.11583011583011583,
+          "f1": 0.13215859030837004
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "pink_snr5",
+        "seconds": 0.3624914590000117,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 259,
+        "n_est": 140,
+        "onset": {
+          "precision": 0.9071428571428571,
+          "recall": 0.49034749034749037,
+          "f1": 0.6365914786967418
+        },
+        "onset_offset": {
+          "precision": 0.21428571428571427,
+          "recall": 0.11583011583011583,
+          "f1": 0.15037593984962405
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "pink_snr0",
+        "seconds": 0.34397808400171925,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 259,
+        "n_est": 71,
+        "onset": {
+          "precision": 0.9577464788732394,
+          "recall": 0.2625482625482625,
+          "f1": 0.4121212121212121
+        },
+        "onset_offset": {
+          "precision": 0.22535211267605634,
+          "recall": 0.06177606177606178,
+          "f1": 0.09696969696969697
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.3716370830006781,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 259,
+        "n_est": 235,
+        "onset": {
+          "precision": 0.8638297872340426,
+          "recall": 0.7837837837837838,
+          "f1": 0.8218623481781376
+        },
+        "onset_offset": {
+          "precision": 0.10212765957446808,
+          "recall": 0.09266409266409266,
+          "f1": 0.09716599190283401
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.35711758399702376,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 259,
+        "n_est": 243,
+        "onset": {
+          "precision": 0.6748971193415638,
+          "recall": 0.6332046332046332,
+          "f1": 0.6533864541832668
+        },
+        "onset_offset": {
+          "precision": 0.03292181069958848,
+          "recall": 0.03088803088803089,
+          "f1": 0.03187250996015936
+        }
+      },
+      {
+        "clip": "c16",
+        "condition": "clip_0.25",
+        "seconds": 0.7127468329999829,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.03695208333333334,
+        "n_ref": 259,
+        "n_est": 260,
+        "onset": {
+          "precision": 0.8730769230769231,
+          "recall": 0.8764478764478765,
+          "f1": 0.8747591522157996
+        },
+        "onset_offset": {
+          "precision": 0.1,
+          "recall": 0.10038610038610038,
+          "f1": 0.1001926782273603
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "clean",
+        "seconds": 0.3593713750015013,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 215,
+        "n_est": 250,
+        "onset": {
+          "precision": 0.788,
+          "recall": 0.9162790697674419,
+          "f1": 0.8473118279569892
+        },
+        "onset_offset": {
+          "precision": 0.324,
+          "recall": 0.3767441860465116,
+          "f1": 0.3483870967741936
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "white_snr30",
+        "seconds": 0.40299579199927393,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 215,
+        "n_est": 241,
+        "onset": {
+          "precision": 0.8132780082987552,
+          "recall": 0.9116279069767442,
+          "f1": 0.8596491228070176
+        },
+        "onset_offset": {
+          "precision": 0.3278008298755187,
+          "recall": 0.3674418604651163,
+          "f1": 0.3464912280701754
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "white_snr20",
+        "seconds": 0.4116964580025524,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 215,
+        "n_est": 223,
+        "onset": {
+          "precision": 0.8654708520179372,
+          "recall": 0.8976744186046511,
+          "f1": 0.8812785388127854
+        },
+        "onset_offset": {
+          "precision": 0.32286995515695066,
+          "recall": 0.33488372093023255,
+          "f1": 0.32876712328767127
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "white_snr10",
+        "seconds": 0.37014054199971724,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 215,
+        "n_est": 194,
+        "onset": {
+          "precision": 0.9278350515463918,
+          "recall": 0.8372093023255814,
+          "f1": 0.8801955990220051
+        },
+        "onset_offset": {
+          "precision": 0.38144329896907214,
+          "recall": 0.34418604651162793,
+          "f1": 0.3618581907090464
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "white_snr5",
+        "seconds": 0.39129987499836716,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 4.999999999999999,
+        "n_ref": 215,
+        "n_est": 164,
+        "onset": {
+          "precision": 0.9329268292682927,
+          "recall": 0.7116279069767442,
+          "f1": 0.8073878627968338
+        },
+        "onset_offset": {
+          "precision": 0.43902439024390244,
+          "recall": 0.33488372093023255,
+          "f1": 0.37994722955145116
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "white_snr0",
+        "seconds": 0.3767609579990676,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 215,
+        "n_est": 124,
+        "onset": {
+          "precision": 0.9193548387096774,
+          "recall": 0.5302325581395348,
+          "f1": 0.6725663716814159
+        },
+        "onset_offset": {
+          "precision": 0.4435483870967742,
+          "recall": 0.2558139534883721,
+          "f1": 0.3244837758112094
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "pink_snr30",
+        "seconds": 0.37470391600072617,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 215,
+        "n_est": 241,
+        "onset": {
+          "precision": 0.8132780082987552,
+          "recall": 0.9116279069767442,
+          "f1": 0.8596491228070176
+        },
+        "onset_offset": {
+          "precision": 0.3236514522821577,
+          "recall": 0.3627906976744186,
+          "f1": 0.34210526315789475
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "pink_snr20",
+        "seconds": 0.35207912499754457,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 215,
+        "n_est": 224,
+        "onset": {
+          "precision": 0.875,
+          "recall": 0.9116279069767442,
+          "f1": 0.8929384965831435
+        },
+        "onset_offset": {
+          "precision": 0.35267857142857145,
+          "recall": 0.3674418604651163,
+          "f1": 0.3599088838268793
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "pink_snr10",
+        "seconds": 0.33710312499897555,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 215,
+        "n_est": 203,
+        "onset": {
+          "precision": 0.9113300492610837,
+          "recall": 0.8604651162790697,
+          "f1": 0.8851674641148325
+        },
+        "onset_offset": {
+          "precision": 0.3891625615763547,
+          "recall": 0.3674418604651163,
+          "f1": 0.37799043062200965
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "pink_snr5",
+        "seconds": 0.3325183749984717,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 215,
+        "n_est": 174,
+        "onset": {
+          "precision": 0.896551724137931,
+          "recall": 0.7255813953488373,
+          "f1": 0.8020565552699229
+        },
+        "onset_offset": {
+          "precision": 0.40229885057471265,
+          "recall": 0.32558139534883723,
+          "f1": 0.35989717223650386
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "pink_snr0",
+        "seconds": 0.325237458000629,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": -1.446491199829931e-15,
+        "n_ref": 215,
+        "n_est": 135,
+        "onset": {
+          "precision": 0.8518518518518519,
+          "recall": 0.5348837209302325,
+          "f1": 0.6571428571428571
+        },
+        "onset_offset": {
+          "precision": 0.3111111111111111,
+          "recall": 0.19534883720930232,
+          "f1": 0.24
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.33064775000093505,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 215,
+        "n_est": 218,
+        "onset": {
+          "precision": 0.8302752293577982,
+          "recall": 0.8418604651162791,
+          "f1": 0.8360277136258661
+        },
+        "onset_offset": {
+          "precision": 0.3394495412844037,
+          "recall": 0.34418604651162793,
+          "f1": 0.3418013856812933
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33283524999933434,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 215,
+        "n_est": 218,
+        "onset": {
+          "precision": 0.7110091743119266,
+          "recall": 0.7209302325581395,
+          "f1": 0.7159353348729791
+        },
+        "onset_offset": {
+          "precision": 0.24770642201834864,
+          "recall": 0.25116279069767444,
+          "f1": 0.24942263279445728
+        }
+      },
+      {
+        "clip": "c17",
+        "condition": "clip_0.25",
+        "seconds": 0.3355605420001666,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.01809791666666667,
+        "n_ref": 215,
+        "n_est": 242,
+        "onset": {
+          "precision": 0.7975206611570248,
+          "recall": 0.8976744186046511,
+          "f1": 0.8446389496717723
+        },
+        "onset_offset": {
+          "precision": 0.33884297520661155,
+          "recall": 0.3813953488372093,
+          "f1": 0.3588621444201313
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "clean",
+        "seconds": 0.32948770800066995,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 127,
+        "n_est": 182,
+        "onset": {
+          "precision": 0.6758241758241759,
+          "recall": 0.968503937007874,
+          "f1": 0.7961165048543689
+        },
+        "onset_offset": {
+          "precision": 0.19230769230769232,
+          "recall": 0.2755905511811024,
+          "f1": 0.22653721682847897
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "white_snr30",
+        "seconds": 0.3300123330009228,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 127,
+        "n_est": 173,
+        "onset": {
+          "precision": 0.7109826589595376,
+          "recall": 0.968503937007874,
+          "f1": 0.82
+        },
+        "onset_offset": {
+          "precision": 0.2138728323699422,
+          "recall": 0.29133858267716534,
+          "f1": 0.24666666666666665
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "white_snr20",
+        "seconds": 0.3251702090019535,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 127,
+        "n_est": 167,
+        "onset": {
+          "precision": 0.7065868263473054,
+          "recall": 0.9291338582677166,
+          "f1": 0.8027210884353742
+        },
+        "onset_offset": {
+          "precision": 0.25149700598802394,
+          "recall": 0.33070866141732286,
+          "f1": 0.2857142857142857
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "white_snr10",
+        "seconds": 0.3302854169996863,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.000000000000002,
+        "n_ref": 127,
+        "n_est": 143,
+        "onset": {
+          "precision": 0.7762237762237763,
+          "recall": 0.8740157480314961,
+          "f1": 0.8222222222222223
+        },
+        "onset_offset": {
+          "precision": 0.2937062937062937,
+          "recall": 0.33070866141732286,
+          "f1": 0.3111111111111111
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "white_snr5",
+        "seconds": 0.38898449999760487,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000002,
+        "n_ref": 127,
+        "n_est": 135,
+        "onset": {
+          "precision": 0.7925925925925926,
+          "recall": 0.84251968503937,
+          "f1": 0.816793893129771
+        },
+        "onset_offset": {
+          "precision": 0.3851851851851852,
+          "recall": 0.4094488188976378,
+          "f1": 0.3969465648854961
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "white_snr0",
+        "seconds": 0.34838166600093246,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 127,
+        "n_est": 126,
+        "onset": {
+          "precision": 0.7142857142857143,
+          "recall": 0.7086614173228346,
+          "f1": 0.7114624505928855
+        },
+        "onset_offset": {
+          "precision": 0.3333333333333333,
+          "recall": 0.33070866141732286,
+          "f1": 0.3320158102766798
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "pink_snr30",
+        "seconds": 0.36007416600114084,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 127,
+        "n_est": 187,
+        "onset": {
+          "precision": 0.6524064171122995,
+          "recall": 0.9606299212598425,
+          "f1": 0.7770700636942676
+        },
+        "onset_offset": {
+          "precision": 0.17647058823529413,
+          "recall": 0.25984251968503935,
+          "f1": 0.21019108280254775
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "pink_snr20",
+        "seconds": 0.3557191670006432,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 19.999999999999996,
+        "n_ref": 127,
+        "n_est": 170,
+        "onset": {
+          "precision": 0.7,
+          "recall": 0.937007874015748,
+          "f1": 0.8013468013468015
+        },
+        "onset_offset": {
+          "precision": 0.2529411764705882,
+          "recall": 0.33858267716535434,
+          "f1": 0.2895622895622895
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "pink_snr10",
+        "seconds": 0.34402304100149195,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 10.0,
+        "n_ref": 127,
+        "n_est": 156,
+        "onset": {
+          "precision": 0.7115384615384616,
+          "recall": 0.8740157480314961,
+          "f1": 0.7844522968197881
+        },
+        "onset_offset": {
+          "precision": 0.3076923076923077,
+          "recall": 0.3779527559055118,
+          "f1": 0.3392226148409894
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "pink_snr5",
+        "seconds": 0.34929016699970816,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.0,
+        "n_ref": 127,
+        "n_est": 137,
+        "onset": {
+          "precision": 0.8029197080291971,
+          "recall": 0.8661417322834646,
+          "f1": 0.8333333333333335
+        },
+        "onset_offset": {
+          "precision": 0.39416058394160586,
+          "recall": 0.4251968503937008,
+          "f1": 0.4090909090909091
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "pink_snr0",
+        "seconds": 0.34560933299871976,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.64327466553287e-16,
+        "n_ref": 127,
+        "n_est": 125,
+        "onset": {
+          "precision": 0.688,
+          "recall": 0.6771653543307087,
+          "f1": 0.6825396825396826
+        },
+        "onset_offset": {
+          "precision": 0.256,
+          "recall": 0.25196850393700787,
+          "f1": 0.25396825396825395
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.35758179199910956,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 127,
+        "n_est": 166,
+        "onset": {
+          "precision": 0.6867469879518072,
+          "recall": 0.8976377952755905,
+          "f1": 0.7781569965870307
+        },
+        "onset_offset": {
+          "precision": 0.21084337349397592,
+          "recall": 0.2755905511811024,
+          "f1": 0.23890784982935154
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33729316600147285,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 127,
+        "n_est": 165,
+        "onset": {
+          "precision": 0.41818181818181815,
+          "recall": 0.5433070866141733,
+          "f1": 0.4726027397260274
+        },
+        "onset_offset": {
+          "precision": 0.07878787878787878,
+          "recall": 0.10236220472440945,
+          "f1": 0.08904109589041095
+        }
+      },
+      {
+        "clip": "c18",
+        "condition": "clip_0.25",
+        "seconds": 0.32993741699829116,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.1342625,
+        "n_ref": 127,
+        "n_est": 161,
+        "onset": {
+          "precision": 0.6521739130434783,
+          "recall": 0.8267716535433071,
+          "f1": 0.7291666666666666
+        },
+        "onset_offset": {
+          "precision": 0.21739130434782608,
+          "recall": 0.2755905511811024,
+          "f1": 0.24305555555555555
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "clean",
+        "seconds": 0.3463988750008866,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 325,
+        "n_est": 295,
+        "onset": {
+          "precision": 0.8542372881355932,
+          "recall": 0.7753846153846153,
+          "f1": 0.8129032258064516
+        },
+        "onset_offset": {
+          "precision": 0.1016949152542373,
+          "recall": 0.09230769230769231,
+          "f1": 0.09677419354838711
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "white_snr30",
+        "seconds": 0.3505589170017629,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 325,
+        "n_est": 280,
+        "onset": {
+          "precision": 0.8571428571428571,
+          "recall": 0.7384615384615385,
+          "f1": 0.793388429752066
+        },
+        "onset_offset": {
+          "precision": 0.09642857142857143,
+          "recall": 0.08307692307692308,
+          "f1": 0.08925619834710743
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "white_snr20",
+        "seconds": 0.3401224160006677,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 325,
+        "n_est": 256,
+        "onset": {
+          "precision": 0.875,
+          "recall": 0.6892307692307692,
+          "f1": 0.7710843373493976
+        },
+        "onset_offset": {
+          "precision": 0.08203125,
+          "recall": 0.06461538461538462,
+          "f1": 0.07228915662650602
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "white_snr10",
+        "seconds": 0.34883404100037296,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 325,
+        "n_est": 203,
+        "onset": {
+          "precision": 0.8916256157635468,
+          "recall": 0.556923076923077,
+          "f1": 0.6856060606060607
+        },
+        "onset_offset": {
+          "precision": 0.09852216748768473,
+          "recall": 0.06153846153846154,
+          "f1": 0.07575757575757577
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "white_snr5",
+        "seconds": 0.3460102079989156,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000002,
+        "n_ref": 325,
+        "n_est": 183,
+        "onset": {
+          "precision": 0.8797814207650273,
+          "recall": 0.49538461538461537,
+          "f1": 0.6338582677165354
+        },
+        "onset_offset": {
+          "precision": 0.15846994535519127,
+          "recall": 0.08923076923076922,
+          "f1": 0.11417322834645668
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "white_snr0",
+        "seconds": 0.3516477919984027,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 0.0,
+        "n_ref": 325,
+        "n_est": 136,
+        "onset": {
+          "precision": 0.7941176470588235,
+          "recall": 0.3323076923076923,
+          "f1": 0.4685466377440347
+        },
+        "onset_offset": {
+          "precision": 0.14705882352941177,
+          "recall": 0.06153846153846154,
+          "f1": 0.08676789587852494
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "pink_snr30",
+        "seconds": 0.338443874999939,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 30.0,
+        "n_ref": 325,
+        "n_est": 279,
+        "onset": {
+          "precision": 0.8673835125448028,
+          "recall": 0.7446153846153846,
+          "f1": 0.8013245033112583
+        },
+        "onset_offset": {
+          "precision": 0.1039426523297491,
+          "recall": 0.08923076923076922,
+          "f1": 0.09602649006622517
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "pink_snr20",
+        "seconds": 0.3300324999981967,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 20.0,
+        "n_ref": 325,
+        "n_est": 260,
+        "onset": {
+          "precision": 0.8769230769230769,
+          "recall": 0.7015384615384616,
+          "f1": 0.7794871794871795
+        },
+        "onset_offset": {
+          "precision": 0.1,
+          "recall": 0.08,
+          "f1": 0.08888888888888889
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "pink_snr10",
+        "seconds": 0.3346279590004997,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 9.999999999999998,
+        "n_ref": 325,
+        "n_est": 222,
+        "onset": {
+          "precision": 0.8738738738738738,
+          "recall": 0.5969230769230769,
+          "f1": 0.7093235831809871
+        },
+        "onset_offset": {
+          "precision": 0.11711711711711711,
+          "recall": 0.08,
+          "f1": 0.09506398537477148
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "pink_snr5",
+        "seconds": 0.33102187500117,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 5.000000000000001,
+        "n_ref": 325,
+        "n_est": 184,
+        "onset": {
+          "precision": 0.8315217391304348,
+          "recall": 0.4707692307692308,
+          "f1": 0.6011787819253438
+        },
+        "onset_offset": {
+          "precision": 0.10869565217391304,
+          "recall": 0.06153846153846154,
+          "f1": 0.07858546168958744
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "pink_snr0",
+        "seconds": 0.3322852499986766,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "measured_snr_db": 1.928654933106574e-15,
+        "n_ref": 325,
+        "n_est": 128,
+        "onset": {
+          "precision": 0.8125,
+          "recall": 0.32,
+          "f1": 0.45916114790286977
+        },
+        "onset_offset": {
+          "precision": 0.15625,
+          "recall": 0.06153846153846154,
+          "f1": 0.08830022075055188
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "reverb_rt60_0.3",
+        "seconds": 0.33976787500068895,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 325,
+        "n_est": 245,
+        "onset": {
+          "precision": 0.763265306122449,
+          "recall": 0.5753846153846154,
+          "f1": 0.656140350877193
+        },
+        "onset_offset": {
+          "precision": 0.11428571428571428,
+          "recall": 0.08615384615384615,
+          "f1": 0.0982456140350877
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "reverb_rt60_0.8",
+        "seconds": 0.33012379100182443,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "n_ref": 325,
+        "n_est": 242,
+        "onset": {
+          "precision": 0.5950413223140496,
+          "recall": 0.4430769230769231,
+          "f1": 0.5079365079365079
+        },
+        "onset_offset": {
+          "precision": 0.08677685950413223,
+          "recall": 0.06461538461538462,
+          "f1": 0.07407407407407407
+        }
+      },
+      {
+        "clip": "c19",
+        "condition": "clip_0.25",
+        "seconds": 0.35179670800062013,
+        "audio_sec": 30.0,
+        "n_chunks": 1,
+        "clipped_fraction": 0.05045,
+        "n_ref": 325,
+        "n_est": 271,
+        "onset": {
+          "precision": 0.8154981549815498,
+          "recall": 0.68,
+          "f1": 0.7416107382550335
+        },
+        "onset_offset": {
+          "precision": 0.11070110701107011,
+          "recall": 0.09230769230769231,
+          "f1": 0.10067114093959731
+        }
+      }
+    ]
+  },
+  "streaming": {
+    "chunk_settings": {
+      "chunk_sec": 30.0,
+      "overlap_sec": 4.0,
+      "hop_sec": 26.0,
+      "weld_edge_eps": 0.15,
+      "weld_edge_in": 0.3,
+      "weld_gap": 0.15,
+      "weld_dedup": 0.15
+    },
+    "eps_values": [
+      0.05,
+      0.15,
+      0.3,
+      0.5
+    ],
+    "clips": [
+      {
+        "clip": "L00",
+        "duration_sec": 150.0,
+        "n_chunks": 6,
+        "n_boundaries": 5,
+        "chunked": {
+          "seconds": 2.095226041998103,
+          "n_notes": 1307,
+          "vs_truth": {
+            "n_ref": 1434,
+            "n_est": 1307,
+            "onset": {
+              "precision": 0.8837031369548585,
+              "recall": 0.805439330543933,
+              "f1": 0.8427581174753739
+            },
+            "onset_offset": {
+              "precision": 0.15225707727620505,
+              "recall": 0.1387726638772664,
+              "f1": 0.14520248084640638
+            }
+          },
+          "vs_whole_file": {
+            "n_ref": 1292,
+            "n_est": 1307,
+            "onset": {
+              "precision": 0.9671002295332823,
+              "recall": 0.978328173374613,
+              "f1": 0.9726818006925741
+            },
+            "onset_offset": {
+              "precision": 0.9487375669472073,
+              "recall": 0.9597523219814241,
+              "f1": 0.954213158907272
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 171,
+            "n_est": 169,
+            "onset": {
+              "precision": 0.8461538461538461,
+              "recall": 0.8362573099415205,
+              "f1": 0.8411764705882354
+            },
+            "onset_offset": {
+              "precision": 0.11834319526627218,
+              "recall": 0.11695906432748537,
+              "f1": 0.11764705882352941
+            }
+          }
+        },
+        "whole_file": {
+          "seconds": 1.8302382919973752,
+          "n_notes": 1292,
+          "vs_truth": {
+            "n_ref": 1434,
+            "n_est": 1292,
+            "onset": {
+              "precision": 0.8846749226006192,
+              "recall": 0.797071129707113,
+              "f1": 0.8385913426265591
+            },
+            "onset_offset": {
+              "precision": 0.15479876160990713,
+              "recall": 0.1394700139470014,
+              "f1": 0.1467351430667645
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 171,
+            "n_est": 160,
+            "onset": {
+              "precision": 0.86875,
+              "recall": 0.8128654970760234,
+              "f1": 0.8398791540785498
+            },
+            "onset_offset": {
+              "precision": 0.11875,
+              "recall": 0.1111111111111111,
+              "f1": 0.11480362537764349
+            }
+          }
+        },
+        "weld_sweep": [
+          {
+            "edge_eps": 0.05,
+            "is_production_default": false,
+            "n_notes": 1307,
+            "vs_truth": {
+              "n_ref": 1434,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.8837031369548585,
+                "recall": 0.805439330543933,
+                "f1": 0.8427581174753739
+              },
+              "onset_offset": {
+                "precision": 0.15225707727620505,
+                "recall": 0.1387726638772664,
+                "f1": 0.14520248084640638
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1292,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.9671002295332823,
+                "recall": 0.978328173374613,
+                "f1": 0.9726818006925741
+              },
+              "onset_offset": {
+                "precision": 0.9487375669472073,
+                "recall": 0.9597523219814241,
+                "f1": 0.954213158907272
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 171,
+              "n_est": 169,
+              "onset": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8362573099415205,
+                "f1": 0.8411764705882354
+              },
+              "onset_offset": {
+                "precision": 0.11834319526627218,
+                "recall": 0.11695906432748537,
+                "f1": 0.11764705882352941
+              }
+            }
+          },
+          {
+            "edge_eps": 0.15,
+            "is_production_default": true,
+            "n_notes": 1307,
+            "vs_truth": {
+              "n_ref": 1434,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.8837031369548585,
+                "recall": 0.805439330543933,
+                "f1": 0.8427581174753739
+              },
+              "onset_offset": {
+                "precision": 0.15225707727620505,
+                "recall": 0.1387726638772664,
+                "f1": 0.14520248084640638
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1292,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.9671002295332823,
+                "recall": 0.978328173374613,
+                "f1": 0.9726818006925741
+              },
+              "onset_offset": {
+                "precision": 0.9487375669472073,
+                "recall": 0.9597523219814241,
+                "f1": 0.954213158907272
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 171,
+              "n_est": 169,
+              "onset": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8362573099415205,
+                "f1": 0.8411764705882354
+              },
+              "onset_offset": {
+                "precision": 0.11834319526627218,
+                "recall": 0.11695906432748537,
+                "f1": 0.11764705882352941
+              }
+            }
+          },
+          {
+            "edge_eps": 0.3,
+            "is_production_default": false,
+            "n_notes": 1307,
+            "vs_truth": {
+              "n_ref": 1434,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.8837031369548585,
+                "recall": 0.805439330543933,
+                "f1": 0.8427581174753739
+              },
+              "onset_offset": {
+                "precision": 0.15225707727620505,
+                "recall": 0.1387726638772664,
+                "f1": 0.14520248084640638
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1292,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.9671002295332823,
+                "recall": 0.978328173374613,
+                "f1": 0.9726818006925741
+              },
+              "onset_offset": {
+                "precision": 0.9487375669472073,
+                "recall": 0.9597523219814241,
+                "f1": 0.954213158907272
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 171,
+              "n_est": 169,
+              "onset": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8362573099415205,
+                "f1": 0.8411764705882354
+              },
+              "onset_offset": {
+                "precision": 0.11834319526627218,
+                "recall": 0.11695906432748537,
+                "f1": 0.11764705882352941
+              }
+            }
+          },
+          {
+            "edge_eps": 0.5,
+            "is_production_default": false,
+            "n_notes": 1307,
+            "vs_truth": {
+              "n_ref": 1434,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.8837031369548585,
+                "recall": 0.805439330543933,
+                "f1": 0.8427581174753739
+              },
+              "onset_offset": {
+                "precision": 0.15225707727620505,
+                "recall": 0.1387726638772664,
+                "f1": 0.14520248084640638
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1292,
+              "n_est": 1307,
+              "onset": {
+                "precision": 0.9671002295332823,
+                "recall": 0.978328173374613,
+                "f1": 0.9726818006925741
+              },
+              "onset_offset": {
+                "precision": 0.9487375669472073,
+                "recall": 0.9597523219814241,
+                "f1": 0.954213158907272
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 171,
+              "n_est": 169,
+              "onset": {
+                "precision": 0.8461538461538461,
+                "recall": 0.8362573099415205,
+                "f1": 0.8411764705882354
+              },
+              "onset_offset": {
+                "precision": 0.11834319526627218,
+                "recall": 0.11695906432748537,
+                "f1": 0.11764705882352941
+              }
+            }
+          }
+        ],
+        "sweep_cache": {
+          "network_runs": 7,
+          "reused": 24
+        }
+      },
+      {
+        "clip": "L01",
+        "duration_sec": 150.0,
+        "n_chunks": 6,
+        "n_boundaries": 5,
+        "chunked": {
+          "seconds": 2.2635252919972118,
+          "n_notes": 1305,
+          "vs_truth": {
+            "n_ref": 1303,
+            "n_est": 1305,
+            "onset": {
+              "precision": 0.8536398467432951,
+              "recall": 0.8549501151189562,
+              "f1": 0.8542944785276074
+            },
+            "onset_offset": {
+              "precision": 0.189272030651341,
+              "recall": 0.18956254796623176,
+              "f1": 0.18941717791411042
+            }
+          },
+          "vs_whole_file": {
+            "n_ref": 1285,
+            "n_est": 1305,
+            "onset": {
+              "precision": 0.9524904214559387,
+              "recall": 0.9673151750972763,
+              "f1": 0.9598455598455599
+            },
+            "onset_offset": {
+              "precision": 0.9218390804597701,
+              "recall": 0.9361867704280156,
+              "f1": 0.928957528957529
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 165,
+            "n_est": 183,
+            "onset": {
+              "precision": 0.825136612021858,
+              "recall": 0.9151515151515152,
+              "f1": 0.8678160919540229
+            },
+            "onset_offset": {
+              "precision": 0.14754098360655737,
+              "recall": 0.16363636363636364,
+              "f1": 0.15517241379310345
+            }
+          }
+        },
+        "whole_file": {
+          "seconds": 1.9736214590011514,
+          "n_notes": 1285,
+          "vs_truth": {
+            "n_ref": 1303,
+            "n_est": 1285,
+            "onset": {
+              "precision": 0.8614785992217899,
+              "recall": 0.8495778971603991,
+              "f1": 0.8554868624420403
+            },
+            "onset_offset": {
+              "precision": 0.19299610894941635,
+              "recall": 0.1903300076745971,
+              "f1": 0.19165378670788252
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 165,
+            "n_est": 168,
+            "onset": {
+              "precision": 0.8809523809523809,
+              "recall": 0.896969696969697,
+              "f1": 0.888888888888889
+            },
+            "onset_offset": {
+              "precision": 0.15476190476190477,
+              "recall": 0.15757575757575756,
+              "f1": 0.15615615615615616
+            }
+          }
+        },
+        "weld_sweep": [
+          {
+            "edge_eps": 0.05,
+            "is_production_default": false,
+            "n_notes": 1305,
+            "vs_truth": {
+              "n_ref": 1303,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.8536398467432951,
+                "recall": 0.8549501151189562,
+                "f1": 0.8542944785276074
+              },
+              "onset_offset": {
+                "precision": 0.189272030651341,
+                "recall": 0.18956254796623176,
+                "f1": 0.18941717791411042
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1285,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.9524904214559387,
+                "recall": 0.9673151750972763,
+                "f1": 0.9598455598455599
+              },
+              "onset_offset": {
+                "precision": 0.9218390804597701,
+                "recall": 0.9361867704280156,
+                "f1": 0.928957528957529
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 165,
+              "n_est": 183,
+              "onset": {
+                "precision": 0.825136612021858,
+                "recall": 0.9151515151515152,
+                "f1": 0.8678160919540229
+              },
+              "onset_offset": {
+                "precision": 0.14754098360655737,
+                "recall": 0.16363636363636364,
+                "f1": 0.15517241379310345
+              }
+            }
+          },
+          {
+            "edge_eps": 0.15,
+            "is_production_default": true,
+            "n_notes": 1305,
+            "vs_truth": {
+              "n_ref": 1303,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.8536398467432951,
+                "recall": 0.8549501151189562,
+                "f1": 0.8542944785276074
+              },
+              "onset_offset": {
+                "precision": 0.189272030651341,
+                "recall": 0.18956254796623176,
+                "f1": 0.18941717791411042
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1285,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.9524904214559387,
+                "recall": 0.9673151750972763,
+                "f1": 0.9598455598455599
+              },
+              "onset_offset": {
+                "precision": 0.9218390804597701,
+                "recall": 0.9361867704280156,
+                "f1": 0.928957528957529
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 165,
+              "n_est": 183,
+              "onset": {
+                "precision": 0.825136612021858,
+                "recall": 0.9151515151515152,
+                "f1": 0.8678160919540229
+              },
+              "onset_offset": {
+                "precision": 0.14754098360655737,
+                "recall": 0.16363636363636364,
+                "f1": 0.15517241379310345
+              }
+            }
+          },
+          {
+            "edge_eps": 0.3,
+            "is_production_default": false,
+            "n_notes": 1305,
+            "vs_truth": {
+              "n_ref": 1303,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.8536398467432951,
+                "recall": 0.8549501151189562,
+                "f1": 0.8542944785276074
+              },
+              "onset_offset": {
+                "precision": 0.189272030651341,
+                "recall": 0.18956254796623176,
+                "f1": 0.18941717791411042
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1285,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.9524904214559387,
+                "recall": 0.9673151750972763,
+                "f1": 0.9598455598455599
+              },
+              "onset_offset": {
+                "precision": 0.9218390804597701,
+                "recall": 0.9361867704280156,
+                "f1": 0.928957528957529
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 165,
+              "n_est": 183,
+              "onset": {
+                "precision": 0.825136612021858,
+                "recall": 0.9151515151515152,
+                "f1": 0.8678160919540229
+              },
+              "onset_offset": {
+                "precision": 0.14754098360655737,
+                "recall": 0.16363636363636364,
+                "f1": 0.15517241379310345
+              }
+            }
+          },
+          {
+            "edge_eps": 0.5,
+            "is_production_default": false,
+            "n_notes": 1305,
+            "vs_truth": {
+              "n_ref": 1303,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.8536398467432951,
+                "recall": 0.8549501151189562,
+                "f1": 0.8542944785276074
+              },
+              "onset_offset": {
+                "precision": 0.189272030651341,
+                "recall": 0.18956254796623176,
+                "f1": 0.18941717791411042
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1285,
+              "n_est": 1305,
+              "onset": {
+                "precision": 0.9524904214559387,
+                "recall": 0.9673151750972763,
+                "f1": 0.9598455598455599
+              },
+              "onset_offset": {
+                "precision": 0.9218390804597701,
+                "recall": 0.9361867704280156,
+                "f1": 0.928957528957529
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 165,
+              "n_est": 183,
+              "onset": {
+                "precision": 0.825136612021858,
+                "recall": 0.9151515151515152,
+                "f1": 0.8678160919540229
+              },
+              "onset_offset": {
+                "precision": 0.14754098360655737,
+                "recall": 0.16363636363636364,
+                "f1": 0.15517241379310345
+              }
+            }
+          }
+        ],
+        "sweep_cache": {
+          "network_runs": 7,
+          "reused": 24
+        }
+      },
+      {
+        "clip": "L02",
+        "duration_sec": 150.0,
+        "n_chunks": 6,
+        "n_boundaries": 5,
+        "chunked": {
+          "seconds": 2.31196466700203,
+          "n_notes": 1237,
+          "vs_truth": {
+            "n_ref": 1182,
+            "n_est": 1237,
+            "onset": {
+              "precision": 0.8561034761519806,
+              "recall": 0.8959390862944162,
+              "f1": 0.8755684167011161
+            },
+            "onset_offset": {
+              "precision": 0.2700080840743735,
+              "recall": 0.2825719120135364,
+              "f1": 0.27614716825134356
+            }
+          },
+          "vs_whole_file": {
+            "n_ref": 1211,
+            "n_est": 1237,
+            "onset": {
+              "precision": 0.9587712206952304,
+              "recall": 0.9793559042113955,
+              "f1": 0.968954248366013
+            },
+            "onset_offset": {
+              "precision": 0.9248181083265966,
+              "recall": 0.94467382328654,
+              "f1": 0.934640522875817
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 162,
+            "n_est": 182,
+            "onset": {
+              "precision": 0.7857142857142857,
+              "recall": 0.8827160493827161,
+              "f1": 0.8313953488372093
+            },
+            "onset_offset": {
+              "precision": 0.2857142857142857,
+              "recall": 0.32098765432098764,
+              "f1": 0.3023255813953488
+            }
+          }
+        },
+        "whole_file": {
+          "seconds": 1.7192445839973516,
+          "n_notes": 1211,
+          "vs_truth": {
+            "n_ref": 1182,
+            "n_est": 1211,
+            "onset": {
+              "precision": 0.8637489677952106,
+              "recall": 0.8849407783417935,
+              "f1": 0.8742164646886753
+            },
+            "onset_offset": {
+              "precision": 0.27580511973575556,
+              "recall": 0.2825719120135364,
+              "f1": 0.27914751358127865
+            }
+          },
+          "boundary_vs_truth": {
+            "n_ref": 162,
+            "n_est": 171,
+            "onset": {
+              "precision": 0.8245614035087719,
+              "recall": 0.8703703703703703,
+              "f1": 0.8468468468468469
+            },
+            "onset_offset": {
+              "precision": 0.29239766081871343,
+              "recall": 0.30864197530864196,
+              "f1": 0.30030030030030036
+            }
+          }
+        },
+        "weld_sweep": [
+          {
+            "edge_eps": 0.05,
+            "is_production_default": false,
+            "n_notes": 1237,
+            "vs_truth": {
+              "n_ref": 1182,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.8561034761519806,
+                "recall": 0.8959390862944162,
+                "f1": 0.8755684167011161
+              },
+              "onset_offset": {
+                "precision": 0.2700080840743735,
+                "recall": 0.2825719120135364,
+                "f1": 0.27614716825134356
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1211,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.9587712206952304,
+                "recall": 0.9793559042113955,
+                "f1": 0.968954248366013
+              },
+              "onset_offset": {
+                "precision": 0.9248181083265966,
+                "recall": 0.94467382328654,
+                "f1": 0.934640522875817
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 162,
+              "n_est": 182,
+              "onset": {
+                "precision": 0.7857142857142857,
+                "recall": 0.8827160493827161,
+                "f1": 0.8313953488372093
+              },
+              "onset_offset": {
+                "precision": 0.2857142857142857,
+                "recall": 0.32098765432098764,
+                "f1": 0.3023255813953488
+              }
+            }
+          },
+          {
+            "edge_eps": 0.15,
+            "is_production_default": true,
+            "n_notes": 1237,
+            "vs_truth": {
+              "n_ref": 1182,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.8561034761519806,
+                "recall": 0.8959390862944162,
+                "f1": 0.8755684167011161
+              },
+              "onset_offset": {
+                "precision": 0.2700080840743735,
+                "recall": 0.2825719120135364,
+                "f1": 0.27614716825134356
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1211,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.9587712206952304,
+                "recall": 0.9793559042113955,
+                "f1": 0.968954248366013
+              },
+              "onset_offset": {
+                "precision": 0.9248181083265966,
+                "recall": 0.94467382328654,
+                "f1": 0.934640522875817
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 162,
+              "n_est": 182,
+              "onset": {
+                "precision": 0.7857142857142857,
+                "recall": 0.8827160493827161,
+                "f1": 0.8313953488372093
+              },
+              "onset_offset": {
+                "precision": 0.2857142857142857,
+                "recall": 0.32098765432098764,
+                "f1": 0.3023255813953488
+              }
+            }
+          },
+          {
+            "edge_eps": 0.3,
+            "is_production_default": false,
+            "n_notes": 1237,
+            "vs_truth": {
+              "n_ref": 1182,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.8561034761519806,
+                "recall": 0.8959390862944162,
+                "f1": 0.8755684167011161
+              },
+              "onset_offset": {
+                "precision": 0.2700080840743735,
+                "recall": 0.2825719120135364,
+                "f1": 0.27614716825134356
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1211,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.9587712206952304,
+                "recall": 0.9793559042113955,
+                "f1": 0.968954248366013
+              },
+              "onset_offset": {
+                "precision": 0.9248181083265966,
+                "recall": 0.94467382328654,
+                "f1": 0.934640522875817
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 162,
+              "n_est": 182,
+              "onset": {
+                "precision": 0.7857142857142857,
+                "recall": 0.8827160493827161,
+                "f1": 0.8313953488372093
+              },
+              "onset_offset": {
+                "precision": 0.2857142857142857,
+                "recall": 0.32098765432098764,
+                "f1": 0.3023255813953488
+              }
+            }
+          },
+          {
+            "edge_eps": 0.5,
+            "is_production_default": false,
+            "n_notes": 1237,
+            "vs_truth": {
+              "n_ref": 1182,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.8561034761519806,
+                "recall": 0.8959390862944162,
+                "f1": 0.8755684167011161
+              },
+              "onset_offset": {
+                "precision": 0.2700080840743735,
+                "recall": 0.2825719120135364,
+                "f1": 0.27614716825134356
+              }
+            },
+            "vs_whole_file": {
+              "n_ref": 1211,
+              "n_est": 1237,
+              "onset": {
+                "precision": 0.9587712206952304,
+                "recall": 0.9793559042113955,
+                "f1": 0.968954248366013
+              },
+              "onset_offset": {
+                "precision": 0.9248181083265966,
+                "recall": 0.94467382328654,
+                "f1": 0.934640522875817
+              }
+            },
+            "boundary_vs_truth": {
+              "n_ref": 162,
+              "n_est": 182,
+              "onset": {
+                "precision": 0.7857142857142857,
+                "recall": 0.8827160493827161,
+                "f1": 0.8313953488372093
+              },
+              "onset_offset": {
+                "precision": 0.2857142857142857,
+                "recall": 0.32098765432098764,
+                "f1": 0.3023255813953488
+              }
+            }
+          }
+        ],
+        "sweep_cache": {
+          "network_runs": 7,
+          "reused": 24
+        }
+      }
+    ]
+  },
+  "cost": [
+    {
+      "clip": "c00",
+      "mode": "chunked",
+      "threads": "1",
+      "repeats": 3,
+      "rss_start_mb": 15.84375,
+      "rss_after_import_mb": 365.96875,
+      "model_load_s": 0.14019970899971668,
+      "rss_after_model_load_mb": 385.046875,
+      "audio_sec": 30.0,
+      "runs": [
+        {
+          "wall_s": 0.773340959000052,
+          "cpu_s": 0.7855720000000002
+        },
+        {
+          "wall_s": 0.3482352920000267,
+          "cpu_s": 0.40415899999999993
+        },
+        {
+          "wall_s": 0.3419278330002271,
+          "cpu_s": 0.3994799999999996
+        },
+        {
+          "wall_s": 0.48243762499987497,
+          "cpu_s": 0.5028119999999996
+        }
+      ],
+      "rss_end_mb": 491.265625,
+      "peak_rss_mb": 491.296875,
+      "max_threads_seen": 11
+    },
+    {
+      "clip": "c00",
+      "mode": "chunked",
+      "threads": "default",
+      "repeats": 3,
+      "rss_start_mb": 15.828125,
+      "rss_after_import_mb": 367.84375,
+      "model_load_s": 0.1339399999997113,
+      "rss_after_model_load_mb": 386.921875,
+      "audio_sec": 30.0,
+      "runs": [
+        {
+          "wall_s": 0.7277509999985341,
+          "cpu_s": 0.7708000000000004
+        },
+        {
+          "wall_s": 0.3418489590003446,
+          "cpu_s": 0.39991799999999955
+        },
+        {
+          "wall_s": 0.3476878330002364,
+          "cpu_s": 0.4050520000000004
+        },
+        {
+          "wall_s": 0.34893079199900967,
+          "cpu_s": 0.40503399999999967
+        }
+      ],
+      "rss_end_mb": 477.15625,
+      "peak_rss_mb": 477.1875,
+      "max_threads_seen": 11
+    },
+    {
+      "clip": "L00",
+      "mode": "chunked",
+      "threads": "default",
+      "repeats": 3,
+      "rss_start_mb": 15.8125,
+      "rss_after_import_mb": 366.84375,
+      "model_load_s": 0.13106004199653398,
+      "rss_after_model_load_mb": 385.890625,
+      "audio_sec": 150.0,
+      "runs": [
+        {
+          "wall_s": 2.4697983330006537,
+          "cpu_s": 2.7696240000000003
+        },
+        {
+          "wall_s": 2.0256962919993384,
+          "cpu_s": 2.3458010000000007
+        },
+        {
+          "wall_s": 2.032098416999361,
+          "cpu_s": 2.352196000000001
+        },
+        {
+          "wall_s": 2.0329981249997218,
+          "cpu_s": 2.349725000000001
+        }
+      ],
+      "rss_end_mb": 487.59375,
+      "peak_rss_mb": 495.046875,
+      "max_threads_seen": 11
+    },
+    {
+      "clip": "L00",
+      "mode": "chunked",
+      "threads": "1",
+      "repeats": 3,
+      "rss_start_mb": 15.828125,
+      "rss_after_import_mb": 366.40625,
+      "model_load_s": 0.13189191700075753,
+      "rss_after_model_load_mb": 385.453125,
+      "audio_sec": 150.0,
+      "runs": [
+        {
+          "wall_s": 2.687654624998686,
+          "cpu_s": 2.89816
+        },
+        {
+          "wall_s": 2.1391236249983194,
+          "cpu_s": 2.4269
+        },
+        {
+          "wall_s": 2.1137738329998683,
+          "cpu_s": 2.412421
+        },
+        {
+          "wall_s": 2.0669282500020927,
+          "cpu_s": 2.38194
+        }
+      ],
+      "rss_end_mb": 377.484375,
+      "peak_rss_mb": 467.859375,
+      "max_threads_seen": 11
+    },
+    {
+      "clip": "L00",
+      "mode": "whole",
+      "threads": "default",
+      "repeats": 3,
+      "rss_start_mb": 15.9375,
+      "rss_after_import_mb": 343.484375,
+      "model_load_s": 0.14821679200031213,
+      "rss_after_model_load_mb": 363.15625,
+      "audio_sec": 150.0,
+      "runs": [
+        {
+          "wall_s": 2.356520459001331,
+          "cpu_s": 2.5557209999999992
+        },
+        {
+          "wall_s": 1.79584912500286,
+          "cpu_s": 2.0566319999999996
+        },
+        {
+          "wall_s": 1.7675962079993042,
+          "cpu_s": 2.030213
+        },
+        {
+          "wall_s": 1.7191995840003074,
+          "cpu_s": 1.9876950000000004
+        }
+      ],
+      "rss_end_mb": 500.8125,
+      "peak_rss_mb": 544.375,
+      "max_threads_seen": 11
+    }
+  ],
+  "wall_clock_s": 163.3054766669993
+}
