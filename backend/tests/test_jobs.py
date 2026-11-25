@@ -684,33 +684,6 @@ def test_process_one_job_is_a_noop_for_already_claimed_job(store, storage, queue
 # --- RedisJobQueue configuration --------------------------------------------
 
 
-def test_redis_job_queue_disables_socket_timeout_for_blocking_reads(monkeypatch):
-    """Regression test for the production bug behind the dequeue()-error
-    tests below: redis-py's own default socket_timeout is 5s (see
-    redis._defaults.DEFAULT_SOCKET_TIMEOUT), which exactly matched
-    worker.DEFAULT_POLL_TIMEOUT_SECONDS (also 5s) -- the client's own read
-    deadline raced BRPOP's server-side blocking timeout on every empty
-    poll, intermittently raising redis.exceptions.TimeoutError instead of
-    returning None. RedisJobQueue must construct its client with
-    socket_timeout=None so BRPOP's own timeout argument is what bounds the
-    wait, not an independent (and here, equal) client-side deadline."""
-    import redis as redis_module
-
-    from app.jobs.queue import RedisJobQueue
-
-    captured = {}
-    real_from_url = redis_module.Redis.from_url
-
-    def fake_from_url(url, **kwargs):
-        captured.update(kwargs)
-        return real_from_url(url, **kwargs)
-
-    monkeypatch.setattr(redis_module.Redis, "from_url", staticmethod(fake_from_url))
-    RedisJobQueue("redis://localhost:6379")
-    assert captured.get("socket_timeout") is None
-    assert "socket_timeout" in captured, "socket_timeout must be passed explicitly, not omitted"
-
-
 # --- worker: run_worker_loop (the real retry-delivery path) -----------------
 
 
@@ -1528,3 +1501,164 @@ def test_async_transcribe_routes_own_the_transcribe_path():
     job_paths = {getattr(route, "path", None) for route in job_routes.router.routes}
     assert "/transcribe" in job_paths
     assert "/transcribe/{job_id}" in job_paths
+
+
+# --- worker liveness: the loop must outlive transient backend errors --------
+#
+# Incident, 2026-11: production jobs sat in 'queued' forever (never claimed,
+# progress 0) while POST /api/transcribe kept answering 202 -- the worker
+# thread was gone, and nothing restarts or reports a dead daemon thread. An
+# earlier incident (see test_run_worker_loop_survives_a_dequeue_error) was
+# the same symptom, fixed for dequeue() only. Every other call in the loop
+# that touches Neon/Redis had the same hole, plus a BRPOP that could hang
+# forever on a half-open connection.
+
+
+def _start_loop(store, storage, queue, **kwargs):
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=run_worker_loop,
+        kwargs=dict(
+            store=store, queue=queue, storage=storage, stop_event=stop_event,
+            poll_timeout=0.1, **kwargs,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    return stop_event, thread
+
+
+def _stub_inference(monkeypatch):
+    monkeypatch.setattr(
+        inference, "run_basic_pitch",
+        lambda raw, name, on_progress=None: _fake_transcription_result(),
+    )
+
+
+def test_run_worker_loop_survives_a_failing_startup_bootstrap(store, storage, queue, monkeypatch):
+    """The bootstrap re-enqueue ran outside any try/except: one Neon blip
+    while the container was waking up killed the thread before the loop
+    even started."""
+    job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+    storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+    queue.enqueue(job.id)
+    _stub_inference(monkeypatch)
+
+    calls = []
+    real = store.get_queued_job_ids
+
+    def flaky():
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("simulated database blip during bootstrap")
+        return real()
+
+    monkeypatch.setattr(store, "get_queued_job_ids", flaky)
+
+    stop_event, thread = _start_loop(store, storage, queue)
+    try:
+        assert _run_loop_until(
+            stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
+        ), "job never completed; the worker thread died during bootstrap"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.parametrize(
+    "tick_method",
+    ["reclaim_stale_processing_jobs", "get_ready_retry_job_ids", "reconcile_stuck_creating_jobs"],
+)
+def test_run_worker_loop_survives_a_failing_idle_tick(
+    store, storage, queue, monkeypatch, tick_method
+):
+    """The idle-tick sweeps run every poll with no guard: a single transient
+    database error in any of them ended the daemon thread for good."""
+    _stub_inference(monkeypatch)
+
+    calls = []
+    real = getattr(store, tick_method)
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("simulated database blip during idle tick")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(store, tick_method, flaky)
+
+    stop_event, thread = _start_loop(store, storage, queue)
+    try:
+        assert _run_loop_until(stop_event, lambda: bool(calls), timeout=5.0), "idle tick never ran"
+        # Created only after the failing tick fired, so the startup bootstrap
+        # can't have picked it up: only a still-living loop can complete it.
+        job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+        storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+        queue.enqueue(job.id)
+        assert _run_loop_until(
+            stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
+        ), f"job never completed; the loop died when {tick_method} raised"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+def test_run_worker_loop_re_enqueues_orphaned_queued_rows_while_running(
+    store, storage, queue, monkeypatch
+):
+    """A 'queued' row whose queue message is gone (Redis restart, eviction,
+    a push that never landed) used to be recovered only at process start.
+    A long-lived worker must sweep for them periodically."""
+    import app.jobs.worker as worker_module
+
+    monkeypatch.setattr(worker_module, "ORPHAN_SWEEP_INTERVAL_SECONDS", 0.2, raising=False)
+    _stub_inference(monkeypatch)
+
+    stop_event, thread = _start_loop(store, storage, queue)
+    try:
+        time.sleep(0.5)  # the startup bootstrap has already run with nothing to find
+        job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+        storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+        # queue.enqueue(job.id) is deliberately never called.
+        assert _run_loop_until(
+            stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
+        ), "orphaned queued row was never picked up by the running worker"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+def test_redis_job_queue_bounds_reads_above_the_blocking_wait(monkeypatch):
+    """socket_timeout=None meant a half-open connection (Redis restarted or
+    a NAT dropped the flow) blocked BRPOP forever with no exception, so the
+    worker looked alive and consumed nothing. The client deadline must be
+    finite, but strictly longer than any BRPOP block so it can't race the
+    server's own timeout (the 5s-vs-5s bug the old test guarded against)."""
+    import redis as redis_module
+
+    from app.jobs.queue import RedisJobQueue
+
+    captured = {}
+    real_from_url = redis_module.Redis.from_url
+
+    def fake_from_url(url, **kwargs):
+        captured.update(kwargs)
+        return real_from_url(url, **kwargs)
+
+    monkeypatch.setattr(redis_module.Redis, "from_url", staticmethod(fake_from_url))
+    queue = RedisJobQueue("redis://localhost:6379")
+
+    socket_timeout = captured.get("socket_timeout")
+    assert socket_timeout is not None, "an unbounded read can hang the worker forever"
+
+    blocks = []
+
+    class StubRedis:
+        def brpop(self, keys, timeout):
+            blocks.append(timeout)
+            return None
+
+    queue._redis = StubRedis()
+    queue.dequeue(timeout=5.0)
+    queue.dequeue(timeout=10_000.0)  # even an absurd caller value must stay bounded
+    assert blocks and all(b < socket_timeout for b in blocks), (blocks, socket_timeout)

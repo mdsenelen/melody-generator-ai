@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any
+import time
+from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
 
@@ -50,6 +51,24 @@ HEARTBEAT_INTERVAL_SECONDS = 40.0
 # itself (inference.py), not by anything here or by attempt_count, which
 # this path never increments.
 WARMUP_REQUEUE_DELAY_SECONDS = 10.0
+# While running, an idle worker (queue empty for a full poll) re-enqueues any
+# 'queued' row at most this often. Recovers rows whose queue message is gone
+# (Redis restart/eviction, a push that never landed) without a redeploy; the
+# startup bootstrap alone left them stranded for the life of the process.
+# Duplicates are harmless -- process_one_job's claim is a no-op on a job that
+# is no longer queued.
+ORPHAN_SWEEP_INTERVAL_SECONDS = 60.0
+
+def _guarded(label: str, fn: Callable[[], Any]) -> Any:
+    """Run one step of the worker loop; log and carry on if it raises. The
+    loop is a daemon thread with nothing supervising it, so an exception
+    that escapes it ends transcription for the life of the process while
+    the web side keeps accepting jobs (202) -- see the 2026-11 incident."""
+    try:
+        return fn()
+    except Exception:
+        logger.exception("Worker step %r failed; will retry on the next tick", label)
+        return None
 
 
 def process_one_job(
@@ -244,8 +263,12 @@ def run_worker_loop(
     in-memory), so a job created just before a dev-server reload would
     otherwise wait forever with nothing to wake a worker for it.
     """
-    for job_id in store.get_queued_job_ids():
-        queue.enqueue(job_id)
+    def _enqueue_queued_rows() -> None:
+        for queued_id in store.get_queued_job_ids():
+            queue.enqueue(queued_id)
+
+    _guarded("startup bootstrap", _enqueue_queued_rows)
+    last_orphan_sweep = time.monotonic()
 
     while not stop_event.is_set():
         try:
@@ -260,6 +283,9 @@ def run_worker_loop(
             # idle tick, then retry on the next iteration instead of dying.
             logger.exception("Error dequeuing from job queue; will retry next poll")
             job_id = None
+            # An error that returns instantly would otherwise spin this loop
+            # hot; wait out one poll interval before trying again.
+            stop_event.wait(poll_timeout)
         if job_id:
             try:
                 process_one_job(
@@ -278,16 +304,37 @@ def run_worker_loop(
         # Idle tick: reconcile jobs whose worker died mid-processing,
         # re-enqueue retries whose backoff delay has elapsed, and resolve
         # jobs stuck in 'creating' (see service.create_transcription_job).
-        for requeued_id in store.reclaim_stale_processing_jobs():
-            logger.warning("Reclaimed stale job %s back to queued", requeued_id)
-            queue.enqueue(requeued_id)
+        # Each sweep is guarded separately so one failing (a Neon blip) can
+        # neither end the thread nor starve the sweeps after it.
+        def _reclaim() -> None:
+            for requeued_id in store.reclaim_stale_processing_jobs():
+                logger.warning("Reclaimed stale job %s back to queued", requeued_id)
+                queue.enqueue(requeued_id)
 
-        for ready_id in store.get_ready_retry_job_ids():
-            logger.info("Re-enqueueing retry %s after backoff", ready_id)
-            queue.enqueue(ready_id)
+        def _retries() -> None:
+            for ready_id in store.get_ready_retry_job_ids():
+                logger.info("Re-enqueueing retry %s after backoff", ready_id)
+                queue.enqueue(ready_id)
 
-        for released_id in store.reconcile_stuck_creating_jobs(
-            stuck_creating_after_seconds, storage.exists
-        ):
-            logger.info("Released stuck-creating job %s", released_id)
-            queue.enqueue(released_id)
+        def _stuck_creating() -> None:
+            for released_id in store.reconcile_stuck_creating_jobs(
+                stuck_creating_after_seconds, storage.exists
+            ):
+                logger.info("Released stuck-creating job %s", released_id)
+                queue.enqueue(released_id)
+
+        _guarded("reclaim stale jobs", _reclaim)
+        _guarded("re-enqueue due retries", _retries)
+        _guarded("release stuck-creating jobs", _stuck_creating)
+
+        # We only get here when the queue was empty for a whole poll, so any
+        # 'queued' row still in the store has no message waiting for it.
+        if time.monotonic() - last_orphan_sweep >= ORPHAN_SWEEP_INTERVAL_SECONDS:
+            last_orphan_sweep = time.monotonic()
+
+            def _orphans() -> None:
+                for orphan_id in store.get_queued_job_ids():
+                    logger.warning("Re-enqueueing queued job %s with no queue message", orphan_id)
+                    queue.enqueue(orphan_id)
+
+            _guarded("re-enqueue orphaned queued jobs", _orphans)
