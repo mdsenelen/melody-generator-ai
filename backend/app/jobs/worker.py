@@ -252,11 +252,18 @@ def run_worker_loop(
     lease_seconds: float = DEFAULT_LEASE_SECONDS,
     heartbeat_interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
     stuck_creating_after_seconds: float = DEFAULT_STUCK_CREATING_AFTER_SECONDS,
+    on_tick: Optional[Callable[[], None]] = None,
 ) -> None:
     """Runs until stop_event is set. Safe to run as a daemon thread (dev, or
     a single-service deployment) or as the entrypoint of a standalone
     process (production; see worker_main.py) -- it only depends on the
     store/queue/storage adapters passed in, not on how it's hosted.
+
+    `on_tick` is called at the top of every iteration, before the (possibly
+    long) job processing: the in-process host uses it as a liveness signal
+    for /health. It is not a progress heartbeat -- a job running for minutes
+    keeps the loop inside process_one_job, so the tick simply stops advancing
+    while the loop is busy (see InProcessWorker.status in main.py).
 
     Bootstraps by re-enqueueing anything already 'queued' in the store: an
     InProcessJobQueue restart loses unclaimed queue messages (it's pure
@@ -271,6 +278,8 @@ def run_worker_loop(
     last_orphan_sweep = time.monotonic()
 
     while not stop_event.is_set():
+        if on_tick is not None:
+            on_tick()
         try:
             job_id = queue.dequeue(timeout=poll_timeout)
         except Exception:

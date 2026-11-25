@@ -119,6 +119,8 @@ class JobStore(Protocol):
 
     def release_idempotency_key(self, job_id: str) -> bool: ...
 
+    def oldest_queued_job_age_seconds(self) -> Optional[float]: ...
+
     def get_ready_retry_job_ids(self) -> list[str]: ...
 
     def reconcile_stuck_creating_jobs(
@@ -643,6 +645,31 @@ class SQLJobStore:
             return cur.rowcount > 0
         finally:
             conn.close()
+
+    def oldest_queued_job_age_seconds(self) -> Optional[float]:
+        """How long the oldest job still in 'queued' has been waiting, or
+        None when nothing is queued. Measured from created_at rather than
+        updated_at so a job that has already been retried reports the total
+        wait a user has experienced, not just its current attempt's -- this
+        is the number /health surfaces, where the interesting case is "a job
+        is sitting there with nothing picking it up"."""
+        conn = self._connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                self._q("SELECT MIN(created_at) FROM transcription_jobs WHERE status = ?"),
+                (QUEUED,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        oldest = row[0] if row else None
+        if not oldest:
+            return None
+        created_at = datetime.fromisoformat(oldest)
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        return max(0.0, (datetime.now(timezone.utc) - created_at).total_seconds())
 
     def get_ready_retry_job_ids(self) -> list[str]:
         """Queued retries whose backoff delay has elapsed. Clears
