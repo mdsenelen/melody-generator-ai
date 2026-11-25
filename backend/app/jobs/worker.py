@@ -279,7 +279,7 @@ def run_worker_loop(
 
     while not stop_event.is_set():
         if on_tick is not None:
-            on_tick()
+            _guarded("on_tick callback", on_tick)
         try:
             job_id = queue.dequeue(timeout=poll_timeout)
         except Exception:

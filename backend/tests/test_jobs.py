@@ -1855,6 +1855,34 @@ def test_run_worker_loop_survives_a_failing_idle_tick(
         thread.join(timeout=5.0)
 
 
+def test_run_worker_loop_survives_a_failing_on_tick_callback(store, storage, queue, monkeypatch):
+    """on_tick is the host's liveness hook (InProcessWorker uses it for
+    /health). A callback that raises must not end the loop -- the same rule as
+    every other step in it."""
+    _stub_inference(monkeypatch)
+    ticks = []
+
+    def flaky_tick():
+        ticks.append(1)
+        if len(ticks) == 1:
+            raise RuntimeError("tick callback blew up")
+
+    stop_event, thread = _start_loop(store, storage, queue, on_tick=flaky_tick)
+    try:
+        assert _run_loop_until(stop_event, lambda: bool(ticks), timeout=5.0), "loop never ticked"
+        # Created only after the failing tick, so only a still-living loop can complete it.
+        job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+        storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+        queue.enqueue(job.id)
+        assert _run_loop_until(
+            stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
+        ), "job never completed; the loop died when on_tick raised"
+        assert len(ticks) >= 2
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
 def test_run_worker_loop_re_enqueues_orphaned_queued_rows_while_running(
     store, storage, queue, monkeypatch
 ):
