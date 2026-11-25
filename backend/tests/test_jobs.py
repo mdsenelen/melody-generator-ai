@@ -1071,6 +1071,202 @@ def test_create_transcription_job_allows_retry_after_permanent_failure(store, st
     assert job2.status == QUEUED
 
 
+def _complete_and_age(store, job_id, *, hours_ago):
+    """Run a job to 'completed', then backdate its finish time -- what the
+    row looks like once DATA_RETENTION_HOURS has passed (the row itself is
+    never deleted, only its files are swept)."""
+    claimed = store.claim_job(job_id, lease_seconds=LEASE_SECONDS)
+    assert store.mark_completed(job_id, _fake_transcription_result(), lease_token=claimed.lease_token)
+    finished = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+    conn = store._connect()
+    try:
+        conn.cursor().execute(
+            store._q("UPDATE transcription_jobs SET completed_at = ?, updated_at = ? WHERE id = ?"),
+            (finished, finished, job_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("upload_id", ["up-789", None], ids=["by-upload-id", "by-content-hash"])
+def test_create_transcription_job_runs_again_once_the_earlier_job_expired(
+    store, storage, queue, monkeypatch, upload_id
+):
+    """Re-submitting a file whose earlier job is past DATA_RETENTION_HOURS
+    must create a new job. The idempotency key used to match the old row
+    forever (rows are never deleted), so the caller got that job back and
+    GET /api/transcribe/{id} then reported it 'expired' -- the same bytes
+    could never be transcribed again."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    job1 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id)
+    queue.dequeue(timeout=0.1)
+    _complete_and_age(store, job1.id, hours_ago=inference.DATA_RETENTION_HOURS + 1)
+
+    job2 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id)
+
+    assert job2.id != job1.id
+    assert job2.status == QUEUED
+    assert queue.dequeue(timeout=0.1) == job2.id
+    # The old row stays as history, and the new job is now the one a retry reuses.
+    assert store.get_job(job1.id).status == COMPLETED
+    queue.dequeue(timeout=0.1)
+    assert service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id).id == job2.id
+
+
+def test_create_transcription_job_still_reuses_a_completed_job_within_retention(
+    store, storage, queue, monkeypatch
+):
+    """The other half of the contract: inside the retention window a repeat
+    upload gets the finished result back instead of re-running Basic Pitch."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    job1 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-fresh")
+    queue.dequeue(timeout=0.1)
+    _complete_and_age(store, job1.id, hours_ago=1)
+
+    job2 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-fresh")
+
+    assert job2.id == job1.id
+    assert queue.dequeue(timeout=0.1) is None
+
+
+def _count_live_rows_for_key(store, key):
+    conn = store._connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            store._q(
+                "SELECT count(*) FROM transcription_jobs WHERE idempotency_key = ? AND status != ?"
+            ),
+            (key, FAILED),
+        )
+        return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def test_create_job_recovers_when_the_row_holding_the_key_is_released_mid_call(store):
+    """create_job's INSERT is a no-op while another row holds the key; it then
+    re-reads the key to find the winner. If that holder releases the key in
+    between (a concurrent upload of an expired file does exactly that), the
+    re-read finds nothing. That must not blow up (it used to hit an assert,
+    i.e. a 500 for the user): the INSERT has to be retried."""
+    old, _ = store.create_job(source_filename="a.wav", storage_key="k/old", idempotency_key="mid-call")
+    assert store.mark_creation_ready(old.id)
+    _complete_and_age(store, old.id, hours_ago=inference.DATA_RETENTION_HOURS + 1)
+
+    real_find = store._find_by_idempotency_key
+    calls = []
+
+    def find_after_a_concurrent_release(key):
+        if not calls:
+            calls.append(1)
+            assert store.release_idempotency_key(old.id)  # the other request gets there first
+        return real_find(key)
+
+    store._find_by_idempotency_key = find_after_a_concurrent_release
+
+    job, created = store.create_job(
+        source_filename="a.wav", storage_key="k/new", idempotency_key="mid-call"
+    )
+
+    assert created is True
+    assert job.id != old.id
+
+
+def test_concurrent_uploads_of_an_expired_file_create_exactly_one_new_job(
+    store, storage, queue, monkeypatch
+):
+    """Worst-case interleaving, forced: both requests read the old expired
+    row *before either has released its key*, so both release it and both
+    go on to insert. The partial unique index must still let only one INSERT
+    win; the other must come back with the winner, not a second job."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    old = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-race")
+    queue.dequeue(timeout=0.1)
+    _complete_and_age(store, old.id, hours_ago=inference.DATA_RETENTION_HOURS + 1)
+
+    both_have_seen_the_old_row = threading.Barrier(2)
+    real_release = store.release_idempotency_key
+
+    def release_after_both_have_read(job_id):
+        both_have_seen_the_old_row.wait(timeout=10)
+        return real_release(job_id)
+
+    monkeypatch.setattr(store, "release_idempotency_key", release_after_both_have_read)
+
+    returned: list[str] = []
+    errors: list[BaseException] = []
+
+    def upload():
+        try:
+            returned.append(service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-race").id)
+        except BaseException as exc:  # surfaced below, not swallowed by the thread
+            errors.append(exc)
+
+    threads = [threading.Thread(target=upload) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=20)
+
+    assert not errors, errors
+    assert len(returned) == 2
+    assert returned[0] == returned[1], "two concurrent uploads must share one new job"
+    assert returned[0] != old.id
+    assert _count_live_rows_for_key(store, "up-race") == 1
+    assert store.get_job(old.id).status == COMPLETED
+    # Only the request that created the job enqueues it.
+    assert queue.dequeue(timeout=0.1) == returned[0]
+    assert queue.dequeue(timeout=0.1) is None
+
+
+def test_many_concurrent_uploads_of_an_expired_file_never_create_two_jobs(
+    store, storage, queue, monkeypatch
+):
+    """Same guarantee without forcing the interleaving: several rounds of
+    free-running threads released together."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    for round_no in range(5):
+        key = f"up-stress-{round_no}"
+        old = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=key)
+        _complete_and_age(store, old.id, hours_ago=inference.DATA_RETENTION_HOURS + 1)
+
+        start = threading.Barrier(6)
+        returned: list[str] = []
+        errors: list[BaseException] = []
+
+        def upload():
+            try:
+                start.wait(timeout=10)
+                returned.append(service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=key).id)
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=upload) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        assert not errors, errors
+        assert len(set(returned)) == 1 and len(returned) == 6, (round_no, returned)
+        assert returned[0] != old.id
+        assert _count_live_rows_for_key(store, key) == 1
+
+
 def test_reconciliation_recovers_a_creation_that_crashed_after_the_storage_write(
     store, storage, queue, monkeypatch
 ):

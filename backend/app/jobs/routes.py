@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from app.rate_limit import rate_limiter
 from app.schemas import AnalyzeRequest, RegisterTranscriptionRequest
 
-from .models import COMPLETED, EXPIRED, FAILED, Job
+from .models import COMPLETED, EXPIRED, FAILED, Job, is_past_retention
 from .service import create_completed_job, create_transcription_job, get_job_store
 
 router = APIRouter()
@@ -122,25 +122,6 @@ async def register_transcription(payload: RegisterTranscriptionRequest) -> dict[
     return job.to_status_payload()
 
 
-def _is_past_retention(job: Job, retention_hours: float) -> bool:
-    """A terminal job's generated MIDI/WAV files live on local disk (or,
-    once GP3's synchronous-generation jobs exist, may never have had a
-    stored input at all) and are swept by inference.cleanup_stale_files
-    after DATA_RETENTION_HOURS -- but the job row itself is never deleted.
-    Without this check, an old job would keep reporting 'completed'/'failed'
-    with download links that 404, instead of reading as gone."""
-    if job.status not in (COMPLETED, FAILED):
-        return False
-    reference = job.completed_at or job.updated_at
-    try:
-        finished_at = datetime.fromisoformat(reference)
-    except (TypeError, ValueError):
-        return False
-    if finished_at.tzinfo is None:
-        finished_at = finished_at.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) - finished_at > timedelta(hours=retention_hours)
-
-
 @router.get("/transcribe/{job_id}")
 async def get_transcribe_job(job_id: str) -> dict[str, Any]:
     store = get_job_store()
@@ -150,7 +131,7 @@ async def get_transcribe_job(job_id: str) -> dict[str, Any]:
 
     from app import inference  # lazy import, see create_transcribe_job above
 
-    if _is_past_retention(job, inference.DATA_RETENTION_HOURS):
+    if is_past_retention(job, inference.DATA_RETENTION_HOURS):
         return {"job_id": job.id, "status": EXPIRED, "progress": job.progress, "result": None, "error": None}
 
     return job.to_status_payload()

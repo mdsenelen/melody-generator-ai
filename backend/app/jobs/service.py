@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-from .models import QUEUED, Job
+from .models import QUEUED, Job, is_past_retention
 from .queue import JobQueue, create_job_queue_from_env
 from .storage import ObjectStorage, create_object_storage_from_env
 from .store import JobStore, create_job_store_from_env
@@ -83,20 +83,38 @@ def create_transcription_job(
     store = get_job_store()
     idempotency_key = upload_id or hashlib.sha256(raw).hexdigest()
     ext = Path(source_filename).suffix.lower() or ".wav"
-    job_id = uuid.uuid4().hex
-    storage_key = f"transcribe-jobs/{job_id}/input{ext}"
 
     # create_job itself decides whether this reuses an existing job for the
     # idempotency key; only write bytes / enqueue for a genuinely new one,
     # so a client retry never duplicates the (potentially large) upload.
-    job, created = store.create_job(
-        job_id=job_id,
-        source_filename=source_filename,
-        storage_key=storage_key,
-        upload_id=upload_id,
-        idempotency_key=idempotency_key,
-    )
-    if not created:
+    #
+    # A finished job past DATA_RETENTION_HOURS is the exception: its files
+    # are gone and GET reports it 'expired', but the row (and its key) is
+    # never deleted, so reusing it would hand back a dead job for these bytes
+    # forever. Release its key and create a fresh job instead -- at most one
+    # extra pass, since the second create_job either wins or finds the job a
+    # concurrent request just created.
+    from app import inference  # lazy: keeps the jobs package import-light
+
+    for attempt in (1, 2):
+        job_id = uuid.uuid4().hex
+        storage_key = f"transcribe-jobs/{job_id}/input{ext}"
+        job, created = store.create_job(
+            job_id=job_id,
+            source_filename=source_filename,
+            storage_key=storage_key,
+            upload_id=upload_id,
+            idempotency_key=idempotency_key,
+        )
+        if created:
+            break
+        if (
+            attempt == 1
+            and is_past_retention(job, inference.DATA_RETENTION_HOURS)
+            and store.release_idempotency_key(job.id)
+        ):
+            logger.info("Job %s expired; creating a new job for the same upload", job.id)
+            continue
         logger.info("Reusing existing transcription job %s for idempotency key", job.id)
         return job
 
