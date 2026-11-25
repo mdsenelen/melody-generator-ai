@@ -113,6 +113,8 @@ class JobStore(Protocol):
 
     def get_queued_job_ids(self) -> list[str]: ...
 
+    def release_idempotency_key(self, job_id: str) -> bool: ...
+
     def get_ready_retry_job_ids(self) -> list[str]: ...
 
     def reconcile_stuck_creating_jobs(
@@ -576,6 +578,29 @@ class SQLJobStore:
                 (QUEUED,),
             )
             return [row[0] for row in cur.fetchall()]
+        finally:
+            conn.close()
+
+    def release_idempotency_key(self, job_id: str) -> bool:
+        """Detach a finished job from its idempotency key so the same upload
+        can create a fresh job. The row itself stays (result, history, links
+        by id keep resolving); only the key that makes a repeat upload match
+        it is cleared. Limited to 'completed' rows: a job that is still in
+        flight must keep deduplicating. Safe to call twice and from several
+        web instances at once -- the new job's INSERT still goes through the
+        unique index, so exactly one of them wins."""
+        conn = self._connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                self._q(
+                    "UPDATE transcription_jobs SET idempotency_key = NULL "
+                    "WHERE id = ? AND status = ?"
+                ),
+                (job_id, COMPLETED),
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 

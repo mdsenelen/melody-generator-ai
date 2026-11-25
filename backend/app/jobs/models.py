@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 # CREATING is an internal-only pre-queued state (row exists, input bytes not
@@ -78,3 +79,23 @@ class Job:
                 self.waiting_reason if self.waiting_reason in _ALLOWED_WAITING_REASONS else None
             ),
         }
+
+
+def is_past_retention(job: "Job", retention_hours: float) -> bool:
+    """A terminal job's generated MIDI/WAV files live on local disk (or,
+    once GP3's synchronous-generation jobs exist, may never have had a
+    stored input at all) and are swept by inference.cleanup_stale_files
+    after DATA_RETENTION_HOURS -- but the job row itself is never deleted.
+    Without this check, an old job would keep reporting 'completed'/'failed'
+    with download links that 404, instead of reading as gone. Also decides
+    whether a repeat upload may reuse the row (service.create_transcription_job)."""
+    if job.status not in (COMPLETED, FAILED):
+        return False
+    reference = job.completed_at or job.updated_at
+    try:
+        finished_at = datetime.fromisoformat(reference)
+    except (TypeError, ValueError):
+        return False
+    if finished_at.tzinfo is None:
+        finished_at = finished_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - finished_at > timedelta(hours=retention_hours)
