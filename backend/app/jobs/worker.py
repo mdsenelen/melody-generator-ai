@@ -59,24 +59,6 @@ WARMUP_REQUEUE_DELAY_SECONDS = 10.0
 # is no longer queued.
 ORPHAN_SWEEP_INTERVAL_SECONDS = 60.0
 
-# Monotonic time of the loop's last iteration, for /health. Plain float
-# assignment is atomic under the GIL; no lock needed.
-_LAST_TICK: Optional[float] = None
-
-
-def get_worker_status() -> dict[str, Any]:
-    """Liveness for /health: how long ago the worker loop last iterated. None
-    means it has never run in this process (e.g. RUN_WORKER_IN_PROCESS=false).
-    A healthy loop ticks at least every poll_timeout (5s) plus the time a
-    job takes, so a value far above that while jobs sit 'queued' means the
-    thread is gone or wedged -- the failure that otherwise looks like
-    nothing at all, since an idle worker logs nothing."""
-    last = _LAST_TICK
-    return {
-        "last_tick_age_sec": None if last is None else round(time.monotonic() - last, 1),
-    }
-
-
 def _guarded(label: str, fn: Callable[[], Any]) -> Any:
     """Run one step of the worker loop; log and carry on if it raises. The
     loop is a daemon thread with nothing supervising it, so an exception
@@ -285,12 +267,10 @@ def run_worker_loop(
         for queued_id in store.get_queued_job_ids():
             queue.enqueue(queued_id)
 
-    global _LAST_TICK
     _guarded("startup bootstrap", _enqueue_queued_rows)
     last_orphan_sweep = time.monotonic()
 
     while not stop_event.is_set():
-        _LAST_TICK = time.monotonic()
         try:
             job_id = queue.dequeue(timeout=poll_timeout)
         except Exception:

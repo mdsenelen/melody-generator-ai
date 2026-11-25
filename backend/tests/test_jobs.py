@@ -1628,29 +1628,6 @@ def test_run_worker_loop_re_enqueues_orphaned_queued_rows_while_running(
         thread.join(timeout=5.0)
 
 
-def test_worker_status_reports_a_fresh_tick_while_the_loop_runs(store, storage, queue):
-    from app.jobs.worker import get_worker_status
-
-    stop_event, thread = _start_loop(store, storage, queue)
-    try:
-        assert _run_loop_until(
-            stop_event,
-            lambda: (get_worker_status()["last_tick_age_sec"] or 99.0) < 2.0,
-            timeout=5.0,
-        ), f"no recent tick reported: {get_worker_status()}"
-    finally:
-        stop_event.set()
-        thread.join(timeout=5.0)
-
-
-def test_health_exposes_worker_liveness():
-    from app.main import health
-
-    payload = health()
-    assert "worker" in payload
-    assert "last_tick_age_sec" in payload["worker"]
-
-
 def test_redis_job_queue_bounds_reads_above_the_blocking_wait(monkeypatch):
     """socket_timeout=None meant a half-open connection (Redis restarted or
     a NAT dropped the flow) blocked BRPOP forever with no exception, so the
