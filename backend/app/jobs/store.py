@@ -56,6 +56,10 @@ _STATUS_INDEX = (
 # after a permanent failure can still get a new row for the same key.
 # Postgres and SQLite (3.24+) both support this exact syntax, including the
 # matching `ON CONFLICT (...) WHERE ...` used in create_job below.
+# create_job re-inserts when the row that blocked its INSERT is released before
+# it can be re-read (see SQLJobStore.create_job).
+_CREATE_JOB_MAX_ATTEMPTS = 5
+
 _IDEMPOTENCY_UNIQUE_INDEX = (
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_transcription_jobs_idempotency "
     "ON transcription_jobs (idempotency_key) WHERE status != 'failed'"
@@ -216,6 +220,41 @@ class SQLJobStore:
         max_attempts: int = 3,
         job_id: Optional[str] = None,
     ) -> tuple[Job, bool]:
+        """Create a job, or return the existing one for `idempotency_key`.
+
+        The INSERT is a no-op while another row holds the key, and the winner
+        is then re-read by key. That row can lose the key in between -- a
+        concurrent upload of an expired file releases it (see
+        release_idempotency_key) before inserting its own replacement -- so
+        the re-read comes back empty. Nothing holds the key at that moment,
+        so the right move is simply to INSERT again; a few attempts cover any
+        realistic number of racing requests."""
+        for _ in range(_CREATE_JOB_MAX_ATTEMPTS):
+            outcome = self._create_job_once(
+                source_filename=source_filename,
+                storage_key=storage_key,
+                upload_id=upload_id,
+                idempotency_key=idempotency_key,
+                max_attempts=max_attempts,
+                job_id=job_id,
+            )
+            if outcome is not None:
+                return outcome
+        raise RuntimeError(
+            f"Could not create or find a job for idempotency key after "
+            f"{_CREATE_JOB_MAX_ATTEMPTS} attempts"
+        )
+
+    def _create_job_once(
+        self,
+        *,
+        source_filename: str,
+        storage_key: str,
+        upload_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        max_attempts: int = 3,
+        job_id: Optional[str] = None,
+    ) -> Optional[tuple[Job, bool]]:
         # Atomic upsert: the partial unique index on idempotency_key (see
         # _IDEMPOTENCY_UNIQUE_INDEX) is what makes this safe across
         # multiple web instances -- if a row for this key already exists
@@ -261,7 +300,8 @@ class SQLJobStore:
         # effect -- re-reading it (rather than trusting our own job_id) is
         # what makes the *caller* see a consistent result too.
         winner = self._find_by_idempotency_key(idempotency_key) if idempotency_key else self.get_job(job_id)
-        assert winner is not None
+        if winner is None:
+            return None  # the key holder was released after our no-op INSERT; create_job retries
         return winner, winner.id == job_id
 
     def _find_by_idempotency_key(self, idempotency_key: str) -> Optional[Job]:
