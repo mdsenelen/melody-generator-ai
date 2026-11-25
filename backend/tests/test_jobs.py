@@ -1267,6 +1267,62 @@ def test_many_concurrent_uploads_of_an_expired_file_never_create_two_jobs(
         assert _count_live_rows_for_key(store, key) == 1
 
 
+# --- store.oldest_queued_job_age_seconds (what /health reports) ----------------
+
+
+def _set_created_at(store, job_id, seconds_ago):
+    stamp = (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
+    conn = store._connect()
+    try:
+        conn.cursor().execute(
+            store._q("UPDATE transcription_jobs SET created_at = ? WHERE id = ?"), (stamp, job_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_oldest_queued_job_age_is_none_when_nothing_is_queued(store):
+    assert store.oldest_queued_job_age_seconds() is None
+
+
+def test_oldest_queued_job_age_measures_from_created_at(store):
+    job = _create_queued_job(store, source_filename="a.wav", storage_key="k/a")
+    _set_created_at(store, job.id, 90)
+
+    age = store.oldest_queued_job_age_seconds()
+
+    assert 90 <= age < 95
+
+
+def test_oldest_queued_job_age_reports_the_oldest_of_several(store):
+    newer = _create_queued_job(store, source_filename="a.wav", storage_key="k/a")
+    oldest = _create_queued_job(store, source_filename="b.wav", storage_key="k/b")
+    middle = _create_queued_job(store, source_filename="c.wav", storage_key="k/c")
+    _set_created_at(store, newer.id, 30)
+    _set_created_at(store, oldest.id, 300)
+    _set_created_at(store, middle.id, 120)
+
+    assert 300 <= store.oldest_queued_job_age_seconds() < 305
+
+
+def test_oldest_queued_job_age_ignores_jobs_that_are_not_waiting(store):
+    """Only 'queued' counts: a job being created, running or finished is not
+    "waiting with nothing picking it up", however old it is."""
+    creating, _ = store.create_job(source_filename="a.wav", storage_key="k/a")  # stays 'creating'
+    running = _create_queued_job(store, source_filename="b.wav", storage_key="k/b")
+    store.claim_job(running.id, lease_seconds=LEASE_SECONDS)
+    done = _create_queued_job(store, source_filename="c.wav", storage_key="k/c")
+    claimed = store.claim_job(done.id, lease_seconds=LEASE_SECONDS)
+    store.mark_completed(done.id, _fake_transcription_result(), lease_token=claimed.lease_token)
+    waiting = _create_queued_job(store, source_filename="d.wav", storage_key="k/d")
+    for job_id in (creating.id, running.id, done.id):
+        _set_created_at(store, job_id, 1000)
+    _set_created_at(store, waiting.id, 10)
+
+    assert 10 <= store.oldest_queued_job_age_seconds() < 15
+
+
 def test_reconciliation_recovers_a_creation_that_crashed_after_the_storage_write(
     store, storage, queue, monkeypatch
 ):
@@ -1794,6 +1850,34 @@ def test_run_worker_loop_survives_a_failing_idle_tick(
         assert _run_loop_until(
             stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
         ), f"job never completed; the loop died when {tick_method} raised"
+    finally:
+        stop_event.set()
+        thread.join(timeout=5.0)
+
+
+def test_run_worker_loop_survives_a_failing_on_tick_callback(store, storage, queue, monkeypatch):
+    """on_tick is the host's liveness hook (InProcessWorker uses it for
+    /health). A callback that raises must not end the loop -- the same rule as
+    every other step in it."""
+    _stub_inference(monkeypatch)
+    ticks = []
+
+    def flaky_tick():
+        ticks.append(1)
+        if len(ticks) == 1:
+            raise RuntimeError("tick callback blew up")
+
+    stop_event, thread = _start_loop(store, storage, queue, on_tick=flaky_tick)
+    try:
+        assert _run_loop_until(stop_event, lambda: bool(ticks), timeout=5.0), "loop never ticked"
+        # Created only after the failing tick, so only a still-living loop can complete it.
+        job = _create_queued_job(store, source_filename="clip.wav", storage_key="jobs/1/input.wav")
+        storage.write_bytes(job.storage_key, b"fake-audio-bytes")
+        queue.enqueue(job.id)
+        assert _run_loop_until(
+            stop_event, lambda: store.get_job(job.id).status == COMPLETED, timeout=10.0
+        ), "job never completed; the loop died when on_tick raised"
+        assert len(ticks) >= 2
     finally:
         stop_event.set()
         thread.join(timeout=5.0)

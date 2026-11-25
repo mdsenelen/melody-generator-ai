@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import threading
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -86,6 +87,11 @@ RUN_WORKER_IN_PROCESS = os.environ.get("RUN_WORKER_IN_PROCESS", "true").strip().
 # inference.py's _run_generation), so this just bounds how long shutdown
 # waits before moving on regardless.
 DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS = 5.0
+# How often the in-process worker's watchdog checks that its thread is still
+# alive. Only a thread.is_alive() call in the common case, so a short interval
+# costs nothing and bounds how long a dead thread can sit there with new jobs
+# queueing up behind it.
+WORKER_WATCHDOG_INTERVAL_SECONDS = 30.0
 
 # /api/upload used to read the whole request body into memory before any
 # size check ran; a large-enough upload could exhaust memory or (now that
@@ -103,6 +109,123 @@ LOG_DIR = DATA_DIR / "logs"
 
 for directory in (DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, LOG_DIR):
     directory.mkdir(parents=True, exist_ok=True)
+
+
+class InProcessWorker:
+    """Owns the in-process transcription worker thread, plus the liveness
+    signal /health reports for it.
+
+    run_worker_loop guards every per-job path, but nothing catches a failure
+    in the loop itself (a MemoryError on the 512MB tier, or anything the
+    store/queue adapters raise outside those guards). It runs as a daemon
+    thread, so such a failure is completely silent: the process keeps
+    serving, /health keeps saying ok, and every new job queues up behind a
+    worker that no longer exists. Hence a supervisor that can restart the
+    thread, and a heartbeat (the loop's own tick, via run_worker_loop's
+    on_tick) so /health can distinguish "idle" from "not running".
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self._last_tick_at: Optional[float] = None
+        self._restarts = 0
+
+    def start(self) -> None:
+        with self._lock:
+            self._start_locked()
+
+    def _start_locked(self) -> None:
+        self._thread = threading.Thread(
+            target=run_worker_loop,
+            kwargs=dict(
+                store=get_job_store(),
+                queue=get_job_queue(),
+                storage=get_object_storage(),
+                stop_event=self._stop_event,
+                on_tick=self._record_tick,
+            ),
+            name="transcription-worker",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _record_tick(self) -> None:
+        self._last_tick_at = time.monotonic()
+
+    def ensure_running(self) -> bool:
+        """Restart the thread if it died without being asked to stop.
+        Returns True when a restart actually happened."""
+        with self._lock:
+            if self._stop_event.is_set():
+                return False
+            if self._thread is not None and self._thread.is_alive():
+                return False
+            logger.warning(
+                "In-process transcription worker thread is not running; restarting it"
+            )
+            self._restarts += 1
+            self._start_locked()
+            return True
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        with self._lock:
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout=DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            alive = self._thread is not None and self._thread.is_alive()
+            last_tick_at = self._last_tick_at
+            restarts = self._restarts
+        return {
+            "mode": "in_process",
+            "alive": alive,
+            # None until the loop's first tick. Grows while a job is being
+            # processed (the loop is inside process_one_job, not ticking), so
+            # `alive` is the authority on whether the worker exists -- this
+            # only says whether the loop itself has made progress recently.
+            "last_tick_age_seconds": (
+                None if last_tick_at is None else round(time.monotonic() - last_tick_at, 1)
+            ),
+            "restarts": restarts,
+        }
+
+
+_in_process_worker = InProcessWorker()
+
+
+def _worker_status() -> dict[str, Any]:
+    if not RUN_WORKER_IN_PROCESS:
+        # The worker is a separate process (a Render Background Worker in
+        # production), so this process has nothing to report on and must not
+        # claim it's dead -- see RUN_WORKER_IN_PROCESS above.
+        return {"mode": "external"}
+    return _in_process_worker.status()
+
+
+def _queue_status() -> dict[str, Any]:
+    """Best-effort: /health is what the keep-warm ping and any uptime monitor
+    hit, so a store hiccup must not turn "is the web process up" into a 500.
+    Reported as reachable=false instead, with the age unknown."""
+    try:
+        age = get_job_store().oldest_queued_job_age_seconds()
+    except Exception:
+        logger.warning("Could not read the job queue for /health", exc_info=True)
+        return {"reachable": False, "oldest_queued_job_age_seconds": None}
+    return {
+        "reachable": True,
+        "oldest_queued_job_age_seconds": None if age is None else round(age, 1),
+    }
+
+
+async def _watch_in_process_worker() -> None:
+    while True:
+        await asyncio.sleep(WORKER_WATCHDOG_INTERVAL_SECONDS)
+        _in_process_worker.ensure_running()
 
 
 @asynccontextmanager
@@ -130,21 +253,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # here just means that request pays the same retry it always has.
     weights_warm_up_task = asyncio.create_task(inference.warm_up_model_weights())
 
-    worker_stop_event = threading.Event()
-    worker_thread: Optional[threading.Thread] = None
+    worker_watchdog_task: Optional[asyncio.Task] = None
     if RUN_WORKER_IN_PROCESS:
-        worker_thread = threading.Thread(
-            target=run_worker_loop,
-            kwargs=dict(
-                store=get_job_store(),
-                queue=get_job_queue(),
-                storage=get_object_storage(),
-                stop_event=worker_stop_event,
-            ),
-            name="transcription-worker",
-            daemon=True,
-        )
-        worker_thread.start()
+        _in_process_worker.start()
+        worker_watchdog_task = asyncio.create_task(_watch_in_process_worker())
 
     try:
         yield
@@ -153,7 +265,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if warm_up_task is not None:
             warm_up_task.cancel()
         weights_warm_up_task.cancel()
-        worker_stop_event.set()
+        if worker_watchdog_task is not None:
+            worker_watchdog_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
         if warm_up_task is not None:
@@ -161,8 +274,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 await warm_up_task
         with contextlib.suppress(asyncio.CancelledError):
             await weights_warm_up_task
-        if worker_thread is not None:
-            worker_thread.join(timeout=DEFAULT_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
+        if worker_watchdog_task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker_watchdog_task
+        if RUN_WORKER_IN_PROCESS:
+            _in_process_worker.stop()
 
 
 app = FastAPI(
@@ -276,6 +392,8 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "runtime": inference.get_runtime_status(),
+        "worker": _worker_status(),
+        "queue": _queue_status(),
     }
 
 

@@ -57,20 +57,45 @@ async function buildProxyResponse(response: Response) {
   });
 }
 
+// A backend that is down, restarting or still cold is a gateway problem, not a
+// crash in this app. Answering 502 with a JSON detail keeps two things honest:
+// the client's retry policy treats 502/503 as transient (src/domain/retryPolicy),
+// so the UI says "waking up" and retries; and requestJson finds a `detail` to
+// show instead of logging "[request] non-JSON error response". Letting the
+// fetch throw would surface as an empty 500 with no content-type, which the
+// policy classifies as permanent.
+const BACKEND_UNAVAILABLE_DETAIL =
+  "The server is unreachable or restarting. Please try again in a moment.";
+
+function backendUnavailableResponse() {
+  return new NextResponse(JSON.stringify({ detail: BACKEND_UNAVAILABLE_DETAIL }), {
+    status: 502,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 export async function proxyBackendGet(path: string, request?: NextRequest) {
   const headers = new Headers();
   const accept = request?.headers.get("accept");
+  const backendApiUrl = getBackendApiUrl(path);
 
   if (accept) {
     headers.set("accept", accept);
   }
 
-  const response = await fetch(getBackendApiUrl(path), {
-    method: "GET",
-    headers,
-    cache: "no-store",
-    redirect: "manual",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(backendApiUrl, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+      redirect: "manual",
+    });
+  } catch (error) {
+    console.error("[backend proxy] fetch failed", { method: "GET", url: backendApiUrl, error });
+    return backendUnavailableResponse();
+  }
 
   return buildProxyResponse(response);
 }
@@ -120,7 +145,7 @@ export async function proxyBackendRequest(request: NextRequest, path: string) {
       url: backendApiUrl,
       error,
     });
-    throw error;
+    return backendUnavailableResponse();
   }
 
   console.log("[backend proxy] backend response", {
