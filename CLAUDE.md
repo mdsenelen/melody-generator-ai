@@ -74,6 +74,7 @@ Load-bearing facts worth keeping inline because nearly every task touches them:
 - Never commit audio files, model weights, soundfonts, `.env*`, notebook outputs, or anything over 5MB.
 - Never rewrite git history, force-push, or `git add -A` without being asked.
 - If a change touches the FastAPI contract, update the shared TypeScript types in the same commit.
+- Worktrees: before `gh pr merge --delete-branch` or any branch or worktree deletion, run `git worktree list`. Merge without `--delete-branch` while a linked worktree has that branch checked out, and remove the worktree yourself once you are done with it. Keep venvs and downloaded data outside worktrees; a worktree is disposable. (2026-11-25: the `melody-eval` worktree, with its venv and cached data, disappeared right after `gh pr merge 42 --squash --delete-branch`; the cause was never confirmed.)
 
 ## Non-negotiables (every task, every phase)
 
