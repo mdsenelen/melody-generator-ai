@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from app import inference
 from app.jobs import routes as job_routes
 from app.jobs.service import get_job_queue, get_job_store, get_object_storage
-from app.jobs.worker import run_worker_loop
+from app.jobs.worker import get_worker_status, run_worker_loop
 from app.request_limits import MaxBodySizeMiddleware, RequestBodyTooLarge
 from app.schemas import ProcessRequest
 
@@ -276,6 +276,10 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "runtime": inference.get_runtime_status(),
+        # Not part of "status": a stale tick must not make /health fail
+        # (Render health checks / keep-warm pings read it). It exists so a
+        # dead worker thread is visible instead of silent.
+        "worker": {**get_worker_status(), "in_process": RUN_WORKER_IN_PROCESS},
     }
 
 

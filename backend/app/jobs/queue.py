@@ -37,6 +37,12 @@ class InProcessJobQueue:
             return None
 
 
+# Client-side read deadline for every Redis call, and the longest a single
+# BRPOP may block. The deadline must stay comfortably above the block.
+REDIS_SOCKET_TIMEOUT_SECONDS = 30.0
+MAX_BLOCK_SECONDS = 20
+
+
 class RedisJobQueue:
     """Redis-backed queue for production: BRPUSH/BLPOP give cheap blocking
     pickup across multiple worker processes/instances, and the list survives
@@ -51,24 +57,27 @@ class RedisJobQueue:
                 "to requirements.txt / your production environment"
             ) from exc
 
-        # socket_timeout=None (block forever at the OS socket level) is
-        # deliberate: redis-py's own default socket_timeout is 5s (see
-        # redis._defaults.DEFAULT_SOCKET_TIMEOUT), and dequeue() below calls
-        # BRPOP with a server-side blocking timeout derived from the
-        # caller's poll interval, which also defaults to 5s
-        # (worker.DEFAULT_POLL_TIMEOUT_SECONDS). With both set to the same
-        # value, the client's own read deadline races the server's "timed
-        # out, here's nil" response on every empty poll -- observed in
-        # production as dequeue() intermittently raising
-        # redis.exceptions.TimeoutError instead of returning None, which
-        # (before the dequeue() try/except added alongside this fix) killed
-        # the worker loop outright. BRPOP's own timeout argument already
-        # bounds how long the server blocks, so the client doesn't need an
-        # independent, tighter read timeout on top of it. socket_connect_
-        # timeout is kept short (redis-py's own 5s default) so a genuinely
-        # unreachable Redis still fails fast on connect -- this only
-        # affects reads after a connection is already established.
-        self._redis = redis.Redis.from_url(redis_url, socket_timeout=None)
+        # The client read deadline must be finite but strictly longer than any
+        # BRPOP block. Two failure modes pull in opposite directions:
+        #   * too tight (redis-py's default 5s == the worker's 5s poll): the
+        #     client's deadline races BRPOP's server-side "timed out, here's
+        #     nil" reply and dequeue() intermittently raised TimeoutError.
+        #   * unbounded (socket_timeout=None, the previous setting): a
+        #     half-open connection (Redis restarted, an idle flow dropped by
+        #     the network) blocks BRPOP forever with no exception, so the
+        #     worker thread looks alive and consumes nothing. Jobs then sit
+        #     in 'queued' indefinitely -- the 2026-11 production incident.
+        # dequeue() clamps its BRPOP block to MAX_BLOCK_SECONDS, which is
+        # well under REDIS_SOCKET_TIMEOUT_SECONDS, so the two can't race;
+        # keepalive + health checks let a dead connection be noticed and
+        # replaced between blocks. socket_connect_timeout stays short so an
+        # unreachable Redis still fails fast on connect.
+        self._redis = redis.Redis.from_url(
+            redis_url,
+            socket_timeout=REDIS_SOCKET_TIMEOUT_SECONDS,
+            socket_keepalive=True,
+            health_check_interval=15,
+        )
         self._list_key = list_key
 
     def enqueue(self, job_id: str) -> None:
@@ -78,7 +87,7 @@ class RedisJobQueue:
         # brpop's timeout must be a whole number of seconds; round up so a
         # sub-second caller timeout still blocks at least briefly instead of
         # becoming a busy-poll (timeout=0 means "block forever" in Redis).
-        whole_seconds = max(1, int(timeout + 0.999))
+        whole_seconds = min(MAX_BLOCK_SECONDS, max(1, int(timeout + 0.999)))
         item = self._redis.brpop([self._list_key], timeout=whole_seconds)
         if item is None:
             return None
