@@ -1071,6 +1071,71 @@ def test_create_transcription_job_allows_retry_after_permanent_failure(store, st
     assert job2.status == QUEUED
 
 
+def _complete_and_age(store, job_id, *, hours_ago):
+    """Run a job to 'completed', then backdate its finish time -- what the
+    row looks like once DATA_RETENTION_HOURS has passed (the row itself is
+    never deleted, only its files are swept)."""
+    claimed = store.claim_job(job_id, lease_seconds=LEASE_SECONDS)
+    assert store.mark_completed(job_id, _fake_transcription_result(), lease_token=claimed.lease_token)
+    finished = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+    conn = store._connect()
+    try:
+        conn.cursor().execute(
+            store._q("UPDATE transcription_jobs SET completed_at = ?, updated_at = ? WHERE id = ?"),
+            (finished, finished, job_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("upload_id", ["up-789", None], ids=["by-upload-id", "by-content-hash"])
+def test_create_transcription_job_runs_again_once_the_earlier_job_expired(
+    store, storage, queue, monkeypatch, upload_id
+):
+    """Re-submitting a file whose earlier job is past DATA_RETENTION_HOURS
+    must create a new job. The idempotency key used to match the old row
+    forever (rows are never deleted), so the caller got that job back and
+    GET /api/transcribe/{id} then reported it 'expired' -- the same bytes
+    could never be transcribed again."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    job1 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id)
+    queue.dequeue(timeout=0.1)
+    _complete_and_age(store, job1.id, hours_ago=inference.DATA_RETENTION_HOURS + 1)
+
+    job2 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id)
+
+    assert job2.id != job1.id
+    assert job2.status == QUEUED
+    assert queue.dequeue(timeout=0.1) == job2.id
+    # The old row stays as history, and the new job is now the one a retry reuses.
+    assert store.get_job(job1.id).status == COMPLETED
+    queue.dequeue(timeout=0.1)
+    assert service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id=upload_id).id == job2.id
+
+
+def test_create_transcription_job_still_reuses_a_completed_job_within_retention(
+    store, storage, queue, monkeypatch
+):
+    """The other half of the contract: inside the retention window a repeat
+    upload gets the finished result back instead of re-running Basic Pitch."""
+    monkeypatch.setattr(service, "_JOB_STORE", store)
+    monkeypatch.setattr(service, "_JOB_QUEUE", queue)
+    monkeypatch.setattr(service, "_OBJECT_STORAGE", storage)
+
+    job1 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-fresh")
+    queue.dequeue(timeout=0.1)
+    _complete_and_age(store, job1.id, hours_ago=1)
+
+    job2 = service.create_transcription_job(b"audio-bytes", "song.mp3", upload_id="up-fresh")
+
+    assert job2.id == job1.id
+    assert queue.dequeue(timeout=0.1) is None
+
+
 def test_reconciliation_recovers_a_creation_that_crashed_after_the_storage_write(
     store, storage, queue, monkeypatch
 ):
