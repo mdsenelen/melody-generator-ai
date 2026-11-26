@@ -79,4 +79,17 @@ describe("AudioRecorder", () => {
     expect(screen.queryByRole("button", { name: /use this recording/i })).not.toBeInTheDocument();
     expect(onRecordingComplete).not.toHaveBeenCalled();
   });
+
+  // Record and Stop are stacked; "Recording..." is longer than "Stop", so both
+  // must be pinned to the same width or the stack looks ragged mid-recording.
+  it("gives Record and Stop the same width", () => {
+    render(<AudioRecorder onRecordingComplete={jest.fn()} />);
+    const widthClasses = (name: RegExp) =>
+      screen
+        .getByRole("button", { name })
+        .className.split(" ")
+        .filter((c) => /^(w-|max-w-)/.test(c))
+        .sort();
+    expect(widthClasses(/record from microphone/i)).toEqual(widthClasses(/^stop$/i));
+  });
 });

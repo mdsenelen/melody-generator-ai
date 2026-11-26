@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "node scripts/copy-ml-assets.mjs",
     "prebuild": "node scripts/copy-ml-assets.mjs",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "test": "jest",

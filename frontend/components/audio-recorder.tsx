@@ -155,13 +155,13 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
         </div>
       </div>
 
-      <div className="flex flex-1 flex-wrap items-center justify-center gap-3">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <button
           type="button"
           onClick={startRecording}
           aria-label="Record from microphone"
           disabled={isRecording}
-          className="border-primary/60 bg-primary/8 font-display text-foreground hover:border-primary hover:bg-primary/14 inline-flex items-center justify-center gap-3 rounded-[var(--radius)] border px-5 py-3 text-base transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          className="border-primary/60 bg-primary/8 font-display text-foreground hover:border-primary hover:bg-primary/14 inline-flex w-full max-w-xs items-center justify-center gap-3 rounded-[var(--radius)] border px-5 py-3 text-base transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="bg-primary flex h-3.5 w-3.5 items-center justify-center rounded-full" />
           {isRecording ? "Recording..." : "Record from microphone"}
@@ -171,7 +171,7 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
           onClick={stopRecording}
           aria-label="Stop"
           disabled={!isRecording}
-          className="border-border text-secondary-foreground hover:border-border-strong hover:text-foreground rounded-[var(--radius)] border px-5 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+          className="border-border text-secondary-foreground hover:border-border-strong hover:text-foreground inline-flex w-full max-w-xs items-center justify-center rounded-[var(--radius)] border px-5 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-35"
         >
           Stop
         </button>

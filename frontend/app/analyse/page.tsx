@@ -8,12 +8,14 @@ import { ChordDiagram } from "../../components/chord-diagram";
 import { ClipRange, type ClipWindow } from "../../components/clip-range";
 import ErrorBoundary from "../../components/error-boundary";
 import { ErrorToast } from "../../components/error-toast";
+import { NoteRoll } from "../../components/note-roll";
 import { Spinner } from "../../components/spinner";
 import { buttonClass } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { WarningBanner } from "../../components/ui/feedback";
 import { ChordSequence } from "../../components/ui/chord-sequence";
 import { MoodBadge, StatusBadge } from "../../components/ui/badge";
+import { ChordName } from "../../components/ui/chord-name";
 import { PitchHistogram } from "../../components/ui/pitch-histogram";
 import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
@@ -29,6 +31,7 @@ import { topPitchClasses } from "../../utils/pitch";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
 import { useClipAnalysis } from "../../hooks/use-clip-analysis";
 import { usePipeline } from "../../hooks/use-pipeline";
+import { useWaveformPeaks } from "../../hooks/use-waveform-peaks";
 import type { TranscriptionResult } from "../../src/domain/contracts/job";
 import { isCancellation, toTranscriptionError } from "../../src/domain/errors";
 import { SLOW_AFTER_MS, sourceFile, type AudioSource } from "../../src/domain/pipeline";
@@ -112,6 +115,7 @@ export default function AnalysePage() {
     transcription ? { jobId: transcription.jobId, window: clipWindow } : null,
   );
   const analysisData = analysis.status === "ready" ? analysis.data : null;
+  const waveform = useWaveformPeaks(transcription ? selectedFile : null);
 
   // Keep the session summary other pages (generate-variants) read in sync
   // with the window that's currently shown -- but never clobber the real
@@ -435,6 +439,15 @@ export default function AnalysePage() {
                   ) : null}
                 </div>
 
+                <ErrorBoundary>
+                  <NoteRoll
+                    notes={transcription.note_events}
+                    durationSec={transcription.source_duration_sec}
+                    peaks={waveform.status === "ready" ? waveform.peaks : null}
+                    window={clipWindow}
+                  />
+                </ErrorBoundary>
+
                 <div className="border-border bg-background rounded-[var(--radius)] border p-5">
                   <ClipRange
                     sourceDurationSec={transcription.source_duration_sec}
@@ -528,7 +541,9 @@ export default function AnalysePage() {
                               {chordSummary.mostCommon.slice(0, 3).map((entry, index) => (
                                 <span key={entry.chord}>
                                   {index > 0 ? ", " : ""}
-                                  <span className="text-foreground">{entry.chord}</span>
+                                  <span className="text-foreground">
+                                    <ChordName chord={entry.chord} />
+                                  </span>
                                   <span className="text-muted-foreground"> ×{entry.count}</span>
                                 </span>
                               ))}

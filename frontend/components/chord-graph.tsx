@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ChordDiagram } from "./chord-diagram";
+import { ChordName } from "./ui/chord-name";
 import { Button, buttonClass } from "./ui/button";
 import { Slider } from "./ui/slider";
 import { useRenderProgression } from "../hooks/use-render-progression";
@@ -86,7 +87,7 @@ export function ChordGraph({
             {progression.map((chord, index) => (
               <div key={`${chord}-${index}`} className="flex items-center gap-2">
                 <span className="border-border bg-secondary text-foreground rounded-[var(--radius)] border px-3 py-2 font-mono text-sm">
-                  {chord}
+                  <ChordName chord={chord} />
                 </span>
                 {index < progression.length - 1 ? (
                   <span className="text-muted-foreground">→</span>

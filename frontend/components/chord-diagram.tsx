@@ -1,5 +1,8 @@
 "use client";
 
+import { chordNames } from "../src/domain/chordName";
+import { ChordName } from "./ui/chord-name";
+
 type FretDot = {
   string: number;
   fret: number;
@@ -524,6 +527,64 @@ const CHORD_SHAPES: Record<string, ChordShape> = {
     barre: { fret: 2, fromString: 1, toString: 6, finger: 1 },
     baseFret: 2,
   },
+  Cm7: {
+    label: "Cm7",
+    positions: [
+      { string: 4, fret: 5, finger: 3 },
+      { string: 2, fret: 4, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 3, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 3,
+  },
+  Dbm7: {
+    label: "Dbm7",
+    positions: [
+      { string: 4, fret: 6, finger: 3 },
+      { string: 2, fret: 5, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 4, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 4,
+  },
+  Ebm7: {
+    label: "Ebm7",
+    positions: [
+      { string: 4, fret: 8, finger: 3 },
+      { string: 2, fret: 7, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 6, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 6,
+  },
+  Fm7: {
+    label: "Fm7",
+    positions: [{ string: 5, fret: 3, finger: 3 }],
+    barre: { fret: 1, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 1,
+  },
+  Gm7: {
+    label: "Gm7",
+    positions: [{ string: 5, fret: 5, finger: 3 }],
+    barre: { fret: 3, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 3,
+  },
+  Abm7: {
+    label: "Abm7",
+    positions: [{ string: 5, fret: 6, finger: 3 }],
+    barre: { fret: 4, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 4,
+  },
+  Bbm7: {
+    label: "Bbm7",
+    positions: [
+      { string: 4, fret: 3, finger: 3 },
+      { string: 2, fret: 2, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 1, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 1,
+  },
   // ── Sus chords ───────────────────────────────────────────────────────────
   Csus2: {
     label: "Csus2",
@@ -717,7 +778,9 @@ export function ChordDiagram({ chord }: { chord: string }) {
   const shape = resolveChordShape(chord);
   const frets = 5;
   const strings = 6;
-  const label = formatChordLabel(chord);
+  const { primary, alternate } = chordNames(chord);
+  const label = formatChordLabel(primary);
+  const alternateLabel = alternate ? formatChordLabel(alternate) : null;
 
   return (
     <div className="group relative inline-flex">
@@ -726,9 +789,9 @@ export function ChordDiagram({ chord }: { chord: string }) {
         className="border-primary/30 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 focus-visible:border-primary/60 focus-visible:bg-primary/20 focus-visible:ring-primary/60 cursor-pointer rounded-[var(--radius)] border px-3 py-1 font-mono text-xs whitespace-nowrap transition select-none focus-visible:ring-2 focus-visible:outline-none"
         onClick={() => playChord(chord)}
         title="Click to play"
-        aria-label={`Play ${label} chord${shape ? " and show its fingering diagram" : ""}`}
+        aria-label={`Play ${label} chord${alternateLabel ? ` (also called ${alternateLabel})` : ""}${shape ? " and show its fingering diagram" : ""}`}
       >
-        {label}
+        <ChordName chord={chord} format={formatChordLabel} />
       </button>
       <div className="pointer-events-none absolute bottom-full left-1/2 z-30 hidden -translate-x-1/2 pb-3 group-focus-within:block group-hover:block">
         <div className="border-border bg-card rounded-[var(--radius)] border p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
