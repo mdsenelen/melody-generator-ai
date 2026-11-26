@@ -46,6 +46,13 @@ describe("GenerateVariantsPage", () => {
     expect(screen.getByText("A4")).toBeInTheDocument();
   });
 
+  it("offers no Mood or Scale control, because the server ignores both", () => {
+    render(<GenerateVariantsPage />);
+    expect(screen.queryByText("Transformation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Happy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Minor" })).not.toBeInTheDocument();
+  });
+
   it("disables Generate until an audio source is selected", () => {
     render(<GenerateVariantsPage />);
     expect(screen.getByRole("button", { name: /generate variants/i })).toBeDisabled();

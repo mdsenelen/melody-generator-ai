@@ -11,7 +11,6 @@ import { MoodBadge } from "../../components/ui/badge";
 import { buttonClass } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { EmptyState, WarningBanner } from "../../components/ui/feedback";
-import { Pills } from "../../components/ui/pills";
 import { Slider, TemperatureInput } from "../../components/ui/slider";
 import { Label } from "../../components/ui/text";
 import { VariantPicker } from "../../components/ui/variant-picker";
@@ -65,8 +64,6 @@ export default function GenerateVariantsPage() {
   // recording (not uploaded yet), or the last upload kept in the session.
   const [selection, setSelection] = useState<AudioSource | null>(null);
   const [nVariants, setNVariants] = useState(4);
-  const [selectedMood, setSelectedMood] = useState("Neutral");
-  const [selectedScale, setSelectedScale] = useState("Original");
   const [temperatures, setTemperatures] = useState<number[]>(buildDefaultTemperatures(4));
   // An error raised before any run starts (failed upload, nothing chosen).
   const [notice, setNotice] = useState<DomainError | null>(null);
@@ -312,28 +309,6 @@ export default function GenerateVariantsPage() {
                 </button>
               </div>
             ) : null}
-          </div>
-
-          <div className="border-border space-y-4 border-t pt-6">
-            <Label>Transformation</Label>
-            <div>
-              <p className="text-muted-foreground mb-2 text-xs">Mood</p>
-              <Pills
-                options={["Happy", "Neutral", "Sad"]}
-                value={selectedMood}
-                onChange={setSelectedMood}
-                small
-              />
-            </div>
-            <div>
-              <p className="text-muted-foreground mb-2 text-xs">Scale</p>
-              <Pills
-                options={["Original", "Major", "Minor"]}
-                value={selectedScale}
-                onChange={setSelectedScale}
-                small
-              />
-            </div>
           </div>
 
           <div className="border-border border-t pt-6">
