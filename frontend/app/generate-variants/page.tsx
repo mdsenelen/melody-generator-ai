@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { MidiPlayer } from "../../components/midi-player";
+import { GenerationProgress } from "../../components/generation-progress";
 import { Spinner } from "../../components/spinner";
 import { MoodBadge } from "../../components/ui/badge";
 import { buttonClass } from "../../components/ui/button";
@@ -390,7 +391,9 @@ export default function GenerateVariantsPage() {
         {/* Results take the placeholder's slot (right of the controls on wide
             screens, below them on narrow ones) instead of rendering below an
             empty 520px panel. */}
-        {result ? (
+        {loading ? (
+          <GenerationProgress state={run} />
+        ) : result ? (
           <Card className="self-start">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>

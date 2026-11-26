@@ -70,3 +70,27 @@ img {
 *:hover {
   scrollbar-width: thin;
 }
+
+/* Indeterminate progress: a bar segment sliding across the track. Static
+   (a half-filled bar) when the user prefers reduced motion. */
+@keyframes indeterminate-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.progress-indeterminate {
+  width: 40%;
+  animation: indeterminate-slide 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

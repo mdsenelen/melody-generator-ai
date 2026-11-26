@@ -131,3 +131,44 @@ describe("Generate Variants: cancel", () => {
     expect(screen.getByText(/configure on the left/i)).toBeInTheDocument();
   });
 });
+
+describe("Generate Variants: progress panel", () => {
+  it("shows the step panel in the results slot while generating, then the variants", async () => {
+    let finish: (response: Response) => void = () => {};
+    server.use(
+      http.post(
+        "/api/generate-variants",
+        () => new Promise<Response>((resolve) => (finish = resolve)),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    expect(screen.queryByTestId("generation-progress")).not.toBeInTheDocument();
+
+    await chooseClipAndGenerate(user);
+
+    const panel = await screen.findByTestId("generation-progress");
+    expect(panel).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: /generate variants/i })).toBeInTheDocument();
+    expect(screen.queryByText(/configure on the left/i)).not.toBeInTheDocument();
+
+    finish(HttpResponse.json(variantsResponse()));
+
+    expect(await screen.findByRole("heading", { name: /rendered variants/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("generation-progress")).not.toBeInTheDocument();
+  });
+
+  it("removes the panel again when the user cancels", async () => {
+    server.use(http.post("/api/generate-variants", () => new Promise<Response>(() => {})));
+    const user = userEvent.setup();
+    render(<GenerateVariantsPage />);
+    await chooseClipAndGenerate(user);
+    await screen.findByTestId("generation-progress");
+
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("generation-progress")).not.toBeInTheDocument(),
+    );
+  });
+});
