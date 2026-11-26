@@ -702,6 +702,9 @@ function playChord(chord: string) {
 
 // ── Diagram rendering helpers ────────────────────────────────────────────────
 
+// Vertical space reserved above the fretboard for the chord name.
+const TITLE_BAND = 24;
+
 function stringX(stringNumber: number) {
   return 24 + (6 - stringNumber) * 20;
 }
@@ -732,118 +735,128 @@ export function ChordDiagram({ chord }: { chord: string }) {
           {shape ? (
             <svg
               width="168"
-              height="190"
-              viewBox="0 0 168 190"
+              height={190 + TITLE_BAND}
+              viewBox={`0 0 168 ${190 + TITLE_BAND}`}
               className="text-white"
               role="img"
               aria-label={`Guitar fingering diagram for ${shape.label}`}
             >
-              <text x="84" y="18" textAnchor="middle" className="fill-white text-sm font-semibold">
+              <text
+                data-testid="diagram-title"
+                x="84"
+                y="16"
+                textAnchor="middle"
+                className="fill-white text-sm font-semibold"
+              >
                 {shape.label}
               </text>
-              {shape.baseFret && shape.baseFret > 1 ? (
-                <text
-                  x="144"
-                  y="48"
-                  textAnchor="middle"
-                  className="fill-muted-foreground text-[10px]"
-                >
-                  {shape.baseFret}fr
-                </text>
-              ) : null}
-              {Array.from({ length: strings }).map((_, index) => {
-                const stringNumber = 6 - index;
-                const x = stringX(stringNumber);
-                return (
-                  <line
-                    key={`string-${stringNumber}`}
-                    x1={x}
-                    y1="36"
-                    x2={x}
-                    y2="146"
-                    stroke="rgba(255,255,255,0.5)"
-                    strokeWidth="2"
-                  />
-                );
-              })}
-              {Array.from({ length: frets + 1 }).map((_, index) => {
-                const y = 36 + index * 22;
-                return (
-                  <line
-                    key={`fret-${index}`}
-                    x1="24"
-                    y1={y}
-                    x2="124"
-                    y2={y}
-                    stroke="rgba(255,255,255,0.55)"
-                    strokeWidth={
-                      index === 0 && (!shape.baseFret || shape.baseFret === 1) ? "5" : "2"
-                    }
-                  />
-                );
-              })}
-              {shape.barre ? (
-                <>
-                  <line
-                    x1={stringX(shape.barre.toString)}
-                    y1={fretY(shape.barre.fret)}
-                    x2={stringX(shape.barre.fromString)}
-                    y2={fretY(shape.barre.fret)}
-                    stroke="#f59e0b"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                  />
+              {/* Everything below the title lives in its own band, so the open (○) and
+                  muted (×) markers can never collide with the chord name. */}
+              <g data-testid="diagram-body" transform={`translate(0, ${TITLE_BAND})`}>
+                {shape.baseFret && shape.baseFret > 1 ? (
                   <text
-                    x={(stringX(shape.barre.toString) + stringX(shape.barre.fromString)) / 2}
-                    y={fretY(shape.barre.fret) + 4}
+                    x="144"
+                    y="48"
                     textAnchor="middle"
-                    className="fill-black text-[9px] font-bold"
+                    className="fill-muted-foreground text-[10px]"
                   >
-                    {shape.barre.finger}
+                    {shape.baseFret}fr
                   </text>
-                </>
-              ) : null}
-              {shape.positions.map((position) => (
-                <g key={`${position.string}-${position.fret}`}>
-                  <circle
-                    cx={stringX(position.string)}
-                    cy={fretY(position.fret)}
-                    r="8"
-                    fill="#60a5fa"
-                  />
+                ) : null}
+                {Array.from({ length: strings }).map((_, index) => {
+                  const stringNumber = 6 - index;
+                  const x = stringX(stringNumber);
+                  return (
+                    <line
+                      key={`string-${stringNumber}`}
+                      x1={x}
+                      y1="36"
+                      x2={x}
+                      y2="146"
+                      stroke="rgba(255,255,255,0.5)"
+                      strokeWidth="2"
+                    />
+                  );
+                })}
+                {Array.from({ length: frets + 1 }).map((_, index) => {
+                  const y = 36 + index * 22;
+                  return (
+                    <line
+                      key={`fret-${index}`}
+                      x1="24"
+                      y1={y}
+                      x2="124"
+                      y2={y}
+                      stroke="rgba(255,255,255,0.55)"
+                      strokeWidth={
+                        index === 0 && (!shape.baseFret || shape.baseFret === 1) ? "5" : "2"
+                      }
+                    />
+                  );
+                })}
+                {shape.barre ? (
+                  <>
+                    <line
+                      x1={stringX(shape.barre.toString)}
+                      y1={fretY(shape.barre.fret)}
+                      x2={stringX(shape.barre.fromString)}
+                      y2={fretY(shape.barre.fret)}
+                      stroke="#f59e0b"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                    />
+                    <text
+                      x={(stringX(shape.barre.toString) + stringX(shape.barre.fromString)) / 2}
+                      y={fretY(shape.barre.fret) + 4}
+                      textAnchor="middle"
+                      className="fill-black text-[9px] font-bold"
+                    >
+                      {shape.barre.finger}
+                    </text>
+                  </>
+                ) : null}
+                {shape.positions.map((position) => (
+                  <g key={`${position.string}-${position.fret}`}>
+                    <circle
+                      cx={stringX(position.string)}
+                      cy={fretY(position.fret)}
+                      r="8"
+                      fill="#60a5fa"
+                    />
+                    <text
+                      x={stringX(position.string)}
+                      y={fretY(position.fret) + 3}
+                      textAnchor="middle"
+                      className="fill-black text-[9px] font-bold"
+                    >
+                      {position.finger}
+                    </text>
+                  </g>
+                ))}
+                {(shape.open ?? []).map((stringNumber) => (
+                  <g key={`open-${stringNumber}`}>
+                    <circle
+                      cx={stringX(stringNumber)}
+                      cy="20"
+                      r="5"
+                      fill="none"
+                      stroke="#e5e7eb"
+                      strokeWidth="2"
+                    />
+                  </g>
+                ))}
+                {(shape.muted ?? []).map((stringNumber) => (
                   <text
-                    x={stringX(position.string)}
-                    y={fretY(position.fret) + 3}
+                    key={`mute-${stringNumber}`}
+                    x={stringX(stringNumber)}
+                    y="24"
                     textAnchor="middle"
-                    className="fill-black text-[9px] font-bold"
+                    className="fill-red-300 text-xs font-bold"
                   >
-                    {position.finger}
+                    ×
                   </text>
-                </g>
-              ))}
-              {(shape.open ?? []).map((stringNumber) => (
-                <g key={`open-${stringNumber}`}>
-                  <circle
-                    cx={stringX(stringNumber)}
-                    cy="20"
-                    r="5"
-                    fill="none"
-                    stroke="#e5e7eb"
-                    strokeWidth="2"
-                  />
-                </g>
-              ))}
-              {(shape.muted ?? []).map((stringNumber) => (
-                <text
-                  key={`mute-${stringNumber}`}
-                  x={stringX(stringNumber)}
-                  y="24"
-                  textAnchor="middle"
-                  className="fill-red-300 text-xs font-bold"
-                >
-                  ×
-                </text>
-              ))}
+                ))}
+              </g>
             </svg>
           ) : (
             <div className="border-border text-muted-foreground w-36 rounded-[var(--radius)] border border-dashed px-4 py-8 text-center text-xs">
