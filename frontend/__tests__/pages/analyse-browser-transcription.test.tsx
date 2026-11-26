@@ -48,6 +48,12 @@ jest.mock("../../app/lib/transcribeJob", () => {
 });
 
 const mockedEligibility = checkBrowserEligibility as jest.Mock;
+// The waveform lane decodes the file too, which is not what the "no browser
+// transcription" assertions below are about.
+jest.mock("../../hooks/use-waveform-peaks", () => ({
+  useWaveformPeaks: () => ({ status: "idle" }),
+}));
+
 const mockedDecode = decodeToMono22050 as jest.Mock;
 const mockedCreateWorker = createTranscribeWorker as jest.Mock;
 const mockedRegister = registerBrowserTranscription as jest.Mock;

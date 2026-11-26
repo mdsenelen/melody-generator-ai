@@ -8,6 +8,7 @@ import { ChordDiagram } from "../../components/chord-diagram";
 import { ClipRange, type ClipWindow } from "../../components/clip-range";
 import ErrorBoundary from "../../components/error-boundary";
 import { ErrorToast } from "../../components/error-toast";
+import { NoteRoll } from "../../components/note-roll";
 import { Spinner } from "../../components/spinner";
 import { buttonClass } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -29,6 +30,7 @@ import { topPitchClasses } from "../../utils/pitch";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
 import { useClipAnalysis } from "../../hooks/use-clip-analysis";
 import { usePipeline } from "../../hooks/use-pipeline";
+import { useWaveformPeaks } from "../../hooks/use-waveform-peaks";
 import type { TranscriptionResult } from "../../src/domain/contracts/job";
 import { isCancellation, toTranscriptionError } from "../../src/domain/errors";
 import { SLOW_AFTER_MS, sourceFile, type AudioSource } from "../../src/domain/pipeline";
@@ -112,6 +114,7 @@ export default function AnalysePage() {
     transcription ? { jobId: transcription.jobId, window: clipWindow } : null,
   );
   const analysisData = analysis.status === "ready" ? analysis.data : null;
+  const waveform = useWaveformPeaks(transcription ? selectedFile : null);
 
   // Keep the session summary other pages (generate-variants) read in sync
   // with the window that's currently shown -- but never clobber the real
@@ -434,6 +437,15 @@ export default function AnalysePage() {
                     />
                   ) : null}
                 </div>
+
+                <ErrorBoundary>
+                  <NoteRoll
+                    notes={transcription.note_events}
+                    durationSec={transcription.source_duration_sec}
+                    peaks={waveform.status === "ready" ? waveform.peaks : null}
+                    window={clipWindow}
+                  />
+                </ErrorBoundary>
 
                 <div className="border-border bg-background rounded-[var(--radius)] border p-5">
                   <ClipRange
