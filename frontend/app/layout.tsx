@@ -45,7 +45,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-background text-foreground min-h-screen overflow-x-hidden font-sans antialiased">
+      {/* Browser extensions (e.g. Grammarly) add attributes to <body> before React
+          hydrates; suppressHydrationWarning only covers this element's own attributes. */}
+      <body
+        suppressHydrationWarning
+        className="bg-background text-foreground min-h-screen overflow-x-hidden font-sans antialiased"
+      >
         <Providers>
           <div className="flex min-h-screen w-full flex-col">
             <header className="border-border flex flex-col gap-3 border-b px-6 py-4 md:flex-row md:items-center md:justify-between md:px-10">

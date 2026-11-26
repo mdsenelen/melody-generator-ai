@@ -62,4 +62,26 @@ describe("ChordDiagram", () => {
     render(<ChordDiagram chord="Zbogus" />);
     expect(screen.getByText(/diagram unavailable for zbogus/i)).toBeInTheDocument();
   });
+
+  // Every minor-7 the backend can emit (backend/app/chord_utils.py) needs a
+  // fingering, in either spelling of the root.
+  it.each([
+    "Cm7",
+    "C#m7",
+    "Dm7",
+    "D#m7",
+    "Ebm7",
+    "Em7",
+    "Fm7",
+    "F#m7",
+    "Gm7",
+    "G#m7",
+    "Abm7",
+    "Am7",
+    "Bbm7",
+    "Bm7",
+  ])("shows a fingering diagram for %s", (chord) => {
+    render(<ChordDiagram chord={chord} />);
+    expect(screen.getByRole("img", { name: /guitar fingering diagram for/i })).toBeTruthy();
+  });
 });

@@ -524,6 +524,64 @@ const CHORD_SHAPES: Record<string, ChordShape> = {
     barre: { fret: 2, fromString: 1, toString: 6, finger: 1 },
     baseFret: 2,
   },
+  Cm7: {
+    label: "Cm7",
+    positions: [
+      { string: 4, fret: 5, finger: 3 },
+      { string: 2, fret: 4, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 3, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 3,
+  },
+  Dbm7: {
+    label: "Dbm7",
+    positions: [
+      { string: 4, fret: 6, finger: 3 },
+      { string: 2, fret: 5, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 4, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 4,
+  },
+  Ebm7: {
+    label: "Ebm7",
+    positions: [
+      { string: 4, fret: 8, finger: 3 },
+      { string: 2, fret: 7, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 6, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 6,
+  },
+  Fm7: {
+    label: "Fm7",
+    positions: [{ string: 5, fret: 3, finger: 3 }],
+    barre: { fret: 1, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 1,
+  },
+  Gm7: {
+    label: "Gm7",
+    positions: [{ string: 5, fret: 5, finger: 3 }],
+    barre: { fret: 3, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 3,
+  },
+  Abm7: {
+    label: "Abm7",
+    positions: [{ string: 5, fret: 6, finger: 3 }],
+    barre: { fret: 4, fromString: 1, toString: 6, finger: 1 },
+    baseFret: 4,
+  },
+  Bbm7: {
+    label: "Bbm7",
+    positions: [
+      { string: 4, fret: 3, finger: 3 },
+      { string: 2, fret: 2, finger: 2 },
+    ],
+    muted: [6],
+    barre: { fret: 1, fromString: 1, toString: 5, finger: 1 },
+    baseFret: 1,
+  },
   // ── Sus chords ───────────────────────────────────────────────────────────
   Csus2: {
     label: "Csus2",
