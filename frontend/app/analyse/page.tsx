@@ -15,6 +15,7 @@ import { Card } from "../../components/ui/card";
 import { WarningBanner } from "../../components/ui/feedback";
 import { ChordSequence } from "../../components/ui/chord-sequence";
 import { MoodBadge, StatusBadge } from "../../components/ui/badge";
+import { ChordName } from "../../components/ui/chord-name";
 import { PitchHistogram } from "../../components/ui/pitch-histogram";
 import { Label, SectionHeading } from "../../components/ui/text";
 import { UploadButton, type UploadSuccessPayload } from "../../components/upload-button";
@@ -540,7 +541,9 @@ export default function AnalysePage() {
                               {chordSummary.mostCommon.slice(0, 3).map((entry, index) => (
                                 <span key={entry.chord}>
                                   {index > 0 ? ", " : ""}
-                                  <span className="text-foreground">{entry.chord}</span>
+                                  <span className="text-foreground">
+                                    <ChordName chord={entry.chord} />
+                                  </span>
                                   <span className="text-muted-foreground"> ×{entry.count}</span>
                                 </span>
                               ))}
