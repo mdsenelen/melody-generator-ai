@@ -7,6 +7,10 @@ import { LivePitchHistogram } from "./live-pitch-histogram";
 type AudioRecorderProps = {
   onRecordingComplete: (file: File) => void;
   showLivePitch?: boolean;
+  // True while the microphone is capturing, false the moment it stops (or the
+  // recorder goes away). Lets a parent show a "recording" indicator that
+  // can't outlive the recording.
+  onRecordingStateChange?: (recording: boolean) => void;
 };
 
 function getSupportedMimeType() {
@@ -18,7 +22,11 @@ function getSupportedMimeType() {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: AudioRecorderProps) {
+export function AudioRecorder({
+  onRecordingComplete,
+  showLivePitch = false,
+  onRecordingStateChange,
+}: AudioRecorderProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -34,8 +42,17 @@ export function AudioRecorder({ onRecordingComplete, showLivePitch = false }: Au
 
   const analyzerState = useAudioAnalyzer(liveStream, isRecording && showLivePitch);
 
+  const stateChangeRef = useRef(onRecordingStateChange);
+  useEffect(() => {
+    stateChangeRef.current = onRecordingStateChange;
+  });
+  useEffect(() => {
+    stateChangeRef.current?.(isRecording);
+  }, [isRecording]);
+
   useEffect(() => {
     return () => {
+      stateChangeRef.current?.(false);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);

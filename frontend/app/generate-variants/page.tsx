@@ -401,14 +401,12 @@ export default function GenerateVariantsPage() {
                   Rendered variants
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm">
-                  Generated on {result.model_status.device}. Play each melody below, or download the
-                  MIDI.
+                  Play each melody below, or download the MIDI.
                 </p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  Heads up: running a full transcription right after generating variants can make
-                  the server restart. If that happens, wait a few minutes. Your clip is picked up
-                  again automatically. If it has not finished after about 20 minutes, upload it
-                  again.
+                  The server here is small, so if you analyse a full clip right after generating, it
+                  may restart. Your clip isn&apos;t lost, it gets picked up again by itself. If it
+                  still isn&apos;t done after about 20 minutes, just upload it again.
                 </p>
               </div>
               {mood ? <MoodBadge mood={mood} label={`Mood: ${mood}`} /> : null}

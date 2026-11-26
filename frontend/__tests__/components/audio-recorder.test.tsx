@@ -36,6 +36,23 @@ describe("AudioRecorder", () => {
     expect(file).toBeInstanceOf(File);
   });
 
+  it("reports when capture starts and when it stops", async () => {
+    const user = userEvent.setup();
+    const onRecordingStateChange = jest.fn();
+    render(
+      <AudioRecorder
+        onRecordingComplete={jest.fn()}
+        onRecordingStateChange={onRecordingStateChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /record/i }));
+    await waitFor(() => expect(onRecordingStateChange).toHaveBeenLastCalledWith(true));
+
+    await user.click(screen.getByRole("button", { name: /stop/i }));
+    await waitFor(() => expect(onRecordingStateChange).toHaveBeenLastCalledWith(false));
+  });
+
   it("lets the user discard a preview and record again", async () => {
     const user = userEvent.setup();
     render(<AudioRecorder onRecordingComplete={jest.fn()} />);

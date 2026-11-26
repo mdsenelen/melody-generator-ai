@@ -11,6 +11,7 @@ import {
 import { useSessionStore } from "../../app/lib/session-store";
 import {
   createTranscribeJob,
+  getJob,
   pollTranscribeJob,
   TranscribeJobLostError,
 } from "../../app/lib/transcribeJob";
@@ -27,19 +28,38 @@ jest.mock("../../app/lib/waitForBackend", () => ({ waitForBackend: jest.fn() }))
 // The real recorder needs getUserMedia/MediaRecorder; a test only needs a
 // way to hand the page a finished recording.
 jest.mock("../../components/audio-recorder", () => ({
-  AudioRecorder: ({ onRecordingComplete }: { onRecordingComplete: (file: File) => void }) => (
-    <button
-      type="button"
-      onClick={() => onRecordingComplete(new File(["rec"], "take.webm", { type: "audio/webm" }))}
-    >
-      Finish test recording
-    </button>
+  AudioRecorder: ({
+    onRecordingComplete,
+    onRecordingStateChange,
+  }: {
+    onRecordingComplete: (file: File) => void;
+    onRecordingStateChange?: (recording: boolean) => void;
+  }) => (
+    <>
+      <button type="button" onClick={() => onRecordingStateChange?.(true)}>
+        Begin test recording
+      </button>
+      <button type="button" onClick={() => onRecordingStateChange?.(false)}>
+        End test recording
+      </button>
+      <button
+        type="button"
+        onClick={() => onRecordingComplete(new File(["rec"], "take.webm", { type: "audio/webm" }))}
+      >
+        Finish test recording
+      </button>
+    </>
   ),
 }));
 jest.mock("../../app/lib/analyzeClip", () => ({ analyzeClip: jest.fn() }));
 jest.mock("../../app/lib/transcribeJob", () => {
   const actual = jest.requireActual("../../app/lib/transcribeJob");
-  return { ...actual, createTranscribeJob: jest.fn(), pollTranscribeJob: jest.fn() };
+  return {
+    ...actual,
+    createTranscribeJob: jest.fn(),
+    pollTranscribeJob: jest.fn(),
+    getJob: jest.fn(),
+  };
 });
 
 const mockedUploadFile = uploadFile as jest.Mock;
@@ -47,6 +67,7 @@ const mockedWaitForBackend = waitForBackend as jest.Mock;
 const mockedCreateJob = createTranscribeJob as jest.Mock;
 const mockedPollJob = pollTranscribeJob as jest.Mock;
 const mockedAnalyzeClip = analyzeClip as jest.Mock;
+const mockedGetJob = getJob as jest.Mock;
 
 const BASE_RESULT = {
   n_notes: 5,
@@ -96,6 +117,8 @@ async function upload(user: ReturnType<typeof userEvent.setup>, file: File) {
 describe("Analyse page: transcription + clip analysis", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.sessionStorage.clear();
+    useSessionStore.setState({ lastUpload: null });
     global.URL.createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
     global.URL.revokeObjectURL = jest.fn();
     mockedWaitForBackend.mockResolvedValue(undefined);
@@ -368,6 +391,95 @@ describe("Analyse page: transcription + clip analysis", () => {
     );
     expect(stateUpdateWarnings).toHaveLength(0);
     consoleError.mockRestore();
+  });
+
+  describe("coming back to the page", () => {
+    const SAVED = {
+      uploadId: "up-1",
+      filename: "upload_up-1.wav",
+      sourceName: "my-riff.wav",
+      jobId: "job-1",
+      clipWindow: { start: 10, end: 40 },
+      transcription: { chords: [], key: "", moodLabel: "neutral" as const, pitchHistogram: [] },
+    };
+
+    beforeEach(() => {
+      window.sessionStorage.clear();
+      useSessionStore.setState({ lastUpload: null });
+      mockedGetJob.mockResolvedValue({
+        job_id: "job-1",
+        status: "completed",
+        progress: 1,
+        result: { kind: "transcription", data: BASE_RESULT },
+        error: null,
+      });
+    });
+
+    it("shows the earlier transcription and analysis again, on the window the user had", async () => {
+      useSessionStore.setState({ lastUpload: SAVED });
+      renderWithQueryClient(<AnalysePage />, { retry: true });
+
+      expect(await screen.findByRole("heading", { name: "my-riff.wav" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/C major/)).toBeInTheDocument());
+      expect(mockedAnalyzeClip).toHaveBeenCalledWith(
+        { job_id: "job-1", clip_start_sec: 10, clip_end_sec: 40 },
+        expect.anything(),
+      );
+      expect(screen.getByRole("link", { name: /view & download result/i })).toHaveAttribute(
+        "href",
+        "/result/job-1",
+      );
+      expect(mockedUploadFile).not.toHaveBeenCalled();
+      expect(mockedCreateJob).not.toHaveBeenCalled();
+    });
+
+    it("stays empty when nothing was analysed earlier", async () => {
+      renderWithQueryClient(<AnalysePage />, { retry: true });
+      await act(async () => {});
+      expect(mockedGetJob).not.toHaveBeenCalled();
+      expect(screen.queryByText(/clip analysis/i)).not.toBeInTheDocument();
+    });
+
+    it("stays empty, without an error, when the earlier job has expired", async () => {
+      useSessionStore.setState({ lastUpload: SAVED });
+      mockedGetJob.mockResolvedValue({
+        job_id: "job-1",
+        status: "expired",
+        progress: 1,
+        result: null,
+        error: null,
+      });
+      renderWithQueryClient(<AnalysePage />, { retry: true });
+      await waitFor(() => expect(mockedGetJob).toHaveBeenCalled());
+      await act(async () => {});
+      expect(screen.queryByRole("heading", { name: "my-riff.wav" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("remembers the window the user committed", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<AnalysePage />, { retry: true });
+      await upload(user, makeFile("my-riff.wav"));
+      await waitFor(() => expect(screen.getByText(/C major/)).toBeInTheDocument());
+      await waitFor(() =>
+        expect(useSessionStore.getState().lastUpload?.clipWindow).toEqual({ start: 0, end: 60 }),
+      );
+    });
+  });
+
+  describe("the Recording badge", () => {
+    it("shows only while a recording is actually being captured", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<AnalysePage />, { retry: true });
+      await user.click(screen.getByRole("button", { name: /record audio/i }));
+      expect(screen.queryByText("Recording")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Begin test recording" }));
+      expect(screen.getByText("Recording")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "End test recording" }));
+      expect(screen.queryByText("Recording")).not.toBeInTheDocument();
+    });
   });
 
   describe("uploading a recording", () => {

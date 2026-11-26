@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AudioRecorder } from "../../components/audio-recorder";
 import { ChordDiagram } from "../../components/chord-diagram";
@@ -30,11 +30,12 @@ import { createTranscribeJob, pollTranscribeJob } from "../lib/transcribeJob";
 import { topPitchClasses } from "../../utils/pitch";
 import { uploadWhenAwake } from "../lib/uploadWhenAwake";
 import { useClipAnalysis } from "../../hooks/use-clip-analysis";
+import { useRestoredTranscription } from "../../hooks/use-restored-transcription";
 import { usePipeline } from "../../hooks/use-pipeline";
 import { useWaveformPeaks } from "../../hooks/use-waveform-peaks";
 import type { TranscriptionResult } from "../../src/domain/contracts/job";
 import { isCancellation, toTranscriptionError } from "../../src/domain/errors";
-import { SLOW_AFTER_MS, sourceFile, type AudioSource } from "../../src/domain/pipeline";
+import { SLOW_AFTER_MS, sourceFile, sourceName, type AudioSource } from "../../src/domain/pipeline";
 import { describeTranscription } from "../../src/domain/statusCopy";
 
 type Transcription = TranscriptionResult & {
@@ -81,6 +82,8 @@ function createAudioObjectUrl(base64Audio: string, mimeType: string) {
 
 export default function AnalysePage() {
   const [showRecorder, setShowRecorder] = useState(false);
+  // The microphone is capturing right now (not merely the recorder panel open).
+  const [isCapturing, setIsCapturing] = useState(false);
   const [clipWindow, setClipWindow] = useState<ClipWindow>({ start: 0, end: DEFAULT_CLIP_SEC });
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   // An upload that failed before any transcription started (UploadButton).
@@ -95,6 +98,7 @@ export default function AnalysePage() {
   const isTranscribing = pipeline.status === "transcribing";
   const transcription = pipeline.status === "completed" ? pipeline.artifact : null;
   const selectedFile = pipeline.status === "idle" ? null : sourceFile(pipeline.source);
+  const sourceLabel = pipeline.status === "idle" ? null : sourceName(pipeline.source);
   // A job lost to a restart is a known server event, not a failure on the
   // user's end, so it never raises the red toast.
   const errorMessage =
@@ -117,6 +121,33 @@ export default function AnalysePage() {
   const analysisData = analysis.status === "ready" ? analysis.data : null;
   const waveform = useWaveformPeaks(transcription ? selectedFile : null);
 
+  // Coming back to this page (from Progressions, or Back from the result
+  // page) brings the earlier analysis back, once, unless the user has already
+  // started or cancelled something here.
+  const restored = useRestoredTranscription();
+  const handledEarlierRunRef = useRef(false);
+  useEffect(() => {
+    if (!restored || handledEarlierRunRef.current || pipeline.status !== "idle") return;
+    handledEarlierRunRef.current = true;
+    const { runId } = start({ kind: "session", sourceName: restored.sourceName });
+    dispatch({
+      type: "completed",
+      runId,
+      artifact: {
+        ...restored.result,
+        sourceName: restored.sourceName,
+        uploadedFilename: restored.uploadedFilename,
+        jobId: restored.jobId,
+      },
+    });
+    setClipWindow(
+      restored.clipWindow ?? {
+        start: 0,
+        end: Math.min(DEFAULT_CLIP_SEC, Math.max(1, restored.result.source_duration_sec)),
+      },
+    );
+  }, [restored, pipeline.status, start, dispatch]);
+
   // Keep the session summary other pages (generate-variants) read in sync
   // with the window that's currently shown -- but never clobber the real
   // upload id / filename runTranscription stored.
@@ -126,6 +157,7 @@ export default function AnalysePage() {
     if (session) {
       useSessionStore.getState().setLastUpload({
         ...session,
+        clipWindow: { start: analysisData.clip_start_sec, end: analysisData.clip_end_sec },
         transcription: {
           chords: analysisData.detected_chords,
           key: analysisData.key,
@@ -150,6 +182,7 @@ export default function AnalysePage() {
     const { file } = source;
     const uploaded = source.kind === "upload" ? source.stored : null;
     setUploadError(null);
+    handledEarlierRunRef.current = true; // a new run wins over restoring an old one
     // Aborts the previous run; its late events carry a stale runId and are dropped.
     const { runId, signal } = start(source);
 
@@ -306,7 +339,7 @@ export default function AnalysePage() {
             Analyse Audio
           </SectionHeading>
           <div className="flex items-center gap-3">
-            {showRecorder && !transcription ? (
+            {isCapturing ? (
               <StatusBadge variant="error" dot>
                 Recording
               </StatusBadge>
@@ -335,10 +368,10 @@ export default function AnalysePage() {
                 />
               </div>
 
-              {selectedFile ? (
+              {sourceLabel ? (
                 <div className="border-border bg-background text-secondary-foreground mt-5 rounded-[var(--radius)] border p-4 text-sm">
                   <Label>Source</Label>
-                  <p className="text-foreground mt-2">{selectedFile.name}</p>
+                  <p className="text-foreground mt-2">{sourceLabel}</p>
                 </div>
               ) : null}
             </Card>
@@ -366,7 +399,11 @@ export default function AnalysePage() {
 
               {showRecorder ? (
                 <div className="mt-5">
-                  <AudioRecorder onRecordingComplete={handleRecordingComplete} showLivePitch />
+                  <AudioRecorder
+                    onRecordingComplete={handleRecordingComplete}
+                    onRecordingStateChange={setIsCapturing}
+                    showLivePitch
+                  />
                 </div>
               ) : null}
             </Card>

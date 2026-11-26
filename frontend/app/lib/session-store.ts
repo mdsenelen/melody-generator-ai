@@ -20,6 +20,9 @@ export type UploadSession = {
   // app/generate-variants/page.tsx). Optional: a direct upload on
   // generate-variants itself (no prior /analyse trip) has no job to point at.
   jobId?: string;
+  // The clip window (seconds) last analysed, so coming back to /analyse
+  // reopens on the same section instead of the default one.
+  clipWindow?: { start: number; end: number };
 };
 
 type SessionState = {
