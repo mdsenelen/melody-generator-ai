@@ -5,6 +5,8 @@
 export const queryKeys = {
   /** GET /api/transcribe/{jobId}: the status and result of a job of every kind. */
   job: (jobId: string) => [{ scope: "job", jobId }] as const,
+  /** The disabled job query, while there's no job to look up. */
+  noJob: () => [{ scope: "job", jobId: null }] as const,
   /** POST /api/analyze for one clip window of a completed transcription. */
   clipAnalysis: (jobId: string, startSec: number, endSec: number) =>
     [{ scope: "clipAnalysis", jobId, startSec, endSec }] as const,

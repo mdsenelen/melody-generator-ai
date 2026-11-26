@@ -1,13 +1,13 @@
-"""Chord progression scraper.
+"""Chord progression fetcher (not a web scraper).
 
 Combines two sources:
   1. Musicca hardcoded progressions (always available, no credentials needed)
   2. Hooktheory Trends API (optional, requires --username / --password)
 
 Usage:
-  python scripts/scrape_progressions.py
-  python scripts/scrape_progressions.py --username EMAIL --password PW
-  python scripts/scrape_progressions.py --username EMAIL --password PW --depth 4 --min-prob 0.08
+  python scripts/fetch_progressions.py
+  python scripts/fetch_progressions.py --username EMAIL --password PW
+  python scripts/fetch_progressions.py --username EMAIL --password PW --depth 4 --min-prob 0.08
 
 Output: backend/app/data/progressions.json
 """

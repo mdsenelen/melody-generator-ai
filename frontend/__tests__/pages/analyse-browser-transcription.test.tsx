@@ -16,6 +16,7 @@ import {
   pollTranscribeJob,
   registerBrowserTranscription,
 } from "../../app/lib/transcribeJob";
+import { useSessionStore } from "../../app/lib/session-store";
 import { uploadFile } from "../../app/lib/upload";
 import { waitForBackend } from "../../app/lib/waitForBackend";
 import { renderWithQueryClient } from "../../src/test/query/render";
@@ -130,6 +131,8 @@ function expectServerPathWithoutErrorToast() {
 describe("Analyse page: transcription in the browser", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.sessionStorage.clear();
+    useSessionStore.setState({ lastUpload: null });
     jest.spyOn(console, "warn").mockImplementation(() => {});
     global.URL.createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
     global.URL.revokeObjectURL = jest.fn();

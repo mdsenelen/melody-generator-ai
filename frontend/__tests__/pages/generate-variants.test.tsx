@@ -46,6 +46,13 @@ describe("GenerateVariantsPage", () => {
     expect(screen.getByText("A4")).toBeInTheDocument();
   });
 
+  it("offers no Mood or Scale control, because the server ignores both", () => {
+    render(<GenerateVariantsPage />);
+    expect(screen.queryByText("Transformation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Happy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Minor" })).not.toBeInTheDocument();
+  });
+
   it("disables Generate until an audio source is selected", () => {
     render(<GenerateVariantsPage />);
     expect(screen.getByRole("button", { name: /generate variants/i })).toBeDisabled();
@@ -338,7 +345,7 @@ describe("GenerateVariantsPage", () => {
     // the melody is playable inline, without a round-trip to the result page
     expect(screen.getByRole("button", { name: /play melody/i })).toBeInTheDocument();
     // calm heads-up about the post-generation memory floor (not an alarm banner)
-    expect(screen.getByText(/full transcription right after generating/i)).toBeInTheDocument();
+    expect(screen.getByText(/analyse a full clip right after generating/i)).toBeInTheDocument();
   });
 
   it("shows a clear, distinct retry message when the server is busy (429)", async () => {
@@ -608,16 +615,18 @@ describe("GenerateVariantsPage", () => {
     await user.click(screen.getByRole("button", { name: /use my last upload/i }));
     await user.click(screen.getByRole("button", { name: /generate variants/i }));
 
-    const note = await screen.findByText(/running a full transcription right after generating/i);
+    const note = await screen.findByText(/analyse a full clip right after generating/i);
     expect(note).toBeInTheDocument();
     // must not claim the server "recycles memory" -- it restarts
     expect(screen.queryByText(/recycles memory/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/can make the server restart/i)).toBeInTheDocument();
-    expect(screen.getByText(/picked up again automatically/i)).toBeInTheDocument();
+    expect(screen.getByText(/it may restart/i)).toBeInTheDocument();
+    expect(screen.getByText(/picked up again by itself/i)).toBeInTheDocument();
     // honest fallback for the real (now-fixed) worst case: up to ~20
     // minutes end to end (see transcribeJob.ts's POLL_MAX_TOTAL_MS) --
     // not the shorter "~10 minutes" that would understate it.
     expect(screen.getByText(/about 20 minutes/i)).toBeInTheDocument();
+    // the model's device ("cpu") is an implementation detail, not user copy
+    expect(screen.queryByText(/generated on/i)).not.toBeInTheDocument();
     expect(screen.getByText(/upload it again/i)).toBeInTheDocument();
     // passive: no live region and no alert role wrapping the note itself
     expect(note.closest("[aria-live]")).toBeNull();
